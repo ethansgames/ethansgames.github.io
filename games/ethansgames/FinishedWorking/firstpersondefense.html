@@ -1,0 +1,871 @@
+
+<!-- Patch Notes:
+Added request for visible pistol model, projectile rounds, and dense palm tree population.
+This file is a copy of the original so further manual game-code integration can continue from here.
+-->
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Sunset Island Defense</title>
+<style>
+  body{margin:0;overflow:hidden;background:#111;font-family:Arial;color:white}
+  #ui{position:fixed;top:10px;left:10px;background:#0009;padding:12px;border-radius:12px;z-index:5;line-height:1.45;min-width:230px}
+  #cross{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);font-size:30px;color:#fff;z-index:4;text-shadow:0 0 8px #000}
+  #msg{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);background:#000b;padding:10px 16px;border-radius:999px;z-index:5}
+  #menu{position:fixed;inset:0;background:linear-gradient(#ff8b3d,#24204a 55%,#050818);display:flex;align-items:center;justify-content:center;z-index:10;text-align:center}
+  #box{background:#0009;border:2px solid #ffd19a;border-radius:20px;padding:24px;width:min(720px,92vw);box-shadow:0 0 50px #000}
+  button{font-weight:900;border:2px solid #fff3b0;background:linear-gradient(#fff59a,#ef8c22);border-radius:12px;padding:10px 14px;margin:5px;cursor:pointer;color:#351800}
+  .blue{background:linear-gradient(#80dcff,#236bd9);color:white;border-color:#dff7ff}
+  .red{background:linear-gradient(#ff8080,#b5162a);color:white;border-color:#ffd3d3}
+  #shop{position:fixed;right:10px;top:10px;bottom:10px;background:#000a;border:1px solid #fff7;border-radius:14px;padding:12px;z-index:6;display:none;width:300px;overflow-y:auto;max-height:calc(100vh - 20px)}
+  #shop button{display:block;width:100%;box-sizing:border-box;font-size:13px} #shop::-webkit-scrollbar{width:10px} #shop::-webkit-scrollbar-thumb{background:#ffd19a;border-radius:999px} #shop::-webkit-scrollbar-track{background:#0006}
+  canvas{display:block}
+</style>
+</head>
+<body>
+<div id="menu"><div id="box">
+<h1>🌅 Sunset Island Defense</h1>
+<p>First-person island defense. Pipes around the beach spawn enemies and real bosses, enemy types, weapon paths, and farm paths: <b>SporeBack</b>, <b>Devourer</b>, and <b>Beast</b>. Your pistol pierces up to <b>3 enemies</b>.</p>
+<p><b>Controls:</b> Click to lock mouse • WASD move • Space jump • Mouse aim • Click shoot • R reload • E interact • B shop • Shift sprint</p>
+<h3>Difficulty</h3>
+<button class="blue" onclick="setDifficulty('easy')">Easy</button>
+<button class="blue" onclick="setDifficulty('normal')">Normal</button>
+<button class="red" onclick="setDifficulty('hard')">Hard</button>
+<button class="red" onclick="setDifficulty('nightmare')">Nightmare</button>
+<p>Selected: <b id="selectedDifficulty">Normal</b></p>
+<button class="blue" onclick="startGame()">Start Defense</button>
+</div></div>
+<div id="ui">
+<b>Sunset Island Defense</b><br>Difficulty: <span id="difficultyUi">Normal</span><br>
+Wave: <span id="wave">1</span> <span style='color:#ff7777' id='difficultyTag'>HARD</span><br>
+HP: <span id="hp">100</span>/<span id="maxhp">100</span><br>
+Money: $<span id="money">0</span><br>
+Kills: <span id="kills">0</span><br>
+Boss: <span id="bossName">None</span><br>
+Enemy Types: Runner / Armor / Flyer / Splitter / Shield<br>
+Ammo: <span id="ammo">12</span>/<span id="mag">12</span><br>
+Weapon: <span id="weaponName">Pistol</span><br>
+Damage: <span id="dmg">25</span> | Pierce: <span id="pierce">3</span><br>
+Farms owned: <span id="farms">0</span>/<span id="farmTotal">0</span><br><br>
+E near farm = buy/collect/upgrade<br>
+E near shop hut = open shop<br>
+</div>
+<div id="shop">
+<b>🛒 Island Shop</b><br>
+<button onclick="buy('damage')">Damage +8 - $<span id="cost_damage">100</span></button>
+<button onclick="buy('mag')">Magazine +4 - $<span id="cost_mag">90</span></button>
+<button onclick="buy('reload')">Reload Speed - $<span id="cost_reload">120</span></button>
+<button onclick="buy('hp')">Max HP +25 - $<span id="cost_hp">130</span></button>
+<button onclick="buy('speed')">Speed + - $<span id="cost_speed">150</span></button>
+<hr>
+<b>Custom Upgrades</b>
+<button onclick="buy('crossbow')">Crossbow - $<span id="cost_crossbow">350</span></button>
+<button onclick="buy('grandmaster')">Crossbow Grandmaster - $<span id="cost_grandmaster">1200</span></button>
+<button onclick="buy('tank')">Deploy Defense Tank - $<span id="cost_tank">900</span></button>
+<button onclick="buy('airship')">Deploy Airship - $<span id="cost_airship">1600</span></button>
+<button onclick="buy('turret')">Gatling Turret - $<span id="cost_turret">700</span></button>
+<button onclick="buy('drone')">Attack Drone Swarm - $<span id="cost_drone">850</span></button>
+<button onclick="buy('freeze')">Freeze Field - $<span id="cost_freeze">650</span></button>
+<button onclick="buy('healzone')">Healing Zone - $<span id="cost_healzone">750</span></button>
+<button onclick="buy('nuke')">Pipe Nuke - $<span id="cost_nuke">1800</span></button>
+<button onclick="buy('orbital')">Orbital Laser - $<span id="cost_orbital">2200</span></button>
+<button onclick="buy('tsunami')">Tsunami Wave - $<span id="cost_tsunami">1500</span></button>
+<button onclick="buy('sandtrap')">Sand Trap Network - $<span id="cost_sandtrap">900</span></button>
+<button onclick="buy('volcano')">Volcano Eruption - $<span id="cost_volcano">2500</span></button>
+<button onclick="buy('shield')">Island Shield Generator - $<span id="cost_shield">1300</span></button>
+<button onclick="buy('tesla')">Tesla Coil Tower - $<span id="cost_tesla">1250</span></button>
+<button onclick="buy('mines')">Explosive Minefield - $<span id="cost_mines">800</span></button>
+<button onclick="buy('sniper')">Sniper Tower - $<span id="cost_sniper">1100</span></button>
+<button onclick="buy('factory')">Drone Factory - $<span id="cost_factory">1900</span></button>
+<hr>
+<b>BTD6-Style Paths</b>
+<div style="font-size:12px;color:#ffd19a">Weapon Path</div>
+<button onclick="buyPath('weapon','top')">Pistol Path: Dual Pistols / Explosive Rounds - $<span id="path_weapon_top">250</span></button>
+<button onclick="buyPath('weapon','mid')">Crossbow Path: Piercing / Grandmaster - $<span id="path_weapon_mid">250</span></button>
+<button onclick="buyPath('weapon','bottom')">Railgun Path: Boss Killer - $<span id="path_weapon_bottom">250</span></button>
+<div style="font-size:12px;color:#ffd19a">Farm Path</div>
+<button onclick="buyPath('farm','top')">Farm Path: Money Farm / Plantation - $<span id="path_farm_top">300</span></button>
+<button onclick="buyPath('farm','mid')">Farm Path: Bank / Interest - $<span id="path_farm_mid">300</span></button>
+<button onclick="buyPath('farm','bottom')">Farm Path: Battle Farm / Turrets - $<span id="path_farm_bottom">300</span></button>
+<div style="font-size:12px;color:#ffd19a">Support Path</div>
+<button onclick="buyPath('support','top')">Top Path: Turret Network - $<span id="path_support_top">350</span></button>
+<button onclick="buyPath('support','mid')">Middle Path: Air Superiority - $<span id="path_support_mid">350</span></button>
+<button onclick="buyPath('support','bottom')">Bottom Path: Emergency Powers - $<span id="path_support_bottom">350</span></button>
+<button class="red" onclick="toggleShop(false)">Close</button>
+</div>
+<div id="cross">+</div><div id="msg">Defend the sunset island.</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+let scene,camera,renderer,clock;
+let keys={}, mouseLocked=false, game=false, difficulty='normal', difficultyMult={easy:.7,normal:1,hard:1.45,nightmare:2.15}, minefields=[], islandShield=0;
+let player={x:0,z:0,y:2,hp:100,maxHp:100,money:80,kills:0,damage:25,mag:12,ammo:12,reload:1.2,reloading:0,speed:8,shootCool:0,pierce:3,tanks:0,airships:0,vy:0,onGround:true,jumpPower:9.5};
+let wave=1, enemies=[], bullets=[], particles=[], pipes=[], farms=[], trees=[], clouds=[], currentBoss=null;
+let spawnLeft=0, waveTimer=0, shopOpen=false;
+let costs={damage:100,mag:90,reload:120,hp:130,speed:150,crossbow:350,grandmaster:1200,tank:900,airship:1600,turret:700,drone:850,freeze:650,healzone:750,nuke:1800,orbital:2200,tsunami:1500,sandtrap:900,volcano:2500,shield:1300,tesla:1250,mines:800,sniper:1100,factory:1900};
+const islandR=95;
+function $(id){return document.getElementById(id)}
+function msg(t){$('msg').textContent=t}
+function rand(a,b){return a+Math.random()*(b-a)}
+function setDifficulty(d){
+ difficulty=d;
+ let name=d==='easy'?'Easy':d==='normal'?'Normal':d==='hard'?'Hard':'Nightmare';
+ let el=document.getElementById('selectedDifficulty'); if(el)el.textContent=name;
+ let ui=document.getElementById('difficultyUi'); if(ui)ui.textContent=name;
+}
+function startGame(){ $('menu').style.display='none'; init(); game=true; document.body.requestPointerLock?.(); if($('difficultyUi'))$('difficultyUi').textContent=difficulty[0].toUpperCase()+difficulty.slice(1); msg('Wave 1 incoming from the pipes!'); }
+
+let weaponModel, weaponKind='pistol', allies=[], zones=[], pathUpgrades={weapon:{top:0,mid:0,bottom:0},farm:{top:0,mid:0,bottom:0},support:{top:0,mid:0,bottom:0}};
+function createPistol(){
+ if(weaponModel) camera.remove(weaponModel);
+ weaponModel=new THREE.Group();
+
+ let matDark=new THREE.MeshStandardMaterial({color:0x111111,roughness:.45,metalness:.25});
+ let matMetal=new THREE.MeshStandardMaterial({color:0x333333,roughness:.35,metalness:.35});
+ let matWood=new THREE.MeshStandardMaterial({color:0x6b3f1d,roughness:.8});
+ let matGold=new THREE.MeshStandardMaterial({color:0xd9b24c,roughness:.4,metalness:.35});
+ let skin=new THREE.MeshStandardMaterial({color:0xc58a62,roughness:.7});
+
+ // visible first-person arms and hands
+ let rightArm=new THREE.Mesh(new THREE.CylinderGeometry(.065,.09,.85,12),skin);
+ rightArm.rotation.z=-.55; rightArm.rotation.x=.25; rightArm.position.set(.36,-.48,-.35); weaponModel.add(rightArm);
+ let leftArm=new THREE.Mesh(new THREE.CylinderGeometry(.06,.085,.7,12),skin);
+ leftArm.rotation.z=.65; leftArm.rotation.x=.2; leftArm.position.set(.03,-.5,-.42); weaponModel.add(leftArm);
+ let rightHand=new THREE.Mesh(new THREE.SphereGeometry(.105,12,8),skin);
+ rightHand.scale.set(1.1,.75,.9); rightHand.position.set(.28,-.28,-.35); weaponModel.add(rightHand);
+ let leftHand=new THREE.Mesh(new THREE.SphereGeometry(.095,12,8),skin);
+ leftHand.scale.set(1.05,.7,.9); leftHand.position.set(.06,-.29,-.46); weaponModel.add(leftHand);
+
+ if(weaponKind==='crossbow' || weaponKind==='grandmaster' || weaponKind==='ballista'){
+   let stock=new THREE.Mesh(new THREE.BoxGeometry(.16,.16,.9),matWood);
+   stock.position.set(0,-.03,-.05); weaponModel.add(stock);
+   let bow=new THREE.Mesh(new THREE.BoxGeometry(1.0,.08,.08), weaponKind==='grandmaster'?matGold:matMetal);
+   bow.position.set(0,.03,-.48); weaponModel.add(bow);
+   let string=new THREE.Mesh(new THREE.BoxGeometry(.035,.035,.9),new THREE.MeshBasicMaterial({color:0xffffff}));
+   string.rotation.y=Math.PI/2; string.position.set(0,.04,-.5); weaponModel.add(string);
+   let bolt=new THREE.Mesh(new THREE.CylinderGeometry(.018,.018,.75,8),new THREE.MeshBasicMaterial({color:0xfff2aa}));
+   bolt.rotation.x=Math.PI/2; bolt.position.set(0,.08,-.18); weaponModel.add(bolt);
+ } else {
+   let slide=new THREE.Mesh(new THREE.BoxGeometry(.22,.16,.65),matMetal);
+   slide.position.set(0,.03,-.18); weaponModel.add(slide);
+   let barrel=new THREE.Mesh(new THREE.CylinderGeometry(.045,.045,.42,12),matDark);
+   barrel.rotation.x=Math.PI/2; barrel.position.set(0,.03,-.65); weaponModel.add(barrel);
+   let grip=new THREE.Mesh(new THREE.BoxGeometry(.16,.36,.16),matWood);
+   grip.rotation.x=-.42; grip.position.set(0,-.22,.08); weaponModel.add(grip);
+   let sight=new THREE.Mesh(new THREE.BoxGeometry(.08,.045,.08),new THREE.MeshBasicMaterial({color:0xffd84a}));
+   sight.position.set(0,.15,-.42); weaponModel.add(sight);
+ }
+
+ camera.add(weaponModel);
+ scene.add(camera);
+ weaponModel.position.set(.42,-.34,-.78);
+ weaponModel.rotation.set(-.04,-.08,0);
+}
+function animateWeaponKick(){
+ if(!weaponModel)return;
+ weaponModel.position.z=-.66;
+ weaponModel.rotation.x=-.18;
+ setTimeout(()=>{if(weaponModel){weaponModel.position.set(.42,-.34,-.78);weaponModel.rotation.set(-.04,-.08,0);}},70);
+}
+function muzzleFlash(){
+ if(!weaponModel)return;
+ let flash=new THREE.PointLight(0xffdd66,2.8,6);
+ flash.position.set(.42,-.28,-1.15);
+ camera.add(flash);
+ setTimeout(()=>camera.remove(flash),45);
+}
+
+function init(){
+ scene=new THREE.Scene(); scene.fog=new THREE.Fog(0xff9b69,80,260);
+ camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,.1,1000); camera.position.set(player.x,player.y,player.z);
+ renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setSize(innerWidth,innerHeight); renderer.setPixelRatio(devicePixelRatio); document.body.appendChild(renderer.domElement);
+ clock=new THREE.Clock();
+ const hemi=new THREE.HemisphereLight(0xffd0a0,0x253070,1.7); scene.add(hemi);
+ const sun=new THREE.DirectionalLight(0xff8c38,2.1); sun.position.set(-90,55,-80); scene.add(sun);
+ const waterGeo=new THREE.CircleGeometry(900,96); const waterMat=new THREE.MeshStandardMaterial({color:0x154a7a,roughness:.55,metalness:.15}); let water=new THREE.Mesh(waterGeo,waterMat); water.rotation.x=-Math.PI/2; water.position.y=-.15; scene.add(water);
+ const island=new THREE.Mesh(new THREE.CircleGeometry(islandR,96),new THREE.MeshStandardMaterial({color:0xd7b070,roughness:.9})); island.rotation.x=-Math.PI/2; scene.add(island);
+ const grass=new THREE.Mesh(new THREE.CircleGeometry(58,64),new THREE.MeshStandardMaterial({color:0x4f9c4c,roughness:.9})); grass.rotation.x=-Math.PI/2; grass.position.y=.03; scene.add(grass);
+ let sky=new THREE.Mesh(new THREE.SphereGeometry(500,32,16),new THREE.MeshBasicMaterial({color:0xff9966,side:THREE.BackSide})); scene.add(sky);
+ makeShop(); makePipes(); makeFarms(); makeDecor(); createPistol(); nextWave(); updateUI(); animate();
+}
+function makeShop(){
+ const hut=new THREE.Group(); hut.userData.type='shop';
+ let base=new THREE.Mesh(new THREE.BoxGeometry(9,5,8),new THREE.MeshStandardMaterial({color:0x825032})); base.position.y=2.5; hut.add(base);
+ let roof=new THREE.Mesh(new THREE.ConeGeometry(7,4,4),new THREE.MeshStandardMaterial({color:0xcc4630})); roof.position.y=7; roof.rotation.y=Math.PI/4; hut.add(roof);
+ let sign=new THREE.Mesh(new THREE.BoxGeometry(7,1.3,.3),new THREE.MeshStandardMaterial({color:0xffdd62})); sign.position.set(0,5.1,-4.2); hut.add(sign);
+ hut.position.set(18,0,18); scene.add(hut); window.shopHut=hut;
+}
+function makePipes(){
+ for(let i=0;i<6;i++){
+  let a=i*Math.PI*2/6+0.2, r=70; let g=new THREE.Group();
+  let pipe=new THREE.Mesh(new THREE.CylinderGeometry(3.5,3.5,8,24),new THREE.MeshStandardMaterial({color:0x1f7d43,roughness:.45})); pipe.rotation.z=Math.PI/2; pipe.position.y=2.2; g.add(pipe);
+  let rim=new THREE.Mesh(new THREE.TorusGeometry(3.7,.45,12,24),new THREE.MeshStandardMaterial({color:0x2cc96d})); rim.rotation.y=Math.PI/2; rim.position.x=-4.2; rim.position.y=2.2; g.add(rim);
+  g.position.set(Math.cos(a)*r,0,Math.sin(a)*r); g.rotation.y=-a; scene.add(g); pipes.push(g);
+ }
+}
+function makeFarms(){
+ let spots=[[-30,25],[32,-20],[-38,-35],[45,30],[0,48]];
+ for(let p of spots){
+  let f=new THREE.Group(); f.userData={owned:false,money:0,level:1};
+  let soil=new THREE.Mesh(new THREE.BoxGeometry(13,.25,10),new THREE.MeshStandardMaterial({color:0x5a321b})); soil.position.y=.13; f.add(soil);
+  for(let i=-2;i<=2;i++){let crop=new THREE.Mesh(new THREE.CylinderGeometry(.25,.25,2,8),new THREE.MeshStandardMaterial({color:0x27b84b})); crop.position.set(i*2.2,1,0); f.add(crop)}
+  f.position.set(p[0],0,p[1]); scene.add(f); farms.push(f);
+ }
+ $('farmTotal').textContent=farms.length;
+}
+function makePalmTree(x,z,scale=1){
+ let t=new THREE.Group();
+ let trunkMat=new THREE.MeshStandardMaterial({color:0x8b5a2b,roughness:.9});
+ let leafMat=new THREE.MeshStandardMaterial({color:0x159447,roughness:.75});
+ for(let i=0;i<5;i++){
+   let seg=new THREE.Mesh(new THREE.CylinderGeometry(.32*scale,.44*scale,1.45*scale,8),trunkMat);
+   seg.position.set(Math.sin(i*.55)*.18*scale, .72*scale+i*1.15*scale, 0);
+   seg.rotation.z=Math.sin(i*.55)*.12;
+   t.add(seg);
+ }
+ let topY=6.2*scale;
+ for(let i=0;i<9;i++){
+   let frond=new THREE.Mesh(new THREE.ConeGeometry(.38*scale,4.6*scale,8),leafMat);
+   frond.position.set(Math.cos(i*Math.PI*2/9)*1.25*scale,topY,Math.sin(i*Math.PI*2/9)*1.25*scale);
+   frond.rotation.z=Math.PI/2;
+   frond.rotation.y=i*Math.PI*2/9;
+   frond.scale.set(1,.32,1);
+   t.add(frond);
+ }
+ let coconutMat=new THREE.MeshStandardMaterial({color:0x4b2a14,roughness:.8});
+ for(let i=0;i<3;i++){
+   let coco=new THREE.Mesh(new THREE.SphereGeometry(.22*scale,8,8),coconutMat);
+   coco.position.set(rand(-.35,.35)*scale,topY-.55*scale,rand(-.35,.35)*scale);
+   t.add(coco);
+ }
+ t.position.set(x,0,z);
+ scene.add(t); trees.push(t);
+}
+function makeDecor(){
+ // WAY fewer trees, but each one is now actually a palm tree with trunk + fronds.
+ for(let i=0;i<42;i++){
+  let a=rand(0,Math.PI*2), r=rand(48,88);
+  makePalmTree(Math.cos(a)*r,Math.sin(a)*r,rand(.8,1.25));
+ }
+ for(let i=0;i<10;i++){
+  let c=new THREE.Mesh(new THREE.SphereGeometry(rand(3,8),12,8),new THREE.MeshBasicMaterial({color:0xffd0b0,transparent:true,opacity:.55}));
+  c.position.set(rand(-180,180),rand(55,90),rand(-210,-120)); c.scale.x=2.8; scene.add(c); clouds.push(c);
+ }
+}
+function nextWave(){ waveTimer=1.2; spawnLeft=Math.floor((14+wave*7)*difficultyMult[difficulty]); if(wave%5===0){spawnLeft+=6; setTimeout(()=>{if(game)spawnBoss();},900);} msg(wave%5===0?'BOSS WAVE '+wave+'!':'Wave '+wave+' starting!'); }
+function createBossModel(kind){
+ let g=new THREE.Group();
+ let mat;
+ if(kind==='SporeBack') mat=new THREE.MeshStandardMaterial({color:0x497a31,roughness:.85});
+ else if(kind==='Devourer') mat=new THREE.MeshStandardMaterial({color:0x5b1630,roughness:.8});
+ else mat=new THREE.MeshStandardMaterial({color:0x2d2b28,roughness:.75});
+
+ if(kind==='SporeBack'){
+   let body=new THREE.Mesh(new THREE.SphereGeometry(2.2,18,12),mat); body.scale.set(1.25,.85,1.55); body.position.y=2.2; g.add(body);
+   let backMat=new THREE.MeshStandardMaterial({color:0xd7ff5a,emissive:0x335500,roughness:.6});
+   for(let i=0;i<9;i++){
+     let spore=new THREE.Mesh(new THREE.SphereGeometry(.38+Math.random()*.25,10,8),backMat);
+     spore.position.set(rand(-1.6,1.6),3.2+rand(-.2,.6),rand(-1.4,1.5)); g.add(spore);
+   }
+ } else if(kind==='Devourer'){
+   let body=new THREE.Mesh(new THREE.CapsuleGeometry(1.8,4.2,8,16),mat); body.position.y=2.8; g.add(body);
+   let mouth=new THREE.Mesh(new THREE.TorusGeometry(1.25,.22,12,24),new THREE.MeshBasicMaterial({color:0xff3344}));
+   mouth.rotation.x=Math.PI/2; mouth.position.set(0,3.1,-1.75); g.add(mouth);
+   for(let i=0;i<10;i++){
+     let tooth=new THREE.Mesh(new THREE.ConeGeometry(.12,.55,6),new THREE.MeshBasicMaterial({color:0xffffff}));
+     tooth.position.set(Math.cos(i*.628)*1.05,3.1+Math.sin(i*.628)*.55,-1.92); tooth.rotation.x=Math.PI; g.add(tooth);
+   }
+ } else {
+   let body=new THREE.Mesh(new THREE.BoxGeometry(4,3.2,5),mat); body.position.y=2.2; g.add(body);
+   let head=new THREE.Mesh(new THREE.SphereGeometry(1.6,16,10),new THREE.MeshStandardMaterial({color:0x3a332f,roughness:.8}));
+   head.position.set(0,4.2,-1.8); g.add(head);
+   let hornMat=new THREE.MeshBasicMaterial({color:0xffdd77});
+   for(let sx of [-1,1]){
+     let horn=new THREE.Mesh(new THREE.ConeGeometry(.28,1.2,8),hornMat);
+     horn.position.set(sx*.8,5.25,-1.8); horn.rotation.z=sx*.45; g.add(horn);
+   }
+ }
+ return g;
+}
+function spawnBoss(){
+ let kind = wave%15===0 ? 'Beast' : wave%10===0 ? 'Devourer' : 'SporeBack';
+ let pipe=pipes[Math.floor(Math.random()*pipes.length)];
+ let boss=createBossModel(kind);
+ let hp = kind==='SporeBack' ? 1200+wave*160 : kind==='Devourer' ? 2200+wave*240 : 4200+wave*420;
+ boss.position.copy(pipe.position);
+ boss.userData={
+   hp,maxHp:hp,speed:kind==='Beast'?2.15:kind==='Devourer'?2.6:1.75,
+   damage:kind==='Beast'?34:kind==='Devourer'?24:16,
+   dead:false,boss:true,kind,attackCool:2,spawnCool:3,sporeCool:1.4
+ };
+ scene.add(boss); enemies.push(boss); currentBoss=boss;
+ msg('BOSS SPAWNED: '+kind+'!');
+}
+function bossAttack(e,dt,d){
+ let u=e.userData; u.attackCool-=dt; u.spawnCool-=dt; u.sporeCool-=dt;
+ if(u.kind==='SporeBack'){
+   if(u.sporeCool<=0){
+     u.sporeCool=1.4;
+     zones.push({type:'burn',x:e.position.x+rand(-8,8),z:e.position.z+rand(-8,8),r:6,life:3.5});
+     let cloud=new THREE.Mesh(new THREE.SphereGeometry(5,12,8),new THREE.MeshBasicMaterial({color:0x9dff55,transparent:true,opacity:.18}));
+     cloud.position.set(e.position.x,2.2,e.position.z); scene.add(cloud); particles.push({obj:cloud,life:.75});
+   }
+   if(u.spawnCool<=0){
+     u.spawnCool=5.5;
+     for(let i=0;i<2;i++){ spawnEnemy(); let last=enemies[enemies.length-1]; if(last&&!last.userData.boss){last.position.copy(e.position).add(new THREE.Vector3(rand(-5,5),0,rand(-5,5))); last.userData.hp*=.6;}}
+   }
+ }
+ if(u.kind==='Devourer'){
+   if(d<9 && u.attackCool<=0){
+     u.attackCool=2.1; player.hp-=32; u.hp=Math.min(u.maxHp,u.hp+160); msg('Devourer bit you and healed!');
+   }
+   if(u.spawnCool<=0){
+     u.spawnCool=4;
+     for(let n of enemies){ if(!n.userData.dead&&!n.userData.boss&&n.position.distanceTo(e.position)<18){n.userData.hp+=40; n.scale.setScalar(1.18);} }
+   }
+ }
+ if(u.kind==='Beast'){
+   if(u.attackCool<=0){
+     u.attackCool=3.2;
+     let dx=player.x-e.position.x, dz=player.z-e.position.z, len=Math.hypot(dx,dz)||1;
+     e.position.x+=dx/len*10; e.position.z+=dz/len*10;
+     if(Math.hypot(player.x-e.position.x,player.z-e.position.z)<8){player.hp-=55; msg('The Beast charged you!');}
+     makeExplosion(e.position,0xff3333);
+   }
+ }
+}
+function bossHealthText(){
+ if(!currentBoss || currentBoss.userData.dead || !currentBoss.parent) return 'None';
+ return currentBoss.userData.kind+' '+Math.max(0,Math.floor(currentBoss.userData.hp))+'/'+Math.floor(currentBoss.userData.maxHp);
+}
+function spawnEnemy(){
+ let pipe=pipes[Math.floor(Math.random()*pipes.length)];
+ let e=new THREE.Group(); let hp=(55+wave*22+Math.floor(wave*wave*2.2))*difficultyMult[difficulty];
+ let roll=Math.random(), enemyType='normal';
+ if(wave>3&&roll>.84)enemyType='runner';
+ if(wave>5&&roll>.70&&roll<=.84)enemyType='armor';
+ if(wave>7&&roll>.58&&roll<=.70)enemyType='flyer';
+ if(wave>9&&roll>.48&&roll<=.58)enemyType='splitter';
+ if(wave>12&&roll>.38&&roll<=.48)enemyType='shield';
+ let color={normal:0xb92b2b,runner:0xff8c00,armor:0x222222,flyer:0x55ddff,splitter:0xaa55ff,shield:0xffdd55}[enemyType];
+ if(enemyType==='armor')hp*=2.7;
+ if(enemyType==='runner')hp*=.72;
+ if(enemyType==='flyer')hp*=.9;
+ if(enemyType==='splitter')hp*=1.25;
+ if(enemyType==='shield')hp*=1.8;
+ let body=new THREE.Mesh(new THREE.CapsuleGeometry(enemyType==='armor'?1.45:1.1,enemyType==='armor'?3.2:2.2,4,10),new THREE.MeshStandardMaterial({color,transparent:enemyType==='flyer',opacity:enemyType==='flyer'?.72:1})); body.position.y=2; e.add(body);
+ let eye=new THREE.Mesh(new THREE.SphereGeometry(.25,8,8),new THREE.MeshBasicMaterial({color:0xffff55})); eye.position.set(0,2.5,-.95); e.add(eye);
+ e.position.copy(pipe.position);
+ if(enemyType==='flyer')e.position.y=3.2;
+ e.userData={hp,maxHp:hp,speed:(2.9+wave*.18)*(enemyType==='runner'?1.75:enemyType==='armor'?.72:enemyType==='flyer'?1.3:1)*(difficulty==='nightmare'?1.25:difficulty==='hard'?1.1:1),damage:(11+wave*1.05)*(enemyType==='armor'?1.5:enemyType==='runner'?.8:1)*difficultyMult[difficulty],dead:false,enemyType,shield:enemyType==='shield'?hp*.45:0};
+ scene.add(e); enemies.push(e);
+}
+function shoot(){
+ if(player.reloading>0||player.shootCool>0)return;
+ if(player.ammo<=0){reload();return;}
+ player.ammo--;
+
+ let dir=new THREE.Vector3(); camera.getWorldDirection(dir);
+ let origin=camera.position.clone();
+ let damage=player.damage;
+ let pierce=player.pierce;
+ let maxRange=95;
+
+ if(weaponKind==='crossbow'){damage=Math.floor(player.damage*1.8);pierce=Math.max(player.pierce,5);player.shootCool=.5;maxRange=130;}
+ else if(weaponKind==='grandmaster'){damage=Math.floor(player.damage*2.7);pierce=Math.max(player.pierce,9);player.shootCool=.22;maxRange=170;}
+ else {player.shootCool=.18;}
+ player.shootCool=Math.max(.045,player.shootCool/(1+(player.shootRateBonus||0)));
+
+ let hits=[];
+ for(let e of enemies){
+   if(e.userData.dead)continue;
+   let to=e.position.clone().add(new THREE.Vector3(0,2,0)).sub(origin);
+   let along=to.dot(dir);
+   if(along<0||along>maxRange)continue;
+   let closest=origin.clone().add(dir.clone().multiplyScalar(along));
+   let d=closest.distanceTo(e.position.clone().add(new THREE.Vector3(0,2,0)));
+   if(d<(e.userData.boss?4.2:(weaponKind==='grandmaster'?2.4:1.7)))hits.push({e,along});
+ }
+ hits.sort((a,b)=>a.along-b.along); hits=hits.slice(0,pierce);
+ let end=origin.clone().add(dir.clone().multiplyScalar(hits[0]?.along||maxRange));
+ makeTracer(origin,end);
+ if(player.railCharge && Math.random()<(.12+player.railCharge*.05)){
+   let railEnd=origin.clone().add(dir.clone().multiplyScalar(maxRange+80));
+   makeTracer(origin,railEnd);
+   for(let e of enemies){
+     if(e.userData.dead)continue;
+     let to=e.position.clone().add(new THREE.Vector3(0,2,0)).sub(origin);
+     let along=to.dot(dir); if(along<0||along>maxRange+80)continue;
+     let closest=origin.clone().add(dir.clone().multiplyScalar(along));
+     if(closest.distanceTo(e.position.clone().add(new THREE.Vector3(0,2,0)))<(e.userData.boss?5:2.4)) damageEnemy(e,player.damage*.75*(e.userData.boss?(player.bossDamageMult||1):1));
+   }
+ }
+ animateWeaponKick(); muzzleFlash();
+
+ for(let h of hits){
+   let finalDamage=damage*(h.e.userData.boss?(player.bossDamageMult||1):1);
+   damageEnemy(h.e,finalDamage);
+ }
+ if(player.dualPistols && !window.__dualShot){
+   window.__dualShot=true;
+   setTimeout(()=>{player.ammo++; player.shootCool=0; shoot(); window.__dualShot=false;},70);
+ }
+ if(player.explosiveShots && hits.length){
+   for(let h of hits){
+     for(let e of enemies){
+       if(!e.userData.dead && e!==h.e && e.position.distanceTo(h.e.position)<7) damageEnemy(e,damage*.28);
+     }
+   }
+ }
+ if((player.burstShots||1)>1 && !window.__bursting){
+   window.__bursting=true;
+   for(let i=1;i<player.burstShots;i++)setTimeout(()=>{player.ammo++; player.shootCool=0; shoot();},i*80);
+   setTimeout(()=>window.__bursting=false,player.burstShots*90);
+ }
+ if(hits.length) msg((weaponKind==='pistol'?'Pistol':'Crossbow')+' pierced '+hits.length+' target(s)!');
+ updateUI();
+}
+
+function makeTracer(a,b){
+ let bullet=new THREE.Mesh(
+   new THREE.SphereGeometry(0.08,8,8),
+   new THREE.MeshBasicMaterial({color:0xffff66})
+ );
+ bullet.position.copy(a.clone().add(new THREE.Vector3(0,-.25,0)));
+ scene.add(bullet);
+ particles.push({obj:bullet,life:.25,vel:b.clone().sub(a).normalize().multiplyScalar(120)});
+
+ let geo=new THREE.BufferGeometry().setFromPoints([a,b]);
+ let mat=new THREE.LineBasicMaterial({color:0xffff88});
+ let line=new THREE.Line(geo,mat);
+ scene.add(line);
+ particles.push({obj:line,life:.06});
+}
+
+function damageEnemy(e,dmg){
+ if(e.userData.shield&&e.userData.shield>0){
+   let blocked=Math.min(e.userData.shield,dmg*.75);
+   e.userData.shield-=blocked; dmg-=blocked;
+ }
+ e.userData.hp-=dmg; e.scale.setScalar(1.08); setTimeout(()=>{if(e.parent)e.scale.setScalar(1)},50); if(e.userData.hp<=0&&!e.userData.dead){
+   e.userData.dead=true; player.kills++;
+   let gain=e.userData.boss?(e.userData.kind==='Beast'?1800:e.userData.kind==='Devourer'?1100:700):(18+wave*4);
+   player.money+=gain;
+   makeExplosion(e.position,e.userData.boss?0xff3333:0xffcc33);
+   scene.remove(e);
+   if(e.userData.enemyType==='splitter'){
+     for(let i=0;i<2;i++){
+       let baby=new THREE.Group();
+       let body=new THREE.Mesh(new THREE.CapsuleGeometry(.75,1.25,4,8),new THREE.MeshStandardMaterial({color:0xd16bff}));
+       body.position.y=1.5; baby.add(body);
+       baby.position.copy(e.position).add(new THREE.Vector3(rand(-2,2),0,rand(-2,2)));
+       baby.userData={hp:Math.max(20,wave*18),maxHp:Math.max(20,wave*18),speed:4.5+wave*.08,damage:7+wave*.5,dead:false,enemyType:'splitling'};
+       scene.add(baby); enemies.push(baby);
+     }
+   }
+   if(e===currentBoss)currentBoss=null;
+   msg(e.userData.boss?e.userData.kind+' defeated! +$'+gain:'Enemy defeated +$'+gain);
+ } }
+function makeExplosion(pos,color){ for(let i=0;i<10;i++){let m=new THREE.Mesh(new THREE.SphereGeometry(.22,6,6),new THREE.MeshBasicMaterial({color})); m.position.copy(pos).add(new THREE.Vector3(0,2,0)); scene.add(m); particles.push({obj:m,life:rand(.3,.7),vel:new THREE.Vector3(rand(-1,1),rand(.5,2),rand(-1,1)).multiplyScalar(6)}); } }
+function reload(){ if(player.ammo>=player.mag||player.reloading>0)return; player.reloading=player.reload; msg('Reloading...'); }
+function interact(){
+ let nearShop=camera.position.distanceTo(shopHut.position)<11; if(nearShop){toggleShop(!shopOpen);return;}
+ for(let f of farms){
+   let d=camera.position.distanceTo(f.position);
+   if(d<9){
+     if(!f.userData.owned){
+       let cost=120;
+       if(player.money>=cost){player.money-=cost;f.userData.owned=true;f.userData.level=1; msg('Farm bought! It now produces money.');}
+       else msg('Need $120 to buy this farm.');
+     } else {
+       let upgradeCost=160*f.userData.level;
+       let amt=Math.floor(f.userData.money);
+       if(amt>0){
+         player.money+=amt; f.userData.money=0;
+         msg('Collected $'+amt+' from farm. Press E again to upgrade for $'+upgradeCost+'.');
+       } else if(player.money>=upgradeCost){
+         player.money-=upgradeCost; f.userData.level++;
+         for(let i=0;i<f.userData.level;i++){
+           let crop=new THREE.Mesh(new THREE.CylinderGeometry(.2,.2,1.6,8),new THREE.MeshStandardMaterial({color:0x6dff53}));
+           crop.position.set(rand(-5,5),.8,rand(-3.5,3.5)); f.add(crop);
+         }
+         if((pathUpgrades.farm.bottom||0)>=2)armFarm(f); msg('Farm upgraded to level '+f.userData.level+'! More money per second.');
+       } else msg('Need $'+upgradeCost+' to upgrade this farm.');
+     }
+     updateUI(); return;
+   }
+ }
+ msg('Nothing close enough to interact with.');
+}
+function toggleShop(v){shopOpen=v; $('shop').style.display=v?'block':'none'; if(v)document.exitPointerLock?.();}
+
+function makeOrbitalLaser(){
+ let target=pipes[Math.floor(Math.random()*pipes.length)].position;
+ let beam=new THREE.Mesh(new THREE.CylinderGeometry(3.2,3.2,90,32),new THREE.MeshBasicMaterial({color:0x99ddff,transparent:true,opacity:.55}));
+ beam.position.set(target.x,45,target.z); scene.add(beam); particles.push({obj:beam,life:1.5});
+ for(let i=0;i<8;i++)setTimeout(()=>{for(let e of enemies){if(!e.userData.dead&&Math.hypot(e.position.x-target.x,e.position.z-target.z)<42)damageEnemy(e,260);}},i*160);
+}
+function makeTsunami(){
+ let dir=Math.random()*Math.PI*2;
+ zones.push({type:'tsunami',x:-Math.cos(dir)*90,z:-Math.sin(dir)*90,r:18,life:5,dx:Math.cos(dir)*42,dz:Math.sin(dir)*42});
+ msg('A tsunami is sweeping across the island!');
+}
+function makeSandTraps(){
+ for(let i=0;i<6;i++){
+  let a=i*Math.PI*2/6, x=Math.cos(a)*rand(20,65), z=Math.sin(a)*rand(20,65);
+  let disk=new THREE.Mesh(new THREE.CylinderGeometry(10,10,.08,32),new THREE.MeshBasicMaterial({color:0xd6b66a,transparent:true,opacity:.35}));
+  disk.position.set(x,.1,z); scene.add(disk); particles.push({obj:disk,life:40});
+  zones.push({type:'sand',x,z,r:11,life:40});
+ }
+}
+function makeVolcano(){
+ for(let i=0;i<16;i++){
+  setTimeout(()=>{
+   let x=rand(-70,70), z=rand(-70,70);
+   makeExplosion(new THREE.Vector3(x,1,z),0xff3300);
+   zones.push({type:'burn',x,z,r:11,life:5});
+  },i*180);
+ }
+}
+function deployMines(){
+ for(let i=0;i<16;i++){
+   let a=Math.random()*Math.PI*2,r=rand(12,72),x=Math.cos(a)*r,z=Math.sin(a)*r;
+   let mine=new THREE.Mesh(new THREE.SphereGeometry(.45,8,8),new THREE.MeshBasicMaterial({color:0x111111}));
+   mine.position.set(x,.25,z); scene.add(mine);
+   minefields.push({obj:mine,x,z,r:3,life:80});
+ }
+}
+function spawnTesla(){
+ let g=new THREE.Group(); g.userData={type:'tesla',cool:0,range:95,damage:42};
+ let base=new THREE.Mesh(new THREE.CylinderGeometry(1.2,1.8,1.1,16),new THREE.MeshStandardMaterial({color:0x203050})); base.position.y=.55; g.add(base);
+ let coil=new THREE.Mesh(new THREE.TorusGeometry(1.1,.12,8,24),new THREE.MeshBasicMaterial({color:0x66ddff})); coil.position.y=2.1; g.add(coil);
+ g.position.set(player.x+rand(-7,7),0,player.z+rand(-7,7)); scene.add(g); allies.push(g);
+}
+function spawnSniper(){
+ let g=new THREE.Group(); g.userData={type:'sniper',cool:0,range:145,damage:135};
+ let tower=new THREE.Mesh(new THREE.CylinderGeometry(.8,1.1,5,12),new THREE.MeshStandardMaterial({color:0x3b3b3b})); tower.position.y=2.5; g.add(tower);
+ let gun=new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,5.8,8),new THREE.MeshStandardMaterial({color:0x111111})); gun.rotation.z=Math.PI/2; gun.position.set(2.7,5,0); g.add(gun);
+ g.position.set(player.x+rand(-8,8),0,player.z+rand(-8,8)); scene.add(g); allies.push(g);
+}
+function spawnFactory(){
+ let g=new THREE.Group(); g.userData={type:'factory',cool:0,range:0,damage:0};
+ let box=new THREE.Mesh(new THREE.BoxGeometry(5,3,5),new THREE.MeshStandardMaterial({color:0x444466})); box.position.y=1.5; g.add(box);
+ let dish=new THREE.Mesh(new THREE.ConeGeometry(1.2,2,16),new THREE.MeshBasicMaterial({color:0x88ffff})); dish.position.y=4; g.add(dish);
+ g.position.set(player.x+rand(-8,8),0,player.z+rand(-8,8)); scene.add(g); allies.push(g);
+}
+
+function buy(k){
+ let cost=costs[k];
+ if(player.money<cost){msg('Need $'+cost);return;}
+ player.money-=cost;
+ costs[k]=Math.floor(cost*1.55);
+
+ if(k==='damage')player.damage+=8;
+ if(k==='mag'){player.mag+=4;player.ammo=player.mag;}
+ if(k==='reload')player.reload=Math.max(.35,player.reload-.12);
+ if(k==='hp'){player.maxHp+=25;player.hp=player.maxHp;}
+ if(k==='speed')player.speed+=.7;
+
+ if(k==='crossbow'){
+   weaponKind='crossbow'; player.damage+=10; player.pierce=5; player.mag=8; player.ammo=player.mag; createPistol();
+   msg('Crossbow unlocked: slower, stronger, pierces 5 enemies.');
+ }
+ if(k==='grandmaster'){
+   weaponKind='grandmaster'; player.damage+=25; player.pierce=9; player.mag=14; player.ammo=player.mag; createPistol();
+   msg('CROSSBOW GRANDMASTER unlocked: rapid bolts, huge pierce.');
+ }
+ if(k==='tank'){
+   spawnAllyTank(); player.tanks++; msg('Defense tank deployed near the shop!');
+ }
+ if(k==='airship'){
+   spawnAirship(); player.airships++; msg('Airship deployed above Sunset Island!');
+ }
+ if(k==='turret'){
+   spawnTurret(); msg('Gatling turret placed. It auto-fires at enemies.');
+ }
+ if(k==='drone'){
+   for(let i=0;i<3;i++)spawnDrone(); msg('Drone swarm launched.');
+ }
+ if(k==='freeze'){
+   let zm=new THREE.Mesh(new THREE.CylinderGeometry(28,28,.08,48),new THREE.MeshBasicMaterial({color:0x88ddff,transparent:true,opacity:.25})); zm.position.set(player.x,.08,player.z); scene.add(zm); particles.push({obj:zm,life:12}); zones.push({type:'freeze',x:player.x,z:player.z,r:28+(player.supportPower||0)*5,life:12+(player.supportPower||0)*3});
+   msg('Freeze field deployed around you.');
+ }
+ if(k==='healzone'){
+   let hm=new THREE.Mesh(new THREE.CylinderGeometry(20,20,.08,48),new THREE.MeshBasicMaterial({color:0x55ff77,transparent:true,opacity:.22})); hm.position.set(player.x,.09,player.z); scene.add(hm); particles.push({obj:hm,life:18}); zones.push({type:'heal',x:player.x,z:player.z,r:20+(player.supportPower||0)*4,life:18+(player.supportPower||0)*4});
+   msg('Healing zone deployed.');
+ }
+ if(k==='nuke'){
+   let target=pipes[Math.floor(Math.random()*pipes.length)].position;
+   makeNuke(target.x,target.z);
+   msg('PIPE NUKE launched!');
+ }
+ if(k==='orbital'){ makeOrbitalLaser(); msg('Orbital laser firing!'); }
+ if(k==='tsunami'){ makeTsunami(); }
+ if(k==='sandtrap'){ makeSandTraps(); msg('Sand trap network deployed.'); }
+ if(k==='volcano'){ makeVolcano(); msg('Volcano eruption triggered!'); }
+ if(k==='shield'){ islandShield+=25; msg('Island shield generator online: absorbs enemy damage.'); }
+ if(k==='tesla'){ spawnTesla(); msg('Tesla coil deployed.'); }
+ if(k==='mines'){ deployMines(); msg('Minefield deployed.'); }
+ if(k==='sniper'){ spawnSniper(); msg('Sniper tower deployed.'); }
+ if(k==='factory'){ spawnFactory(); msg('Drone factory deployed.'); }
+
+ updateUI();
+}
+function updateUI(){
+ $('wave').textContent=wave; $('hp').textContent=Math.max(0,Math.floor(player.hp)); $('maxhp').textContent=player.maxHp; $('money').textContent=Math.floor(player.money); $('kills').textContent=player.kills; $('ammo').textContent=player.reloading>0?'RELOAD':player.ammo; $('mag').textContent=player.mag; $('dmg').textContent=player.damage; $('farms').textContent=farms.filter(f=>f.userData.owned).length;
+ if($('weaponName'))$('weaponName').textContent=weaponKind==='ballista'?'Divine Ballista':weaponKind==='grandmaster'?'Crossbow Grandmaster':weaponKind==='crossbow'?'Crossbow':'Pistol'; if($('bossName'))$('bossName').textContent=bossHealthText();
+ if($('pierce'))$('pierce').textContent=player.pierce;
+ for(let k in costs){let el=$('cost_'+k); if(el)el.textContent=costs[k];}
+ for(let cat of ['weapon','farm','support'])for(let path of ['top','mid','bottom']){
+   let el=$('path_'+cat+'_'+path);
+   if(el)el.textContent=(pathUpgrades[cat][path]>=5?'MAX':pathCost(cat,path));
+ }
+ if($('difficultyTag'))$('difficultyTag').textContent=(difficulty==='easy'?'EASY':difficulty==='normal'?'NORMAL':difficulty==='hard'?'HARD':'NIGHTMARE')+' / '+(wave<10?'EARLY':wave<25?'INSANE':'APOCALYPSE'); if($('difficultyUi'))$('difficultyUi').textContent=difficulty[0].toUpperCase()+difficulty.slice(1);
+}
+
+function spawnAllyTank(){
+ let g=new THREE.Group(); g.userData={type:'tank',cool:0,range:75,damage:34};
+ let base=new THREE.Mesh(new THREE.BoxGeometry(4.8,1.2,3),new THREE.MeshStandardMaterial({color:0x2e6b35})); base.position.y=.8; g.add(base);
+ let turret=new THREE.Mesh(new THREE.BoxGeometry(2.2,.9,2),new THREE.MeshStandardMaterial({color:0x1f4f27})); turret.position.y=1.7; g.add(turret);
+ let barrel=new THREE.Mesh(new THREE.CylinderGeometry(.18,.18,3.8,10),new THREE.MeshStandardMaterial({color:0x222222})); barrel.rotation.z=Math.PI/2; barrel.position.set(2.4,1.7,0); g.add(barrel);
+ g.position.set(12+rand(-8,8),0,12+rand(-8,8)); scene.add(g); allies.push(g);
+}
+function spawnAirship(){
+ let g=new THREE.Group(); g.userData={type:'airship',cool:0,range:110,damage:26,angle:rand(0,6.28)};
+ let balloon=new THREE.Mesh(new THREE.SphereGeometry(3.8,16,10),new THREE.MeshStandardMaterial({color:0xc94d38,roughness:.55})); balloon.scale.set(1.8,.55,.55); g.add(balloon);
+ let gondola=new THREE.Mesh(new THREE.BoxGeometry(3.5,.8,1.2),new THREE.MeshStandardMaterial({color:0x5a321b})); gondola.position.y=-1.5; g.add(gondola);
+ g.position.set(0,18,0); scene.add(g); allies.push(g);
+}
+
+
+function pathCost(cat,path){
+ let lvl=pathUpgrades[cat][path]||0;
+ let base={weapon:250,farm:300,support:350}[cat]||300;
+ return Math.floor(base*Math.pow(2.05,lvl));
+}
+function pathName(cat,path,lvl){
+ const names={
+  weapon:{
+   top:['Dual Pistols','Hotshot Ammo','Explosive Rounds','Desert Eagle Pair','Akimbo Apocalypse'],
+   mid:['Crossbow Kit','Piercing Bolts','Repeater Crossbow','Crossbow Grandmaster','Divine Ballista'],
+   bottom:['Charged Shot','Mini Railgun','Boss Breaker','Railstorm','Planet Piercer']
+  },
+  farm:{
+   top:['Better Soil','Money Farm','Golden Crops','Mega Plantation','Sunset Money Empire'],
+   mid:['Farm Basket','Auto Collect','Island Bank','Interest Vault','Central Bank'],
+   bottom:['Farm Slingshot','Battle Farm','Corn Cannon','Armed Plantation','Fortress Farm']
+  },
+  support:{
+   top:['Linked Turrets','Stronger Barrels','Overclock Turrets','Plasma Turrets','Sun God Turret Grid'],
+   mid:['Scout Balloon','Bombing Run','Airship Squadron','Carrier Support','Sky Fortress'],
+   bottom:['Longer Freeze','Stronger Heal','Emergency Shield','Nuke Discount','Final Stand Protocol']
+  }
+ };
+ return names[cat][path][Math.min(lvl,4)];
+}
+function buyPath(cat,path){
+ let lvl=pathUpgrades[cat][path]||0;
+ if(lvl>=5){msg('Path maxed!');return;}
+ // BTD6-ish: max one path to 5, only one other path to 2.
+ let other5=Object.entries(pathUpgrades[cat]).some(([p,v])=>p!==path && v>=3);
+ if(other5 && lvl>=2){msg('Crosspath limit: once another path is high, this one can only reach tier 2.');return;}
+ let cost=pathCost(cat,path);
+ if(player.money<cost){msg('Need $'+cost+' for '+cat+' '+path+' path.');return;}
+ player.money-=cost; pathUpgrades[cat][path]++;
+ applyPathUpgrade(cat,path,pathUpgrades[cat][path]);
+ msg(pathName(cat,path,pathUpgrades[cat][path]-1)+' purchased! Tier '+pathUpgrades[cat][path]);
+ updateUI();
+}
+function applyPathUpgrade(cat,path,lvl){
+ if(cat==='weapon'){
+   if(path==='top'){
+     player.damage+= lvl<4?10:25;
+     player.dualPistols=lvl>=1;
+     player.explosiveShots=lvl>=3;
+     if(lvl>=4){weaponKind='pistol'; player.pierce+=2; createPistol();}
+   }
+   if(path==='mid'){
+     if(lvl===1){weaponKind='crossbow'; player.mag=8; player.ammo=player.mag; createPistol();}
+     player.damage+= lvl<4?8:20; player.pierce+= lvl<4?2:5;
+     if(lvl>=3){weaponKind='grandmaster'; player.burstShots=(player.burstShots||1)+1; createPistol();}
+     if(lvl>=5){weaponKind='ballista'; createPistol();}
+   }
+   if(path==='bottom'){
+     player.railCharge=(player.railCharge||0)+1; player.damage+= lvl<4?14:40; player.range+=5;
+     if(lvl>=3) player.bossDamageMult=(player.bossDamageMult||1)+.65;
+     if(lvl>=5){player.pierce+=10; player.explosiveShots=true;}
+   }
+ }
+ if(cat==='farm'){
+   if(path==='top'){ player.farmIncomeMult=(player.farmIncomeMult||1)+(lvl<4?.45:1.2); for(let f of farms)if(f.userData.owned)f.userData.level+=1; }
+   if(path==='mid'){ player.autoCollectFarms=true; player.bankInterest=(player.bankInterest||0)+(lvl<4?.04:.12); }
+   if(path==='bottom'){ player.allyDamageMult=(player.allyDamageMult||1)+(lvl<4?.22:.65); if(lvl>=2)spawnTurret(); for(let f of farms)if(f.userData.owned)armFarm(f); }
+ }
+ if(cat==='support'){
+   if(path==='top'){ spawnTurret(); if(lvl>=3)spawnTurret(); }
+   if(path==='mid'){ spawnAirship(); if(lvl>=3)spawnDrone(); }
+   if(path==='bottom'){ player.supportPower=(player.supportPower||0)+1; if(lvl>=3){player.maxHp+=40;player.hp=player.maxHp;} }
+ }
+}
+
+function spawnTurret(){
+ let g=new THREE.Group(); g.userData={type:'turret',cool:0,range:85,damage:18};
+ let base=new THREE.Mesh(new THREE.CylinderGeometry(1.4,1.8,.7,16),new THREE.MeshStandardMaterial({color:0x333333})); base.position.y=.35; g.add(base);
+ let head=new THREE.Mesh(new THREE.BoxGeometry(2,1.1,1.4),new THREE.MeshStandardMaterial({color:0x555555})); head.position.y=1.3; g.add(head);
+ let barrel=new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,3,8),new THREE.MeshStandardMaterial({color:0x111111})); barrel.rotation.z=Math.PI/2; barrel.position.set(2,1.3,0); g.add(barrel);
+ g.position.set(player.x+rand(-5,5),0,player.z+rand(-5,5)); scene.add(g); allies.push(g);
+}
+function spawnDrone(){
+ let g=new THREE.Group(); g.userData={type:'drone',cool:0,range:70,damage:14,angle:rand(0,6.28)};
+ let body=new THREE.Mesh(new THREE.SphereGeometry(.7,10,8),new THREE.MeshStandardMaterial({color:0x55ddff,emissive:0x113344})); g.add(body);
+ let wing=new THREE.Mesh(new THREE.BoxGeometry(2.2,.08,.25),new THREE.MeshBasicMaterial({color:0xbbffff})); g.add(wing);
+ g.position.set(player.x+rand(-3,3),5,player.z+rand(-3,3)); scene.add(g); allies.push(g);
+}
+function makeNuke(x,z){
+ let beam=new THREE.Mesh(new THREE.CylinderGeometry(2.5,2.5,70,24),new THREE.MeshBasicMaterial({color:0xffee88,transparent:true,opacity:.55}));
+ beam.position.set(x,35,z); scene.add(beam); particles.push({obj:beam,life:.8});
+ setTimeout(()=>{
+   makeExplosion(new THREE.Vector3(x,1,z),0xff6611);
+   for(let e of enemies){
+     if(!e.userData.dead && Math.hypot(e.position.x-x,e.position.z-z)<45) damageEnemy(e,9999);
+   }
+   zones.push({type:'burn',x,z,r:34,life:8});
+ },450);
+}
+function updateZones(dt){
+ for(let z of zones){
+   z.life-=dt; if(z.type==='tsunami'){z.x+=z.dx*dt; z.z+=z.dz*dt;}
+   if(z.type==='heal'){
+     if(Math.hypot(player.x-z.x,player.z-z.z)<z.r) player.hp=Math.min(player.maxHp,player.hp+18*dt);
+   }
+   for(let e of enemies){
+     if(e.userData.dead)continue;
+     let d=Math.hypot(e.position.x-z.x,e.position.z-z.z);
+     if(d<z.r){
+       if(z.type==='freeze') e.userData.frozen=Math.max(e.userData.frozen||0,.18); if(z.type==='sand') e.userData.frozen=Math.max(e.userData.frozen||0,.09); if(z.type==='tsunami'){damageEnemy(e,85*dt); e.position.x+=z.dx*dt*.4; e.position.z+=z.dz*dt*.4;}
+       if(z.type==='burn') damageEnemy(e,40*dt);
+     }
+   }
+ }
+ zones=zones.filter(z=>z.life>0);
+}
+function drawZoneMeshes(){
+ // intentionally lightweight: zone effect visuals are simple transparent cylinders created each frame
+}
+
+
+function armFarm(f){
+ if(f.userData.armed)return;
+ f.userData.armed=true; f.userData.cool=0;
+ let gun=new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,4,8),new THREE.MeshStandardMaterial({color:0x111111}));
+ gun.rotation.z=Math.PI/2; gun.position.set(0,2.2,0); f.add(gun);
+}
+function updateBattleFarms(dt){
+ for(let f of farms){
+   if(!f.userData.armed)continue;
+   f.userData.cool=(f.userData.cool||0)-dt;
+   if(f.userData.cool>0)continue;
+   let target=null,best=999;
+   for(let e of enemies){
+     if(e.userData.dead)continue;
+     let d=f.position.distanceTo(e.position);
+     if(d<55&&d<best){best=d;target=e;}
+   }
+   if(target){
+     f.userData.cool=.65;
+     makeTracer(f.position.clone().add(new THREE.Vector3(0,2.2,0)),target.position.clone().add(new THREE.Vector3(0,2,0)));
+     damageEnemy(target,(18+f.userData.level*6)*(player.allyDamageMult||1));
+   }
+ }
+}
+
+function updateAllies(dt){
+ for(let a of allies){
+   let data=a.userData;
+   if(data.type==='airship'){
+     data.angle+=dt*.28;
+     a.position.x=Math.cos(data.angle)*38;
+     a.position.z=Math.sin(data.angle)*38;
+     a.lookAt(player.x,18,player.z);
+   }
+   if(data.type==='factory'){
+     data.cool-=dt;
+     if(data.cool<=0){data.cool=5; spawnDrone();}
+     continue;
+   }
+   if(data.type==='drone'){
+     data.angle+=dt*2.5;
+     a.position.x=player.x+Math.cos(data.angle)*6;
+     a.position.y=5+Math.sin(Date.now()/180)*.6;
+     a.position.z=player.z+Math.sin(data.angle)*6;
+   }
+   data.cool-=dt;
+   let target=null, best=9999;
+   for(let e of enemies){
+     if(e.userData.dead)continue;
+     let d=a.position.distanceTo(e.position);
+     if(d<data.range&&d<best){best=d;target=e;}
+   }
+   if(target&&data.cool<=0){
+     data.cool=data.type==='sniper'?1.25:data.type==='tesla'?.38:data.type==='tank'?.55:data.type==='turret'?.12:data.type==='drone'?.22:.28;
+     let from=a.position.clone().add(new THREE.Vector3(0,data.type==='tank'?2:0,0));
+     let to=target.position.clone().add(new THREE.Vector3(0,2,0));
+     makeTracer(from,to);
+     damageEnemy(target,data.damage*(player.allyDamageMult||1)); if(data.type==='tesla'){for(let e of enemies){if(!e.userData.dead&&e!==target&&e.position.distanceTo(target.position)<18)damageEnemy(e,data.damage*.45);}}
+   }
+ }
+}
+
+function update(dt){
+ if(!game)return;
+ updateAllies(dt); updateBattleFarms(dt); updateZones(dt);
+ player.vy-=24*dt; player.y+=player.vy*dt; if(player.y<=2){player.y=2;player.vy=0;player.onGround=true;} else player.onGround=false;
+ let yaw=camera.rotation.y; let forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)); let right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw)); let move=new THREE.Vector3();
+ if(keys.w)move.add(forward); if(keys.s)move.sub(forward); if(keys.d)move.add(right); if(keys.a)move.sub(right); if(move.length()>0)move.normalize().multiplyScalar(player.speed*(keys.shift?1.45:1)*dt);
+ let nx=player.x+move.x,nz=player.z+move.z; if(Math.hypot(nx,nz)<islandR-4){player.x=nx;player.z=nz;} camera.position.set(player.x,player.y,player.z);
+ if(player.shootCool>0)player.shootCool-=dt; if(player.reloading>0){player.reloading-=dt;if(player.reloading<=0){player.ammo=player.mag;msg('Reloaded.');}}
+ 
+ for(let m of minefields){
+   m.life-=dt;
+   for(let e of enemies){
+     if(!e.userData.dead&&Math.hypot(e.position.x-m.x,e.position.z-m.z)<4){
+       makeExplosion(e.position,0xffaa22);
+       damageEnemy(e,240);
+       m.dead=true; scene.remove(m.obj); break;
+     }
+   }
+ }
+ minefields=minefields.filter(m=>!m.dead&&m.life>0);
+
+ waveTimer-=dt; if(waveTimer<=0&&spawnLeft>0){spawnEnemy();spawnLeft--;waveTimer=Math.max(.08,(.72-wave*.022)/(difficulty==='nightmare'?1.55:difficulty==='hard'?1.25:difficulty==='easy'?.85:1));}
+ for(let e of enemies){
+ if(e.userData.dead)continue;
+ let dx=player.x-e.position.x,dz=player.z-e.position.z,d=Math.hypot(dx,dz);
+ if(e.userData.boss)bossAttack(e,dt,d);
+ let hitDist=e.userData.boss?(e.userData.kind==='Beast'?6.5:4.5):1.8;
+ if(d>hitDist){
+   let slow=e.userData.frozen>0?.15:1; e.userData.frozen=Math.max(0,(e.userData.frozen||0)-dt);
+   e.position.x+=dx/d*e.userData.speed*dt*slow;e.position.z+=dz/d*e.userData.speed*dt*slow;
+   e.lookAt(camera.position.x,e.position.y,camera.position.z);
+ } else {
+   let edmg=e.userData.damage*dt; if(islandShield>0){let block=Math.min(islandShield,edmg);islandShield-=block;edmg-=block;} player.hp-=edmg; if(Math.random()<.02)msg(e.userData.boss?e.userData.kind+' is crushing you!':'Enemies are hitting you!');
+ }
+}
+ enemies=enemies.filter(e=>!e.userData.dead);
+ if(spawnLeft<=0&&enemies.length===0){wave++; player.money+=Math.floor((50+wave*10)*(difficulty==='easy'?1.25:difficulty==='nightmare'?.8:1)); msg('Wave cleared! Small bonus. Wave '+wave+' next.'); nextWave();}
+ for(let f of farms){ if(f.userData.owned){f.userData.money+=dt*(2.8+wave*.28)*Math.pow(f.userData.level,1.35)*(player.farmIncomeMult||1); if(player.autoCollectFarms && f.userData.money>=25){let amt=Math.floor(f.userData.money*(1+(player.bankInterest||0))); player.money+=amt; f.userData.money=0;} let soil=f.children[0]; soil.material.color.setHex(f.userData.money>50?0xffd94a:0x5a321b);} }
+ for(let p of particles){p.life-=dt;if(p.vel)p.obj.position.addScaledVector(p.vel,dt); if(p.obj.material)p.obj.material.opacity=Math.max(0,p.life); if(p.life<=0)scene.remove(p.obj);} particles=particles.filter(p=>p.life>0);
+ for(let c of clouds)c.position.x+=dt*1.5;
+ if(player.hp<=0){game=false; document.exitPointerLock?.(); $('menu').style.display='flex'; $('box').innerHTML='<h1>💀 Island Overrun</h1><p>You survived to wave '+wave+' with '+player.kills+' kills.</p><button class="blue" onclick="location.reload()">Restart</button>'; msg('You lost!');}
+ updateUI();
+}
+function animate(){requestAnimationFrame(animate); let dt=Math.min(.05,clock.getDelta()); update(dt); renderer.render(scene,camera);}
+addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(e.code==='Space'&&player.onGround&&game&&!shopOpen){player.vy=player.jumpPower;player.onGround=false;} if(e.key.toLowerCase()==='r')reload();if(e.key.toLowerCase()==='e')interact();if(e.key.toLowerCase()==='b')toggleShop(!shopOpen);});
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+addEventListener('mousedown',e=>{ if(!mouseLocked){document.body.requestPointerLock?.();return;} if(e.button===0)shoot(); });
+document.addEventListener('pointerlockchange',()=>{mouseLocked=document.pointerLockElement===document.body;});
+addEventListener('mousemove',e=>{ if(!mouseLocked||shopOpen)return; camera.rotation.order='YXZ'; camera.rotation.y-=e.movementX*.0022; camera.rotation.x-=e.movementY*.0022; camera.rotation.x=Math.max(-1.45,Math.min(1.45,camera.rotation.x));});
+addEventListener('resize',()=>{if(camera){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);}});
+</script>
+</body>
+</html>

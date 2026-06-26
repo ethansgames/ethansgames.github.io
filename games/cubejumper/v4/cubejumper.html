@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GD Runner</title>
+<style>
+@font-face{font-family:Pusab;src:url("../../fonts/pusab.otf") format("opentype");font-display:block}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#294998;font-family:Pusab,Arial,Helvetica,sans-serif}
+#wrap{width:100vw;height:100vh;display:flex;align-items:center;justify-content:center}
+#stage{position:relative;width:min(100vw,1200px);aspect-ratio:16/9;max-height:100vh;overflow:hidden;background:#294998}
+#bluebackground{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none}
+canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:auto;z-index:1}
+#playerButton{position:absolute;right:14px;bottom:14px;z-index:2;padding:10px 14px;border:2px solid #fff;border-radius:10px;background:rgba(0,0,0,.45);color:#fff;font:bold 16px Pusab,Arial,sans-serif;cursor:pointer;user-select:none;text-shadow:none}
+
+.rainbow {
+  background-image:"linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet)";
+  -webkit-background-clip:"text";
+  background-clip: "text";
+  -webkit-text-fill-color: "transparent";
+  color:"transparent";
+}
+.resetrainbow {
+  background-image:"";
+  -webkit-background-clip: "";
+  background-clip:"";
+  -webkit-text-fill-color: "";
+  color:"";
+}
+#playerButton:hover{background:rgba(0,0,0,.65)}
+.hudText,.centerText{
+  position:absolute;
+  z-index:3;
+  color:#fff;
+  font-family:Pusab,Arial,Helvetica,sans-serif;
+  font-weight:bold;
+  letter-spacing:0.4px;
+  -webkit-text-stroke:0.5px #000;
+  text-shadow:none;
+  user-select:none;
+  pointer-events:none;
+  white-space:pre;
+}
+.hudText,.smallerCenterText{
+  position:absolute;
+  z-index:3;
+  color:#fff;
+  font-family:Pusab,Arial,Helvetica,sans-serif;
+  font-weight:bold;
+  letter-spacing:0.4px;
+  -webkit-text-stroke:0.5px #000;
+  text-shadow:none;
+  user-select:none;
+  pointer-events:none;
+  white-space:pre;
+  font-size:36px;
+}
+#hudLeft{left:18px;top:16px;font-size:24px;line-height:1.45}
+#hudRight{right:18px;top:16px;font-size:24px;line-height:1.45;text-align:left}
+#startTitle{left:50%;top:30%;transform:translateX(-50%);font-size:40px;text-align:center}
+#startCredit{left:50%;top:calc(30% + 52px);transform:translateX(-50%);font-size:24px;text-align:center}
+#startSub{left:50%;top:calc(30% + 86px);transform:translateX(-50%);font-size:24px;text-align:center}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <button id="playerButton" type="button" class="resetrainbow">Player 1</button>
+    <video id="bluebackground" src="bluebackground.mp4" muted loop playsinline preload="auto"></video>
+    <canvas id="game"></canvas>
+    <div id="hudLeft" class="hudText"></div>
+    <div id="hudRight" class="hudText"></div>
+    <div id="startTitle" class="centerText">GD Runner</div>
+    <div id="startCredit" class="smallerCenterText">by GrepBDS because Ethan likes Geometry Dash.</div>
+    <div id="startSub" class="centerText">SPACE / UP / CLICK</div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  
+  const LOGICAL_W = 960;
+  const LOGICAL_H = 540;
+
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+  const bgVideo = document.getElementById("bluebackground");
+  const playerButton = document.getElementById("playerButton");
+  const hudLeft = document.getElementById("hudLeft");
+  const hudRight = document.getElementById("hudRight");
+  const startTitle = document.getElementById("startTitle");
+  const startSub = document.getElementById("startSub");
+  const startCredit = document.getElementById("startCredit");
+
+  function fitCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(LOGICAL_W * dpr);
+    canvas.height = Math.round(LOGICAL_H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.textRendering = "geometricPrecision";
+  }
+
+  fitCanvas();
+  window.addEventListener("resize", fitCanvas);
+
+  const blockImg = new Image();
+  const spikeImg = new Image();
+  const playerImg = new Image();
+
+  blockImg.src = "block.png";
+  spikeImg.src = "spike.png";
+
+  let playernum = Number(localStorage.getItem("robtopDinoPlayerNum_simple_v1") || 1);
+
+  function loadPlayerImage() {
+    if (!Number.isFinite(playernum) || playernum < 1 || playernum > 6) playernum = 1;
+    playerImg.src = "player" + playernum + ".png";
+    /*if (playernum != 2) {
+      playerButton
+      playerButton.textContent = "Cube " + playernum.toString(); 
+    } else {
+      playerButton.className = "rainbow";
+      playerButton.textContent = "Witherstorm0663";
+    }*/
+    if (playernum != 2) {
+      playerButton.style.backgroundImage = "";
+      playerButton.style.webkitBackgroundClip = ""; 
+      playerButton.style.backgroundClip = ""; 
+      playerButton.style.webkitTextFillColor = ""; 
+      playerButton.style.color = ""; 
+      playerButton.textContent = "Cube " + playernum.toString(); 
+      }
+       else 
+      { playerButton.style.backgroundImage = "linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet)"; 
+      playerButton.style.webkitBackgroundClip = "text"; 
+      playerButton.style.backgroundClip = "text"; 
+      playerButton.style.webkitTextFillColor = "transparent"; 
+      playerButton.style.color = "transparent"; 
+      playerButton.textContent = "Witherstorm0663"; }
+    localStorage.setItem("robtopDinoPlayerNum_simple_v1", String(playernum));
+  }
+
+  loadPlayerImage();
+
+  playerButton.addEventListener("pointerdown", e => e.stopPropagation());
+  playerButton.addEventListener("click", e => {
+    e.stopPropagation();
+    playernum++;
+    if (playernum > 6) playernum = 1;
+    loadPlayerImage();
+  });
+
+  const W = LOGICAL_W;
+  const H = LOGICAL_H;
+  const tile = 48;
+  const groundY = H - tile * 2.15;
+  const playerSize = tile * 0.9;
+  const playerX = W * 0.18;
+
+  const gravity = 2550;
+  const jumpVel = -835;
+
+  const saveKey = "GDJumper_bestTime";
+  const attemptKey = "GDJumper_attempts";
+
+  const player = {
+    x: playerX,
+    y: groundY - playerSize,
+    vy: 0,
+    angle: 0,
+    targetAngle: 0,
+    jumpStartAngle: 0,
+    jumpEndAngle: 0,
+    jumpElapsed: 0,
+    jumpDuration: 1,
+    rotatingJump: false,
+    grounded: true
+  };
+
+  let camera = 0;
+  let jumps = 0;
+  let attempts = Number(localStorage.getItem(attemptKey) || 0);
+  let time = 0;
+  let bestTime = Number(localStorage.getItem(saveKey) || 0);
+  let started = false;
+  let last = performance.now();
+
+  let jumpHeld = false;
+  let pointerHeld = false;
+
+  const map = [];
+  let generatedUntilTile = 0;
+  let nextSpikeTile = 11;
+  let spikeFakeTime = 0;
+  let mapSeed = Math.floor(Math.random() * 2147483647);
+  let rngState = mapSeed;
+
+  function clamp01(v) {
+    return Math.max(0, Math.min(1, v));
+  }
+
+  function seededRandom() {
+    rngState = (rngState * 1664525 + 1013904223) >>> 0;
+    return rngState / 4294967296;
+  }
+
+  function newMapSeed() {
+    mapSeed = Math.floor(Math.random() * 2147483647);
+    rngState = mapSeed;
+  }
+
+  function currentSpeed(t = time) {
+    return 360 + t * 2;
+  }
+
+  function anyJumpHeld() {
+    return jumpHeld || pointerHeld;
+  }
+
+  function spikeGroupSize(t) {
+    if (t < 15) return 1;
+
+    const doubleChance = clamp01(0.18 + (t - 15) * 0.012);
+    const tripleChance = t < 45 ? 0 : clamp01(0.12 + (t - 45) * 0.015);
+
+    const r = seededRandom();
+    if (t >= 45 && r < tripleChance) return 3;
+    if (r < tripleChance + doubleChance) return 2;
+    return 1;
+  }
+
+  function gapAfterGroup(t, groupSize) {
+    const speed = currentSpeed(t);
+    let gap = 6 + Math.floor(seededRandom() * 4);
+
+    if (speed > 650) gap += 1;
+    if (speed > 850) gap += 1;
+    if (groupSize === 2) gap += 1;
+    if (groupSize === 3) gap += 2;
+
+    // Past 60 seconds, increase density instead of spacing back out.
+    if (t > 60) gap -= Math.min(3, Math.floor((t - 60) / 20));
+
+    return Math.max(4, gap);
+  }
+
+  function clearMap(makeNewMap = false) {
+    map.length = 0;
+    generatedUntilTile = 0;
+    nextSpikeTile = 11;
+    spikeFakeTime = 0;
+    if (makeNewMap) newMapSeed();
+    else rngState = mapSeed;
+  }
+
+  function ensureMapGenerated(worldTileEnd) {
+    while (generatedUntilTile <= worldTileEnd) {
+      map[generatedUntilTile] = { block: true, spike: false };
+      generatedUntilTile++;
+    }
+
+    while (nextSpikeTile < worldTileEnd - 8) {
+      const group = spikeGroupSize(spikeFakeTime);
+
+      for (let j = 0; j < group; j++) {
+        const idx = nextSpikeTile + j;
+        while (generatedUntilTile <= idx) {
+          map[generatedUntilTile] = { block: true, spike: false };
+          generatedUntilTile++;
+        }
+        map[idx].spike = true;
+      }
+
+      const gap = gapAfterGroup(spikeFakeTime, group);
+      nextSpikeTile += group + gap;
+      spikeFakeTime += (group + gap) * tile / Math.max(360, currentSpeed(spikeFakeTime));
+    }
+
+    // Keep memory tiny by deleting far-behind tiles.
+    const keepFrom = Math.max(0, Math.floor(camera / tile) - 80);
+    for (let i = 0; i < keepFrom; i++) {
+      if (map[i]) delete map[i];
+    }
+  }
+
+  function pauseAndRewindVideo() {
+    bgVideo.pause();
+    try { bgVideo.currentTime = 0; } catch {}
+  }
+
+  function startBackgroundVideo() {
+    if (started) {
+      bgVideo.muted = true;
+      bgVideo.loop = true;
+      bgVideo.play().catch(() => {});
+    }
+  }
+
+  function resetGame() {
+    camera = 0;
+    jumps = 0;
+    time = 0;
+    started = false;
+
+    player.x = playerX;
+    player.y = groundY - playerSize;
+    player.vy = 0;
+    player.angle = 0;
+    player.targetAngle = 0;
+    player.jumpStartAngle = 0;
+    player.jumpEndAngle = 0;
+    player.jumpElapsed = 0;
+    player.jumpDuration = 1;
+    player.rotatingJump = false;
+    player.grounded = true;
+
+    clearMap(true);
+    ensureMapGenerated(80);
+    pauseAndRewindVideo();
+  }
+
+  function die() {
+    attempts++;
+    localStorage.setItem(attemptKey, String(attempts));
+
+    if (time > bestTime) {
+      bestTime = time;
+      localStorage.setItem(saveKey, String(bestTime));
+    }
+
+    resetGame();
+  }
+
+  function estimateJumpDuration() {
+    // For y(t)=v*t+0.5*g*t^2, landing time is about -2v/g.
+    return Math.max(0.15, (-2 * jumpVel) / gravity);
+  }
+
+  function doJump() {
+    started = true;
+    startBackgroundVideo();
+
+    player.vy = jumpVel;
+    player.grounded = false;
+
+    player.jumpStartAngle = player.angle;
+    player.jumpEndAngle = player.jumpStartAngle + Math.PI / 2;
+    player.targetAngle = player.jumpEndAngle;
+    player.jumpElapsed = 0;
+    player.jumpDuration = estimateJumpDuration();
+    player.rotatingJump = true;
+
+    jumps++;
+  }
+
+  function tryJump() {
+    if (player.grounded) {
+      doJump();
+    } else {
+      started = true;
+      startBackgroundVideo();
+    }
+  }
+
+  function setHeld(v) {
+    jumpHeld = v;
+    if (v) tryJump();
+  }
+
+  window.addEventListener("keydown", e => {
+    if (e.code === "Space" || e.code === "ArrowUp") {
+      e.preventDefault();
+      setHeld(true);
+    }
+  });
+
+  window.addEventListener("keyup", e => {
+    if (e.code === "Space" || e.code === "ArrowUp") {
+      e.preventDefault();
+      setHeld(false);
+    }
+  });
+
+  window.addEventListener("pointerdown", () => {
+    pointerHeld = true;
+    tryJump();
+  });
+
+  window.addEventListener("pointerup", () => {
+    pointerHeld = false;
+  });
+
+  window.addEventListener("pointercancel", () => {
+    pointerHeld = false;
+  });
+
+  function hitRect(a, b) {
+    return a.x < b.x + b.w &&
+           a.x + a.w > b.x &&
+           a.y < b.y + b.h &&
+           a.y + a.h > b.y;
+  }
+
+  function checkSpikes() {
+    const playerBox = {
+      x: player.x + playerSize * 0.13,
+      y: player.y + playerSize * 0.13,
+      w: playerSize * 0.74,
+      h: playerSize * 0.74
+    };
+
+    const first = Math.floor((camera + playerX - tile * 2) / tile);
+
+    for (let i = first; i <= first + 10; i++) {
+      if (!map[i] || !map[i].spike) continue;
+
+      const sx = i * tile - camera;
+      const spikeBox = {
+        x: sx + tile * 0.18,
+        y: groundY - tile * 0.88,
+        w: tile * 0.64,
+        h: tile * 0.8
+      };
+
+      if (hitRect(playerBox, spikeBox)) die();
+    }
+  }
+
+  function update(dt) {
+    dt = Math.min(dt, 1 / 20);
+
+    if (started) {
+      time += dt;
+      camera += currentSpeed() * dt;
+      ensureMapGenerated(Math.floor(camera / tile) + 80);
+    }
+
+    player.vy += gravity * dt;
+    player.y += player.vy * dt;
+
+    const floor = groundY - playerSize;
+
+    if (player.y >= floor) {
+      player.y = floor;
+      player.vy = 0;
+
+      const wasAirborne = !player.grounded;
+      player.grounded = true;
+      player.angle = player.jumpEndAngle;
+      player.targetAngle = player.jumpEndAngle;
+      player.rotatingJump = false;
+
+      if ((wasAirborne || anyJumpHeld()) && anyJumpHeld()) {
+        doJump();
+      }
+    } else {
+      player.grounded = false;
+
+      if (player.rotatingJump) {
+        player.jumpElapsed += dt;
+
+        // Finish the 90° clockwise rotation at 3/4 of the jump,
+        // then hold that angle until the cube lands.
+        const rotationDuration = player.jumpDuration * 0.75;
+        const t = Math.min(1, player.jumpElapsed / rotationDuration);
+
+        player.angle = player.jumpStartAngle + (player.jumpEndAngle - player.jumpStartAngle) * t;
+      }
+    }
+
+    if (started) checkSpikes();
+  }
+
+  function drawImg(img, x, y, w, h) {
+    if (img.complete && img.naturalWidth > 0) {
+      ctx.drawImage(img, x, y, w, h);
+    } else {
+      ctx.fillStyle = "#111";
+      ctx.fillRect(x, y, w, h);
+    }
+  }
+
+  function drawMap() {
+    const start = Math.max(0, Math.floor(camera / tile) - 2);
+    const end = start + Math.ceil(W / tile) + 6;
+
+    ensureMapGenerated(end + 10);
+
+    for (let i = start; i < end; i++) {
+      const cell = map[i];
+      if (!cell) continue;
+
+      const x = Math.round(i * tile - camera);
+
+      drawImg(blockImg, x, groundY, tile, tile);
+      drawImg(blockImg, x, groundY + tile, tile, tile);
+
+      if (cell.spike) {
+        drawImg(spikeImg, x, groundY - tile, tile, tile);
+      }
+    }
+  }
+
+  function drawPlayer() {
+    ctx.save();
+    ctx.translate(player.x + playerSize / 2, player.y + playerSize / 2);
+    ctx.rotate(player.angle);
+
+    if (playerImg.complete && playerImg.naturalWidth > 0) {
+      ctx.drawImage(playerImg, -playerSize / 2, -playerSize / 2, playerSize, playerSize);
+    } else {
+      ctx.fillStyle = "#ffe600";
+      ctx.fillRect(-playerSize / 2, -playerSize / 2, playerSize, playerSize);
+      ctx.fillStyle = "#111";
+      ctx.font = "bold 10px Pusab, Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("P" + playernum, 0, 0);
+    }
+
+    ctx.restore();
+  }
+
+  function fmt(t) {
+    return t.toFixed(2) + "s";
+  }
+
+  function updateHudDom() {
+    hudLeft.textContent = "JUMPS: " + jumps + "\nATTEMPTS: " + attempts;
+    hudRight.textContent =
+      "TIME: " + fmt(time) + "\n" +
+      "BEST: " + fmt(bestTime) + "\n" +
+      "SPEED: " + Math.round(currentSpeed(time));
+
+    const showStart = !started;
+    startTitle.style.display = showStart ? "block" : "none";
+    startCredit.style.display = showStart ? "block" : "none";
+    startSub.style.display = showStart ? "block" : "none";
+  }
+
+  function draw() {
+    fitCanvas();
+
+    ctx.clearRect(0, 0, W, H);
+
+    ctx.fillStyle = "rgba(255,255,255,0.04)";
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.strokeStyle = "rgba(255,255,255,0.95)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, groundY + tile * 2);
+    ctx.lineTo(W, groundY + tile * 2);
+    ctx.stroke();
+
+    drawMap();
+    drawPlayer();
+    updateHudDom();
+  }
+
+  function frame(now) {
+    const dt = (now - last) / 1000;
+    last = now;
+
+    update(dt);
+    draw();
+
+    requestAnimationFrame(frame);
+  }
+
+  resetGame();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

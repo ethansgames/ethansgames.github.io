@@ -1,0 +1,3590 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><title>POPCORN FINAL</title>
+<style>body{margin:0;overflow:hidden;background:black;}canvas{position:absolute;top:0;left:0;}</style>
+</head><body><canvas id="c"></canvas><script>
+const c=document.getElementById("c"),ctx=c.getContext("2d");
+let W=innerWidth,H=innerHeight;c.width=W;c.height=H;
+
+let phase=1,dead=0,alive=1,keys={};
+const bossActive={butter:1,salt:0,fire:0,magnet:0};
+
+onkeydown=e=>keys[e.key.toLowerCase()]=1;
+onkeyup=e=>keys[e.key.toLowerCase()]=0;
+
+const player={x:W/2,y:H/2,r:15};
+function movePlayer(){
+ if(!alive)return;let s=3;
+ if(keys.w)player.y-=s;if(keys.s)player.y+=s;
+ if(keys.a)player.x-=s;if(keys.d)player.x+=s;
+ if(player.x<player.r)player.x=player.r;
+ if(player.x>W-player.r)player.x=W-player.r;
+ if(player.y<player.r)player.y=player.r;
+ if(player.y>H-player.r)player.y=H-player.r;
+}
+
+class CPU{
+ constructor(){
+  this.alive=1;this.r=10;
+  this.x=Math.random()*W;this.y=Math.random()*H;
+  this.vx=Math.random()*2-1;this.vy=Math.random()*2-1;
+ }
+ update(){
+  if(!this.alive)return;
+  this.x+=this.vx;this.y+=this.vy;
+  if(this.x<this.r||this.x>W-this.r)this.vx*=-1;
+  if(this.y<this.r||this.y>H-this.r)this.vy*=-1;
+ }
+ draw(){
+  if(!this.alive)return;
+  ctx.fillStyle="#4bf";ctx.beginPath();
+  ctx.arc(this.x,this.y,this.r,0,6.28);ctx.fill();
+ }
+}
+
+let cpus=[...Array(60)].map(_=>new CPU());
+function hit(ax,ay,ar,bx,by,br){return Math.hypot(ax-bx,ay-by)<ar+br}
+
+let bw=[],bb=[],sw=[],sb=[],srw=[],srd=[],fw=[],fb=[],bars=[],mb=[],beam=[],magStart=0,magStarted=0;
+function clearAllAttacks(){bw=[];bb=[];sw=[];sb=[];srw=[];srd=[];fw=[];fb=[];bars=[];mb=[];beam=[];}
+// BUTTER PHASE 1
+function butterAtk(){
+ let cx=W/2,cy=120,o=Math.random()*6.28;
+ for(let i=0;i<20;i++){
+  let a=o+i*(6.28/20);
+  bw.push({x1:cx,y1:cy,x2:cx+Math.cos(a)*2000,y2:cy+Math.sin(a)*2000,life:2});
+ }
+ setTimeout(()=>{
+  for(let i=0;i<20;i++){
+   let a=o+i*(6.28/20);
+   bb.push({x:cx,y:cy,vx:Math.cos(a)*2,vy:Math.sin(a)*2,r:7});
+  }
+ },2000);
+}
+setInterval(()=>{if(phase==1)butterAtk()},3500);
+
+
+// SALT PHASE 2
+function saltShot(){
+ let cx=W/2,cy=150,t=[player,...cpus.filter(c=>c.alive)],
+     T=t[Math.floor(Math.random()*t.length)],
+     dx=T.x-cx,dy=T.y-cy,d=Math.hypot(dx,dy)||1;
+ sw.push({x1:cx,y1:cy,x2:cx+dx/d*2000,y2:cy+dy/d*2000,life:2});
+ setTimeout(()=>sb.push({x:cx,y:cy,vx:dx/d*3,vy:dy/d*3,r:7}),2000);
+}
+
+function saltRain(){
+ for(let i=0;i<20;i++){
+  let rx=Math.random()*W;
+  srw.push({x:rx,y:H-30,r:20,life:2});
+  setTimeout(()=>srd.push({x:rx,y:-20,r:10,vy:7}),2000);
+ }
+}
+
+setInterval(()=>{if(phase==2)saltShot()},2500);
+setInterval(()=>{if(phase==2)saltRain()},3500);
+
+
+// FIRE PHASE 3
+function fireAtk(){
+ let cx=W/2,cy=150,o=Math.random()*6.28;
+ for(let i=0;i<5;i++){
+  let a=o+i*(6.28/5);
+  fw.push({x1:cx,y1:cy,x2:cx+Math.cos(a)*2000,y2:cy+Math.sin(a)*2000,life:2});
+ }
+ setTimeout(()=>{
+  for(let i=0;i<5;i++){
+   let a=o+i*(6.28/5);
+   fb.push({x:cx,y:cy,vx:Math.cos(a)*3,vy:Math.sin(a)*3,r:9});
+  }
+ },2000);
+}
+
+function spawnBars(){
+ bars.push({x:W/2,y:-150,vx:2,vy:2,a:0,n:12});
+ bars.push({x:W/2,y:H+150,vx:-2,vy:-2,a:0,n:12});
+}
+
+setInterval(()=>{if(phase==3)fireAtk()},3500);
+setInterval(()=>{if(phase==3)spawnBars()},4000);
+
+
+// MAGNETRON PHASE 4
+function magProj(){
+ let cx=W/2,cy=150;
+ for(let i=0;i<40;i++){
+  if(i%5==0)continue;
+  let a=i*(6.28/40);
+  mb.push({x:cx,y:cy,vx:Math.cos(a)*1.3,vy:Math.sin(a)*1.3,r:8});
+ }
+}
+
+function magBeam(){
+ let cx=W/2,cy=150;
+ beam=[
+  {cx,cy,a:0,life:3},
+  {cx,cy,a:1.57,life:3},
+  {cx,cy,a:3.14,life:3},
+  {cx,cy,a:4.71,life:3}
+ ];
+}
+
+setInterval(()=>{if(phase==4)magProj()},1500);
+setInterval(()=>{if(phase==4)magBeam()},8000);
+// DRAW + COLLISIONS
+
+// Warnings
+function drawWarnings(){
+ // Butter
+ bw=bw.filter(w=>w.life>0);
+ for(let w of bw){
+  ctx.strokeStyle="red";ctx.lineWidth=10;
+  ctx.beginPath();ctx.moveTo(w.x1,w.y1);ctx.lineTo(w.x2,w.y2);ctx.stroke();
+  w.life-=0.02;
+ }
+ // Salt aimed
+ sw=sw.filter(w=>w.life>0);
+ for(let w of sw){
+  ctx.strokeStyle="red";ctx.lineWidth=10;
+  ctx.beginPath();ctx.moveTo(w.x1,w.y1);ctx.lineTo(w.x2,w.y2);ctx.stroke();
+  w.life-=0.02;
+ }
+ // Fire
+ fw=fw.filter(w=>w.life>0);
+ for(let w of fw){
+  ctx.strokeStyle="red";ctx.lineWidth=10;
+  ctx.beginPath();ctx.moveTo(w.x1,w.y1);ctx.lineTo(w.x2,w.y2);ctx.stroke();
+  w.life-=0.02;
+ }
+ // Salt rain warning
+ srw=srw.filter(w=>w.life>0);
+ for(let w of srw){
+  ctx.strokeStyle="yellow";ctx.lineWidth=6;
+  ctx.beginPath();ctx.arc(w.x,w.y,w.r,0,6.28);ctx.stroke();
+  w.life-=0.02;
+ }
+}
+
+// Bullet drawing helper
+function drawBullets(arr,color){
+ for(let b of arr){
+  b.x+=b.vx; b.y+=b.vy;
+  ctx.fillStyle=color;
+  ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,6.28);ctx.fill();
+
+  // Player hit
+  if(alive && hit(b.x,b.y,b.r, player.x,player.y,player.r))
+   alive=0;
+
+  // CPU hit
+  for(let c of cpus)
+   if(c.alive && hit(b.x,b.y,b.r,c.x,c.y,c.r)){
+    c.alive=0; dead++;
+   }
+ }
+}
+
+// Salt rain drops
+function drawSaltRain(){
+ for(let r of srd){
+  r.y+=r.vy;
+  ctx.fillStyle="white";
+  ctx.beginPath();ctx.arc(r.x,r.y,r.r,0,6.28);ctx.fill();
+
+  if(alive && hit(r.x,r.y,r.r, player.x,player.y,player.r))
+   alive=0;
+
+  for(let c of cpus)
+   if(c.alive && hit(r.x,r.y,r.r,c.x,c.y,c.r)){
+    c.alive=0; dead++;
+   }
+ }
+}
+
+// Fire bars
+function drawFireBars(){
+ for(let f of bars){
+  f.x+=f.vx; f.y+=f.vy; f.a+=0.08;
+  for(let i=0;i<f.n;i++){
+   if(i%4==0)continue;
+   let ang=f.a+i*(6.28/f.n),
+       px=f.x+Math.cos(ang)*130,
+       py=f.y+Math.sin(ang)*130;
+   ctx.fillStyle="orange";
+   ctx.beginPath();ctx.arc(px,py,14,0,6.28);ctx.fill();
+
+   if(alive && hit(px,py,14, player.x,player.y,player.r))
+    alive=0;
+
+   for(let c of cpus)
+    if(c.alive && hit(px,py,14,c.x,c.y,c.r)){
+     c.alive=0; dead++;
+    }
+  }
+ }
+}
+
+// Magnetron beams
+function drawBeams(){
+ for(let b of beam){
+  b.life-=0.02;
+  if(b.life<=0)continue;
+  b.a+=0.008;
+
+  let cx=b.cx,cy=b.cy;
+  let x2=cx+Math.cos(b.a)*2000,
+      y2=cy+Math.sin(b.a)*2000;
+
+  ctx.strokeStyle="magenta";ctx.lineWidth=20;
+  ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(x2,y2);ctx.stroke();
+
+  // Check collisions along beam line
+  const steps=40;
+  for(let i=0;i<steps;i++){
+   let t=i/steps;
+   let bx=cx+(x2-cx)*t, by=cy+(y2-cy)*t;
+
+   if(alive && hit(bx,by,15, player.x,player.y,player.r))
+    alive=0;
+
+   for(let c of cpus)
+    if(c.alive && hit(bx,by,10,c.x,c.y,c.r)){
+     c.alive=0; dead++;
+    }
+  }
+ }
+}
+// BOSS DRAW + PHASE TRANSITIONS
+
+function drawBosses(){
+ // Butter
+ if(bossActive.butter){
+  ctx.fillStyle="#ffda57";
+  ctx.fillRect(W/2-50,80,100,50);
+ }
+
+ // Salt
+ if(bossActive.salt){
+  ctx.fillStyle="white";
+  ctx.fillRect(W/2-40,120,80,100);
+  ctx.fillStyle="lightgray";
+  ctx.fillRect(W/2-40,120,80,20);
+ }
+
+ // Fire
+ if(bossActive.fire){
+  ctx.fillStyle="orange";
+  ctx.beginPath();ctx.arc(W/2,140,45,0,6.28);ctx.fill();
+  ctx.fillStyle="red";
+  ctx.beginPath();ctx.arc(W/2,140,25,0,6.28);ctx.fill();
+ }
+
+ // Magnetron
+ if(bossActive.magnet){
+  ctx.fillStyle="purple";
+  ctx.beginPath();ctx.arc(W/2,140,45,0,6.28);ctx.fill();
+  ctx.fillStyle="magenta";
+  ctx.beginPath();ctx.arc(W/2,140,28,0,6.28);ctx.fill();
+ }
+}
+
+
+// PHASE CONTROL (with instant boss despawn + attack clearing)
+function phaseControl(){
+ // Phase 1 → Phase 2 (Butter → Salt)
+ if(phase==1 && dead>=15){
+  phase=2;
+  bossActive.butter=0;
+  bossActive.salt=1;
+  bossActive.fire=0;
+  bossActive.magnet=0;
+  clearAllAttacks();
+ }
+
+ // Phase 2 → Phase 3 (Salt → Fire)
+ if(phase==2 && dead>=30){
+  phase=3;
+  bossActive.butter=0;
+  bossActive.salt=0;
+  bossActive.fire=1;
+  bossActive.magnet=0;
+  clearAllAttacks();
+ }
+
+ // Phase 3 → Phase 4 (Fire → Magnetron)
+ if(phase==3 && dead>=45){
+  phase=4;
+  bossActive.butter=0;
+  bossActive.salt=0;
+  bossActive.fire=0;
+  bossActive.magnet=1;
+  clearAllAttacks();
+ }
+}
+// FINAL GAME LOOP
+
+function loop(){
+ // Arena color
+ ctx.clearRect(0,0,W,H);
+ ctx.fillStyle=
+  phase==1?"#222":
+  phase==2?"#023":
+  phase==3?"#501":
+            "#203";
+ ctx.fillRect(0,0,W,H);
+
+ // Player movement
+ movePlayer();
+
+ // CPUs
+ for(let c of cpus){c.update();c.draw();}
+
+ // Player
+ if(alive){
+  ctx.fillStyle="red";
+  ctx.beginPath();
+  ctx.arc(player.x,player.y,player.r,0,6.28);
+  ctx.fill();
+ }
+
+ // Boss
+ drawBosses();
+
+ // Attacks
+ drawWarnings();
+ drawBullets(bb,"orange");
+ drawBullets(sb,"#6cf");
+ drawBullets(fb,"orange");
+ drawBullets(mb,"magenta");
+ drawSaltRain();
+ drawFireBars();
+ drawBeams();
+
+ // Phase transitions
+ phaseControl();
+
+ // WIN SCREEN
+ if(phase==4 && dead>=60){
+  ctx.fillStyle="white";
+  ctx.font="70px sans-serif";
+  ctx.fillText("YOU WIN!",W/2-180,H/2);
+  return;
+ }
+
+ requestAnimationFrame(loop);
+}
+
+loop();
+</script></body></html>
+<!-- CPU INTELLIGENCE PATCH -->
+<script>
+// Override CPU with smart version
+CPU = class CPU {
+ constructor(){
+  this.alive=1; this.r=10;
+  this.x=Math.random()*W;
+  this.y=Math.random()*H;
+  this.vx=0;
+  this.vy=0;
+ }
+
+ update(){
+  if(!this.alive)return;
+
+  let ax=0,ay=0;
+  const speed=0.25;
+  const maxSpeed=3;
+
+  // --- 1. Avoid PLAYER ---
+  let dx=this.x-player.x, dy=this.y-player.y, d=Math.hypot(dx,dy);
+  if(d<80){ ax+=dx/d*speed; ay+=dy/d*speed; }
+
+  // --- 2. Avoid BOSS ---
+  let bx=W/2, by=(phase==1?120:phase==2?150:140);
+  dx=this.x-bx; dy=this.y-by; d=Math.hypot(dx,dy);
+  if(d<180){ ax+=dx/d*speed; ay+=dy/d*speed; }
+
+  // --- Helper to avoid bullets ---
+  const self=this;
+  function avoid(list){
+   for(const b of list){
+    let dx=self.x-b.x, dy=self.y-b.y;
+    let d=Math.hypot(dx,dy);
+    if(d<140){
+     ax+=(dx/d)*speed*1.4;
+     ay+=(dy/d)*speed*1.4;
+    }
+   }
+  }
+
+  // 3. Avoid bullets
+  avoid(bb); avoid(sb); avoid(fb); avoid(mb);
+
+  // 4. Avoid salt rain
+  for(const r of srd){
+   let dx=this.x-r.x, dy=this.y-r.y;
+   let d=Math.hypot(dx,dy);
+   if(d<120){
+    ax+=(dx/d)*speed*1.3;
+    ay+=(dy/d)*speed*1.3;
+   }
+  }
+
+  // 5. Avoid firebars
+  for(const f of bars){
+   for(let i=0;i<f.n;i++){
+    if(i%4==0)continue;
+    let a=f.a+i*(6.28/f.n);
+    let px=f.x+Math.cos(a)*130;
+    let py=f.y+Math.sin(a)*130;
+    dx=this.x-px; dy=this.y-py;
+    d=Math.hypot(dx,dy);
+    if(d<160){
+     ax+=(dx/d)*speed*1.6;
+     ay+=(dy/d)*speed*1.6;
+    }
+   }
+  }
+
+  // 6. Avoid beams
+  for(const b of beam){
+   if(b.life<=0)continue;
+   for(let t=0;t<=1;t+=0.1){
+    let px=b.cx+Math.cos(b.a)*2000*t;
+    let py=b.cy+Math.sin(b.a)*2000*t;
+    dx=this.x-px; dy=this.y-py;
+    d=Math.hypot(dx,dy);
+    if(d<180){
+     ax+=(dx/d)*speed*1.2;
+     ay+=(dy/d)*speed*1.2;
+    }
+   }
+  }
+
+  // 7. Avoid other CPUs
+  for(const c of cpus){
+   if(c===this||!c.alive)continue;
+   dx=this.x-c.x; dy=this.y-c.y;
+   d=Math.hypot(dx,dy);
+   if(d<40){
+    ax+=(dx/d)*speed*1.5;
+    ay+=(dy/d)*speed*1.5;
+   }
+  }
+
+  // Apply acceleration
+  this.vx+=ax;
+  this.vy+=ay;
+
+  // Clamp speed
+  let v=Math.hypot(this.vx,this.vy);
+  if(v>maxSpeed){
+   this.vx=this.vx/v*maxSpeed;
+   this.vy=this.vy/v*maxSpeed;
+  }
+
+  // Move
+  this.x+=this.vx;
+  this.y+=this.vy;
+
+  // Bounds
+  if(this.x<this.r){this.x=this.r;this.vx*=-0.5;}
+  if(this.x>W-this.r){this.x=W-this.r;this.vx*=-0.5;}
+  if(this.y<this.r){this.y=this.r;this.vy*=-0.5;}
+  if(this.y>H-this.r){this.y=H-this.r;this.vy*=-0.5;}
+ }
+
+ draw(){
+  if(!this.alive)return;
+  ctx.fillStyle="#4bf";
+  ctx.beginPath();
+  ctx.arc(this.x,this.y,this.r,0,6.28);
+  ctx.fill();
+ }
+};
+
+// reinitialize CPUs with smart AI
+cpus = [...Array(60)].map(_=>new CPU());
+</script><!-- CPU SMART AI DROP-IN PATCH -->
+<script>
+// Override ONLY the update() function of CPU, no class replacement
+CPU.prototype.update = function(){
+ if(!this.alive)return;
+
+ let ax=0, ay=0;
+
+ const react = 0.16;      // lower reaction = more killable
+ const panic = 0.10;      // randomness when cornered
+ const maxSpeed = 2.4;    // slower = more likely to die
+ const dangerClose = 60;  // if something gets this close, CPU may die
+
+ // 1. Avoid player slightly
+ let dx=this.x-player.x, dy=this.y-player.y, d=Math.hypot(dx,dy);
+ if(d<70){ ax+=dx/d*react; ay+=dy/d*react; }
+
+ // 2. Avoid boss (weaker)
+ let bx=W/2, by=(phase==1?120:phase==2?150:140);
+ dx=this.x-bx; dy=this.y-by; d=Math.hypot(dx,dy);
+ if(d<150){ ax+=dx/d*(react*0.8); ay+=dy/d*(react*0.8); }
+
+ // Helper for bullets
+ const self=this;
+ function avoid(list, radius, force){
+   for(const b of list){
+     let dx=self.x-b.x, dy=self.y-b.y;
+     let dist=Math.hypot(dx,dy);
+     if(dist<radius){
+       ax+=(dx/dist)*force;
+       ay+=(dy/dist)*force;
+
+       if(dist<dangerClose){
+         ax+=(Math.random()*2-1)*panic;
+         ay+=(Math.random()*2-1)*panic;
+       }
+     }
+   }
+ }
+
+ // 3. Avoid bullets
+ avoid(bb,130,react*1.1);
+ avoid(sb,120,react*1.0);
+ avoid(fb,100,react*1.3);
+ avoid(mb,130,react*1.1);
+
+ // 4. Avoid salt rain drops
+ for(const r of srd){
+   dx=this.x-r.x; dy=this.y-r.y;
+   d=Math.hypot(dx,dy);
+   if(d<100){
+     ax+=(dx/d)*(react*0.8);
+     ay+=(dy/d)*(react*0.8);
+   }
+ }
+
+ // 5. Avoid firebars
+ for(const f of bars){
+   for(let i=0;i<f.n;i++){
+     if(i%4==0) continue;
+     let a=f.a+i*(6.28/f.n);
+     let px=f.x+Math.cos(a)*130, py=f.y+Math.sin(a)*130;
+     dx=this.x-px; dy=this.y-py;
+     d=Math.hypot(dx,dy);
+     if(d<130){
+       ax+=(dx/d)*(react*1.1);
+       ay+=(dy/d)*(react*1.1);
+       if(d<dangerClose){
+         ax+=(Math.random()*2-1)*panic;
+         ay+=(Math.random()*2-1)*panic;
+       }
+     }
+   }
+ }
+
+ // 6. Avoid magnetron beams
+ for(const b of beam){
+   if(b.life<=0)continue;
+   for(let t=0;t<=1;t+=0.1){
+     let px=b.cx+Math.cos(b.a)*2000*t;
+     let py=b.cy+Math.sin(b.a)*2000*t;
+     dx=this.x-px; dy=this.y-py;
+     d=Math.hypot(dx,dy);
+     if(d<150){
+       ax+=(dx/d)*(react*0.7);
+       ay+=(dy/d)*(react*0.7);
+     }
+   }
+ }
+
+ // 7. Avoid other CPUs
+ for(const c of cpus){
+   if(c===this || !c.alive) continue;
+   dx=this.x-c.x; dy=this.y-c.y;
+   d=Math.hypot(dx,dy);
+   if(d<30){
+     ax+=(dx/d)*react*1.4;
+     ay+=(dy/d)*react*1.4;
+   }
+ }
+
+ // Apply movement
+ this.vx+=ax; this.vy+=ay;
+
+ // Clamp speed
+ let v=Math.hypot(this.vx,this.vy);
+ if(v>maxSpeed){
+   this.vx=this.vx/v*maxSpeed;
+   this.vy=this.vy/v*maxSpeed;
+ }
+
+ // Move
+ this.x+=this.vx;
+ this.y+=this.vy;
+
+ // Boundaries
+ if(this.x<this.r){this.x=this.r;this.vx*=-0.5;}
+ if(this.x>W-this.r){this.x=W-this.r;this.vx*=-0.5;}
+ if(this.y<this.r){this.y=this.r;this.vy*=-0.5;}
+ if(this.y>H-this.r){this.y=H-this.r;this.vy*=-0.5;}
+};
+
+// Reinitialize CPUs with new AI
+cpus = [...Array(60)].map(_=>new CPU());
+</script>
+<!-- PATCH 1 — TITLE SCREEN + SCENE CONTROL -->
+<script>
+// Create UI containers
+let ui = document.createElement("div");
+ui.id = "uiLayer";
+ui.style.position = "absolute";
+ui.style.left = "0";
+ui.style.top = "0";
+ui.style.width = "100%";
+ui.style.height = "100%";
+ui.style.display = "flex";
+ui.style.flexDirection = "column";
+ui.style.alignItems = "center";
+ui.style.justifyContent = "center";
+ui.style.color = "white";
+ui.style.fontFamily = "Arial";
+ui.style.fontSize = "48px";
+ui.style.textAlign = "center";
+ui.style.userSelect = "none";
+document.body.appendChild(ui);
+
+let titleScreen = document.createElement("div");
+titleScreen.innerHTML = `
+  <div style="font-size:70px; margin-bottom:40px;">POPCORN BOSS RUSH</div>
+  <button id="startBtn" style="font-size:40px;padding:20px 50px;margin:20px;">START GAME</button>
+  <button id="leagueBtn" style="font-size:40px;padding:20px 50px;margin:20px;">LEAGUE</button>
+`;
+ui.appendChild(titleScreen);
+
+// Hide canvas until game starts
+c.style.display = "none";
+
+// Global state
+let gameState = "title"; // title, running, league, result
+
+// Start Game button
+document.getElementById("startBtn").onclick = () => {
+  gameState = "running";
+  ui.style.display = "none";
+  c.style.display = "block";
+  resetRun();
+};
+
+// Switch to LEAGUE screen
+document.getElementById("leagueBtn").onclick = () => {
+  gameState = "league";
+  showLeagueScreen();
+};
+
+// Reset game values when starting a run
+function resetRun(){
+  phase = 1;
+  dead = 0;
+  alive = 1;
+  bossActive.butter=1;
+  bossActive.salt=0;
+  bossActive.fire=0;
+  bossActive.magnet=0;
+
+  // restore CPUs
+  cpus = [...Array(60)].map(_=>new CPU());
+
+  // clear attacks
+  clearAllAttacks();
+
+  // restart animation loop after short delay
+  setTimeout(()=>loop(),50);
+}
+
+// Show result screen when run ends
+function showResultScreen(text){
+  gameState = "result";
+  c.style.display = "none";
+
+  ui.innerHTML = `
+    <div style="font-size:70px;margin-bottom:40px;">${text}</div>
+    <button id="backToMenu" style="font-size:40px;padding:20px 50px;margin:20px;">Back to Menu</button>
+  `;
+  ui.style.display = "flex";
+
+  document.getElementById("backToMenu").onclick = () => {
+    gameState = "title";
+    ui.innerHTML = "";
+    ui.appendChild(titleScreen);
+  };
+}
+</script>
+<!-- PATCH 2 — LEAGUE DATA SYSTEM -->
+<script>
+// ===============================
+// LEAGUE DEFINITIONS
+// ===============================
+const leagueTiers = [
+  {name:"Bronze",    min:750, max:1000},
+  {name:"Silver",    min:500, max:749},
+  {name:"Gold",      min:300, max:499},
+  {name:"Diamond",   min:150, max:299},
+  {name:"Platinum",  min:50,  max:149},
+  {name:"Plaque",    min:25,  max:49},
+  {name:"Champions", min:11,  max:24},
+  {name:"Hall of Masters", min:1, max:10}
+];
+
+// ===============================
+// LOAD OR INIT PLAYER
+// ===============================
+let playerPoints = parseInt(localStorage.getItem("playerPoints"));
+if(isNaN(playerPoints)){
+  playerPoints = 500; // start in Silver middle
+  localStorage.setItem("playerPoints",playerPoints);
+}
+
+// ===============================
+// LOAD OR GENERATE 1000 BOTS
+// ===============================
+let bots = JSON.parse(localStorage.getItem("popcornBots"));
+
+if(!bots){
+  bots = [];
+  for(let i=0;i<1000;i++){
+    // generate random rank from 1–1000
+    let pts = Math.floor(Math.random()*1000)+1;
+
+    bots.push({
+      name:"Bot "+(i+1),
+      points: pts,
+      skill: (1000-pts)/1000   // skill scales with points
+    });
+  }
+  localStorage.setItem("popcornBots",JSON.stringify(bots));
+}
+
+// ===============================
+// SAVE HELPERS
+// ===============================
+function savePlayerPoints(){
+  localStorage.setItem("playerPoints",playerPoints);
+}
+function saveBots(){
+  localStorage.setItem("popcornBots",JSON.stringify(bots));
+}
+
+// ===============================
+// SORT + RANK CALCULATION
+// ===============================
+function sortBots(){
+  bots.sort((a,b)=>b.points - a.points);
+}
+
+function findPlayerRank(){
+  // treat player as bot #1001 for ranking
+  let combined = [...bots, {name:"You",points:playerPoints}];
+  combined.sort((a,b)=>b.points - a.points);
+
+  return combined.findIndex(x=>x.name==="You")+1;
+}
+
+// Determine your league by point range
+function getPlayerLeague(){
+  for(const tier of leagueTiers){
+    if(playerPoints >= tier.min && playerPoints <= tier.max){
+      return tier.name;
+    }
+  }
+  return "Unranked";
+}
+
+// ===============================
+// GET BOTS IN YOUR LEAGUE
+// ===============================
+function getBotsInLeague(){
+  let league = getPlayerLeague();
+  let tier = leagueTiers.find(t=>t.name===league);
+  if(!tier) return [];
+
+  return bots.filter(b=>b.points >= tier.min && b.points <= tier.max);
+}
+</script>
+<!-- PATCH 3 — MATCHMAKING / OPPONENT SELECTION -->
+<script>
+// The bot you will fight this run
+let currentOpponent = null;
+
+// Pick a random bot from your league + set CPU difficulty
+function selectOpponent(){
+  let candidates = getBotsInLeague();
+
+  if(candidates.length === 0){
+    // fallback: choose any bot
+    candidates = bots;
+  }
+
+  // Choose a random bot in your league
+  currentOpponent = candidates[Math.floor(Math.random()*candidates.length)];
+
+  // CPU difficulty scaling:
+// opponent.skill = (1000 - opponent.points) / 1000
+// Lower points = weaker skill
+// Higher points = stronger skill
+// We clamp difficulty between [0.2 – 1.5] to avoid extremes.
+  let diff = currentOpponent.skill;
+  diff = Math.max(0.2, Math.min(1.5, diff));
+
+  // Store difficulty globally for CPU AI patches
+  window.botDifficulty = diff;
+
+  console.log("Opponent Selected:", currentOpponent.name, 
+              "pts:", currentOpponent.points,
+              "difficulty:", diff);
+}
+
+// Wrap start game to include opponent choice
+const oldStartGame = resetRun;
+resetRun = function(){
+  // choose opponent BEFORE starting run
+  selectOpponent();
+
+  // run original start logic
+  oldStartGame();
+};
+</script>
+<!-- PATCH 4 — POINT SYSTEM + MATCH RESULT -->
+<script>
+// Award points based on run performance
+function awardPoints(){
+
+  let gained = 0;
+
+  // Determine what phase you reached
+  if(phase == 4 && alive){ 
+    // FULL CLEAR = +100
+    gained = 100;
+  }
+  else if(phase == 4){ 
+    // Died in magnetron = +75
+    gained = 75;
+  }
+  else if(phase == 3 || phase == 2){
+    // Reached salt or fire = +50
+    gained = 50;
+  }
+  else if(phase == 1){
+    // Died to butter = -25
+    gained = -25;
+  }
+
+  // Apply point changes to YOU
+  playerPoints += gained;
+  if(playerPoints < 1) playerPoints = 1;
+
+  // Apply opposite effect to the opponent
+  if(currentOpponent){
+    let oppGain = -gained;
+    currentOpponent.points += oppGain;
+    if(currentOpponent.points < 1) 
+      currentOpponent.points = 1;
+  }
+
+  savePlayerPoints();
+  saveBots();
+
+  console.log(
+    "RESULT:", (gained>=0?"+":"") + gained, 
+    "points | Player now:", playerPoints,
+    "| Opponent:", currentOpponent ? currentOpponent.name : "none"
+  );
+
+  // Display result screen
+  let text = gained >= 0 
+    ? ("You earned " + gained + " points!") 
+    : ("You lost " + Math.abs(gained) + " points!");
+
+  showResultScreen(text);
+}
+
+// Hook run ending to awardPoints()
+// We detect run end inside the loop()
+// So we override loop() detection behavior
+
+const oldLoop = loop;
+loop = function(){
+  // If run is active and player died or reached win condition, award points
+  if(gameState=="running"){
+    if(!alive){
+      // died
+      awardPoints();
+      return;
+    }
+    if(phase==4 && dead >= 60){
+      // win
+      awardPoints();
+      return;
+    }
+  }
+  oldLoop();
+};
+</script>
+<!-- PATCH 5 — LEAGUE SCREEN UI -->
+<script>
+function showLeagueScreen(){
+  gameState = "league";
+  c.style.display = "none";
+  ui.style.display = "flex";
+
+  // Sort bots for leaderboard display
+  sortBots();
+
+  // Compute player rank
+  let playerRank = findPlayerRank();
+  let playerLeague = getPlayerLeague();
+
+  // Build leader list (top 10 including you if in top 10)
+  let combined = [...bots, {name:"You", points:playerPoints}];
+  combined.sort((a,b)=>b.points - a.points);
+  let top10 = combined.slice(0,10);
+
+  // HTML layout
+  let leagueHTML = `
+    <div style="font-size:60px;margin-bottom:20px;">
+      LEAGUE STANDINGS
+    </div>
+
+    <div style="font-size:35px;margin-bottom:10px;">
+      You are ranked <b>#${playerRank}</b> 
+      in <b>${playerLeague}</b> league
+    </div>
+
+    <div style="font-size:30px;margin-bottom:30px;">
+      Points: <b>${playerPoints}</b>
+    </div>
+
+    <div style="font-size:40px;margin-bottom:15px;">Top 10 Players</div>
+
+    <div style="
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      font-size:28px;
+      margin-bottom:40px;">
+  `;
+
+  top10.forEach((p,i)=>{
+    let isYou = p.name === "You";
+    leagueHTML += `
+      <div style="margin:5px;
+        color:${isYou?'#6ff':'#fff'};
+        font-weight:${isYou?'bold':'normal'};">
+        #${i+1} — ${p.name} (${p.points})
+      </div>
+    `;
+  });
+
+  leagueHTML += `
+    </div>
+
+    <button id="backMenu" 
+      style="font-size:40px;padding:20px 50px;margin-top:20px;">
+      Back to Menu
+    </button>
+  `;
+
+  ui.innerHTML = leagueHTML;
+
+  document.getElementById("backMenu").onclick = () => {
+    gameState="title";
+    ui.innerHTML="";
+    ui.appendChild(titleScreen);
+  };
+}
+</script>
+<!-- PATCH 6 — DIFFICULTY SCALING FOR CPU AI -->
+<script>
+// Difficulty scaling applied AFTER selecting opponent
+// window.botDifficulty is set in Patch 3
+
+// Override CPU update to scale with difficulty without replacing logic
+const oldCPUUpdate = CPU.prototype.update;
+
+CPU.prototype.update = function(){
+ if(!this.alive) return;
+
+ // Scale factors based on bot difficulty
+ // botDifficulty range: ~0.2 (Bronze) → ~1.5 (Masters)
+ let diff = window.botDifficulty || 1;
+
+ // Apply global multipliers readable by old logic
+ // We keep these mild to avoid immortality or instant death.
+
+ window.CPU_REACT = 0.15 * diff;      // baseline: react slower in Bronze, faster in Masters
+ window.CPU_PANIC = 0.10 * diff;      // panic harder in higher leagues
+ window.CPU_MAXSPEED = 2.0 + diff*0.8; // Bronze ~2.16, Masters ~3.2
+ window.CPU_DODGE_RADIUS = 120 + diff*60; // Bronze ~132px, Masters ~210px
+
+ // Let original logic run with modified globals
+ oldCPUUpdate.call(this);
+};
+
+// MODIFY THE AI FUNCTIONS USED IN OLD PATCH SO THEY READ NEW GLOBALS
+// (These values are read dynamically each update)
+CPU.prototype.getReact = () => window.CPU_REACT || 0.15;
+CPU.prototype.getPanic = () => window.CPU_PANIC || 0.10;
+CPU.prototype.getMaxSpeed = () => window.CPU_MAXSPEED || 2.4;
+CPU.prototype.getDodgeRadius = () => window.CPU_DODGE_RADIUS || 140;
+
+// Reinitialize CPUs after difficulty scaling is installed
+cpus = [...Array(60)].map(_=>new CPU());
+</script>
+<script>
+// BOT NERF PATCH — reduce difficulty impact
+
+const oldSelectOpponent = selectOpponent;
+selectOpponent = function(){
+  oldSelectOpponent();
+
+  // Reduce difficulty scaling massively
+  window.botDifficulty = window.botDifficulty * 0.55;
+
+  // Extra nerf: cap maximum difficulty
+  if(window.botDifficulty > 1.0)
+    window.botDifficulty = 1.0;
+
+  // Extra nerf: increase enemy mistake rate
+  window.CPU_PANIC = 0.25;   // more panic mistakes
+  window.CPU_REACT = 0.10;   // slower reactions
+  window.CPU_MAXSPEED = 1.9; // slower CPUs overall
+};
+</script>
+<!-- FINAL DROP-IN LEAGUE FIX PATCH -->
+<script>
+// Get league from point value
+function getLeagueOfPoints(pts){
+  for(const t of leagueTiers){
+    if(pts >= t.min && pts <= t.max) return t.name;
+  }
+  return "Unranked";
+}
+
+// Override league screen to include league labels and keep scrollable
+const _showLeagueScreen_original = showLeagueScreen;
+showLeagueScreen = function(){
+
+  gameState = "league";
+  c.style.display = "none";
+  ui.style.display = "flex";
+
+  sortBots(); // sort by points
+
+  let playerRank = findPlayerRank();
+  let playerLeague = getPlayerLeague();
+
+  // Create combined list
+  let combined = [...bots, {name:"You", points:playerPoints}];
+  combined.sort((a,b)=>b.points - a.points);
+
+  // Top 100 (scrollable)
+  let top100 = combined.slice(0,100);
+
+  let html = `
+    <div style="font-size:60px;margin-bottom:20px;">LEAGUE STANDINGS</div>
+
+    <div style="font-size:35px;margin-bottom:10px;">
+      Rank <b>#${playerRank}</b> • League <b>${playerLeague}</b>
+    </div>
+
+    <div style="font-size:30px;margin-bottom:20px;">
+      Points: <b>${playerPoints}</b>
+    </div>
+
+    <div style="font-size:40px;">Top 100 Players</div>
+
+    <div style="
+      margin-top:20px;
+      width: 60%;
+      height: 350px;
+      overflow-y: auto;
+      border: 3px solid white;
+      padding: 10px;
+      font-size: 25px;
+      text-align:left;
+    ">
+  `;
+
+  top100.forEach((p,i)=>{
+    let isYou = p.name==="You";
+    let league = getLeagueOfPoints(p.points);
+
+    // Colors per league (optional subtle tint)
+    let color = isYou ? "#6ff" :
+      league==="Hall of Masters" ? "#ff6b6b" :
+      league==="Champions" ? "#ffd166" :
+      league==="Plaque" ? "#cccccc" :
+      league==="Platinum" ? "#99ccff" :
+      league==="Diamond" ? "#66cfff" :
+      league==="Gold" ? "#ffdb6e" :
+      league==="Silver" ? "#d0d0d0" :
+      "#b87333"; // Bronze
+
+    html += `
+      <div style="margin:5px;color:${color};font-weight:${isYou?'bold':'normal'};">
+        #${i+1} — ${p.name} (${p.points}) — ${league}
+      </div>
+    `;
+  });
+
+  html += `
+    </div>
+
+    <button id="backMenu" style="font-size:40px;padding:20px 50px;margin-top:30px;">
+      Back to Menu
+    </button>
+  `;
+
+  ui.innerHTML = html;
+
+  document.getElementById("backMenu").onclick = () => {
+    gameState = "title";
+    ui.innerHTML="";
+    ui.appendChild(titleScreen);
+  };
+};
+</script>
+<!-- FULL 1000-PLAYER SCROLLABLE LEADERBOARD PATCH -->
+<script>
+// helper: league from points
+function getLeagueOfPoints(pts){
+  for(const t of leagueTiers){
+    if(pts >= t.min && pts <= t.max) return t.name;
+  }
+  return "Unranked";
+}
+
+// override league screen with full-scroll list
+const showLeagueScreen_full = function(){
+
+  gameState = "league";
+  c.style.display = "none";
+  ui.style.display = "flex";
+
+  // Sort bots FIRST
+  sortBots();
+
+  // Build combined list (bots + you)
+  let combined = [...bots, {name:"You", points:playerPoints}];
+  combined.sort((a,b)=>b.points - a.points);
+
+  let playerRank = findPlayerRank();
+  let playerLeague = getPlayerLeague();
+
+  // Build UI with FULL SCROLLABLE list
+  let html = `
+    <div style="font-size:60px;margin-bottom:20px;">
+      LEAGUE STANDINGS
+    </div>
+
+    <div style="font-size:35px;margin-bottom:10px;">
+      Rank <b>#${playerRank}</b> • League <b>${playerLeague}</b>
+    </div>
+
+    <div style="font-size:30px;margin-bottom:20px;">
+      Points: <b>${playerPoints}</b>
+    </div>
+
+    <div style="font-size:40px;">All Competitors</div>
+
+    <div style="
+      margin-top:20px;
+      width:70%;
+      height:550px;
+      overflow-y:auto;
+      border:3px solid white;
+      padding:15px;
+      font-size:24px;
+      text-align:left;
+    ">
+  `;
+
+  combined.forEach((p,i)=>{
+    let isYou = (p.name==="You");
+    let lg = getLeagueOfPoints(p.points);
+
+    // nice colored leagues
+    let color =
+      isYou ? "#6ff" :
+      lg==="Hall of Masters" ? "#ff6b6b" :
+      lg==="Champions" ? "#ffd166" :
+      lg==="Plaque" ? "#cccccc" :
+      lg==="Platinum" ? "#99ccff" :
+      lg==="Diamond" ? "#66cfff" :
+      lg==="Gold" ? "#ffeb77" :
+      lg==="Silver" ? "#e0e0e0" :
+      "#cd7f32"; // bronze
+
+    html += `
+      <div style="margin:4px 0;color:${color};font-weight:${isYou?'bold':'normal'};">
+        #${i+1} — ${p.name} (${p.points}) — ${lg}
+      </div>
+    `;
+  });
+
+  html += `
+    </div>
+
+    <button id="backMenu" 
+      style="font-size:40px;padding:20px 50px;margin-top:25px;">
+      Back to Menu
+    </button>
+  `;
+
+  ui.innerHTML = html;
+
+  document.getElementById("backMenu").onclick = () => {
+    gameState = "title";
+    ui.innerHTML="";
+    ui.appendChild(titleScreen);
+  };
+};
+
+// override the previous showLeagueScreen
+showLeagueScreen = showLeagueScreen_full;
+</script>
+<!-- PATCH F — EVENT BOSS #1: INFERNO RING -->
+<script>
+// ======================================================
+// EVENT BOSS #1 — INFERNO RING
+// ======================================================
+
+// Boss properties
+let inferno = {
+  x: W/2,
+  y: H/2 - 150,
+  r: 80,
+  borderShrink: 0,
+  pullActive: false,
+  pullTimer: 0,
+  fireCooldown: 0,
+  arenaBorder: 0,
+  hp: 300, // you can change later
+  maxHP: 300
+};
+
+// Reset inferno boss
+function resetInferno(){
+  inferno.x = W/2;
+  inferno.y = H/2 - 150;
+  inferno.r = 80;
+  inferno.borderShrink = 0;
+  inferno.pullActive = false;
+  inferno.pullTimer = 0;
+  inferno.fireCooldown = 0;
+  inferno.arenaBorder = 0;
+  inferno.hp = inferno.maxHP;
+}
+
+// Fireball list
+let infernoBalls = [];
+let infernoWarnings = [];
+
+// Shoot semi-homing fireballs
+function infernoShoot(){
+  let angle = Math.random()*Math.PI*2;
+  let speed = 2.2;
+
+  // aim slightly toward player
+  let dx = player.x - inferno.x;
+  let dy = player.y - inferno.y;
+  let aim = Math.atan2(dy,dx);
+
+  // random offset
+  let blend = 0.4; // 40% toward target, 60% random
+  let finalA = aim*blend + angle*(1-blend);
+
+  infernoBalls.push({
+    x: inferno.x,
+    y: inferno.y,
+    vx: Math.cos(finalA)*speed,
+    vy: Math.sin(finalA)*speed,
+    r: 12
+  });
+}
+
+// Draw arena border closing in
+function drawInfernoBorder(){
+  inferno.arenaBorder += 0.04; // slowly closes in
+
+  let b = inferno.arenaBorder;
+
+  ctx.strokeStyle = "#ff3000";
+  ctx.lineWidth = 15;
+  ctx.strokeRect(b, b, W - b*2, H - b*2);
+
+  // Kill if outside border
+  if(alive){
+    if(player.x < b || player.x > W - b || player.y < b || player.y > H - b){
+      alive = 0;
+    }
+  }
+
+  for(let c of cpus){
+    if(c.alive){
+      if(c.x < b || c.x > W - b || c.y < b || c.y > H - b){
+        c.alive = 0;
+        dead++;
+      }
+    }
+  }
+}
+
+// Gravity pull ultimate
+function infernoPullUltimate(){
+  inferno.pullActive = true;
+  inferno.pullTimer = 180; // 3 seconds at 60FPS
+}
+
+// CPU dash-away logic
+function cpuRunFromInferno(c){
+  let dx = c.x - inferno.x;
+  let dy = c.y - inferno.y;
+  let d = Math.hypot(dx,dy);
+
+  if(d < 300){ // panic zone
+    c.vx += (dx/d)*0.8;
+    c.vy += (dy/d)*0.8;
+  }
+}
+
+// Player pull handling
+function playerPulled(){
+  let dx = inferno.x - player.x;
+  let dy = inferno.y - player.y;
+  let d = Math.hypot(dx,dy);
+
+  player.x += dx/d * 1.3;
+  player.y += dy/d * 1.3;
+}
+
+// CPU pulled
+function cpuPulled(c){
+  let dx = inferno.x - c.x;
+  let dy = inferno.y - c.y;
+  let d = Math.hypot(dx,dy);
+
+  c.x += dx/d * 1.2;
+  c.y += dy/d * 1.2;
+}
+
+// Render boss
+function drawInfernoBoss(){
+  ctx.fillStyle = "#ff5a00";
+  ctx.beginPath();
+  ctx.arc(inferno.x, inferno.y, inferno.r, 0, Math.PI*2);
+  ctx.fill();
+
+  // HP bar
+  ctx.fillStyle="black";
+  ctx.fillRect(W/2-150,50,300,20);
+  ctx.fillStyle="#f33";
+  ctx.fillRect(W/2-150,50,(inferno.hp/inferno.maxHP)*300,20);
+}
+
+
+// ======================================================
+// EVENT LOOP — REPLACES MAIN LOOP DURING EVENT
+// ======================================================
+function eventLoop(){
+  if(gameState !== "event") return;
+
+  // Arena
+  ctx.fillStyle = "#300"; // dark red
+  ctx.fillRect(0,0,W,H);
+
+  drawInfernoBorder();
+  drawInfernoBoss();
+
+  // Fireball shooting
+  inferno.fireCooldown--;
+  if(inferno.fireCooldown <= 0){
+    infernoShoot();
+    inferno.fireCooldown = 20; // shoots every 20 frames
+  }
+
+  // Update fireballs
+  for(let b of infernoBalls){
+    b.x += b.vx;
+    b.y += b.vy;
+
+    ctx.fillStyle="orange";
+    ctx.beginPath();
+    ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+    ctx.fill();
+
+    // collision
+    if(alive && Math.hypot(b.x-player.x,b.y-player.y) < b.r+player.r){
+      alive = 0;
+    }
+
+    for(let c of cpus){
+      if(c.alive && Math.hypot(b.x-c.x,b.y-c.y) < b.r+c.r){
+        c.alive = 0;
+        dead++;
+      }
+    }
+  }
+
+  // Pull Ultimate trigger
+  if(Math.random()<0.002 && !inferno.pullActive){
+    infernoPullUltimate();
+  }
+
+  // Pull Active
+  if(inferno.pullActive){
+    inferno.pullTimer--;
+
+    // Red tint
+    ctx.fillStyle = "rgba(255,0,0,0.2)";
+    ctx.fillRect(0,0,W,H);
+
+    // Pull logic
+    if(alive) playerPulled();
+    for(let c of cpus) if(c.alive) cpuPulled(c);
+
+    // CPUs dash away if close
+    for(let c of cpus) if(c.alive) cpuRunFromInferno(c);
+
+    if(inferno.pullTimer <= 0){
+      inferno.pullActive = false;
+    }
+  }
+
+  // Player & CPU draw
+  if(alive){
+    ctx.fillStyle="red";
+    ctx.beginPath();
+    ctx.arc(player.x,player.y,player.r,0,Math.PI*2);
+    ctx.fill();
+  }
+  for(let c of cpus){
+    if(c.alive){
+      ctx.fillStyle="#4bf";
+      ctx.beginPath();
+      ctx.arc(c.x,c.y,c.r,0,Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  // Boss damage (only from survival)
+  inferno.hp -= 0.05; // slow chip damage over time
+
+  // Win condition
+  if(inferno.hp <= 0){
+    eventWin();
+    return;
+  }
+
+  // Lose condition
+  if(!alive){
+    eventLoss();
+    return;
+  }
+
+  requestAnimationFrame(eventLoop);
+}
+
+
+// ======================================================
+// EVENT WIN/LOSS HANDLERS
+// ======================================================
+function eventWin(){
+  // +200 points
+  let gained = 200;
+  playerPoints += gained;
+  savePlayerPoints();
+
+  // rotate to next boss
+  rotateEventBoss();
+
+  showResultScreen("EVENT CLEARED! +200 points");
+}
+
+function eventLoss(){
+  // -50 points
+  let gained = -50;
+  playerPoints += gained;
+  savePlayerPoints();
+
+  rotateEventBoss();
+
+  showResultScreen("EVENT FAILED! -50 points");
+}
+
+
+// ======================================================
+// HOOK INTO startEventBattle()
+// ======================================================
+const oldStartEvent = startEventBattle;
+startEventBattle = function(){
+  resetInferno();
+  infernoBalls = [];
+
+  oldStartEvent();
+};
+
+</script>
+<!-- PATCH G — EVENT BOSS #2: CONVEYER-BELT -->
+<script>
+// ======================================================
+// EVENT BOSS #2 — CONVEYER-BELT
+// ======================================================
+
+let conveyor = {
+  hp: 350,
+  maxHP: 350,
+  x: W/2,
+  y: H/2 - 150,
+  r: 70,
+  attackTimer: 0,
+  attackSpeed: 60,   // decreases (faster attacks) when nobody dies
+  safeTimer: 0,      // time since last CPU death
+  ultTimer: 0,
+  ultActive: false,
+  ultDelay: 120,     // 2 seconds before circles drop
+};
+
+let conveyorCircles = []; // normal kill circles
+let conveyorUltTargets = []; // markers for ultimate
+
+function resetConveyor(){
+  conveyor.hp = conveyor.maxHP;
+  conveyor.attackTimer = 0;
+  conveyor.attackSpeed = 60;
+  conveyor.safeTimer = 0;
+  conveyor.ultTimer = 0;
+  conveyor.ultActive = false;
+
+  conveyorCircles = [];
+  conveyorUltTargets = [];
+}
+
+// Spawn normal kill circle
+function conveyorSpawnCircle(){
+  conveyorCircles.push({
+    x: Math.random()*W,
+    y: Math.random()*H,
+    r: 25
+  });
+}
+
+// Draw conveyor boss rectangle
+function drawConveyorBoss(){
+  ctx.fillStyle="#00d0ff";
+  ctx.fillRect(conveyor.x - 80, conveyor.y - 80, 160, 160);
+
+  // HP bar
+  ctx.fillStyle="black";
+  ctx.fillRect(W/2-150,50,300,20);
+  ctx.fillStyle="#4ff";
+  ctx.fillRect(W/2-150,50,(conveyor.hp/conveyor.maxHP)*300,20);
+}
+
+// Ultimate: Mark positions & drop kill circles everywhere
+function conveyorUltimate(){
+  conveyor.ultActive = true;
+  conveyor.ultTimer = conveyor.ultDelay;
+
+  conveyorUltTargets = [];
+
+  // mark every CPU + player position
+  if(alive){
+    conveyorUltTargets.push({x:player.x, y:player.y});
+  }
+  for(let c of cpus){
+    if(c.alive){
+      conveyorUltTargets.push({x:c.x, y:c.y});
+    }
+  }
+}
+
+function updateConveyorUltimate(){
+  if(!conveyor.ultActive) return;
+
+  conveyor.ultTimer--;
+
+  // Draw target markers
+  ctx.strokeStyle="cyan";
+  ctx.lineWidth = 8;
+
+  for(let t of conveyorUltTargets){
+    ctx.beginPath();
+    ctx.arc(t.x,t.y,30,0,Math.PI*2);
+    ctx.stroke();
+  }
+
+  // When timer hits zero → drop all kill circles
+  if(conveyor.ultTimer <= 0){
+    conveyor.ultActive = false;
+
+    for(let t of conveyorUltTargets){
+      conveyorCircles.push({
+        x:t.x,
+        y:t.y,
+        r:40
+      });
+    }
+  }
+}
+
+// CPUs panic when ultimate is active
+function cpuAvoidConveyor(c){
+  if(!conveyor.ultActive) return;
+
+  // Random zigzag panic
+  c.vx += (Math.random()*2-1)*0.6;
+  c.vy += (Math.random()*2-1)*0.6;
+}
+
+
+// ======================================================
+// EVENT LOOP FOR CONVEYER-BELT
+// ======================================================
+function conveyorLoop(){
+  if(gameState!=="event" || currentEventBoss!=="Conveyer-Belt") return;
+
+  // Arena
+  ctx.fillStyle="#001922"; // neon cyan style background
+  ctx.fillRect(0,0,W,H);
+
+  drawConveyorBoss();
+
+  // Attack pacing
+  conveyor.safeTimer++;
+  conveyor.attackSpeed = Math.max(10, 60 - Math.floor(conveyor.safeTimer/60));
+
+  conveyor.attackTimer++;
+  if(conveyor.attackTimer >= conveyor.attackSpeed){
+    conveyorSpawnCircle();
+    conveyor.attackTimer = 0;
+  }
+
+  // Randomly trigger ultimate
+  if(!conveyor.ultActive && Math.random() < 0.0025){
+    conveyorUltimate();
+  }
+
+  updateConveyorUltimate();
+
+  // Draw kill circles + collisions
+  for(let k of conveyorCircles){
+    ctx.fillStyle = "#00aaff";
+    ctx.beginPath();
+    ctx.arc(k.x,k.y,k.r,0,Math.PI*2);
+    ctx.fill();
+
+    if(alive && Math.hypot(player.x-k.x, player.y-k.y) < player.r + k.r){
+      alive = 0;
+    }
+
+    for(let c of cpus){
+      if(c.alive && Math.hypot(c.x-k.x, c.y-k.y) < c.r + k.r){
+        c.alive = 0;
+        dead++;
+        conveyor.safeTimer = 0; // death resets difficulty timer
+      }
+    }
+  }
+
+  // Player
+  if(alive){
+    ctx.fillStyle="red";
+    ctx.beginPath();
+    ctx.arc(player.x,player.y,player.r,0,Math.PI*2);
+    ctx.fill();
+  }
+
+  // CPUs
+  for(let c of cpus){
+    if(c.alive){
+      cpuAvoidConveyor(c);
+      ctx.fillStyle="#4bf";
+      ctx.beginPath();
+      ctx.arc(c.x,c.y,c.r,0,Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  // Chip boss HP slowly
+  conveyor.hp -= 0.04;
+
+  // Win condition
+  if(conveyor.hp <= 0){
+    eventWin();
+    return;
+  }
+
+  // Lose condition
+  if(!alive){
+    eventLoss();
+    return;
+  }
+
+  requestAnimationFrame(conveyorLoop);
+}
+
+
+// ======================================================
+// Hook into startEventBattle to select correct event
+// ======================================================
+const oldStartEvent2 = startEventBattle;
+startEventBattle = function(){
+  oldStartEvent2();
+
+  if(currentEventBoss==="Conveyer-Belt"){
+    resetConveyor();
+    setTimeout(()=>conveyorLoop(),30);
+  }
+};
+</script>
+<!-- PATCH H — EVENT BOSS #3: BLACK PEPPER -->
+<script>
+// ======================================================
+// EVENT BOSS #3 — BLACK PEPPER
+// ======================================================
+
+let pepper = {
+  hp: 400,
+  maxHP: 400,
+  x: W/2,
+  y: H/2 - 150,
+  w: 120,
+  h: 200,
+  angle: 0,
+  spinSpeed: 0.01,
+  missileCooldown: 0,
+  spikeCooldown: 0,
+  ultActive: false,
+  ultTimer: 0,
+  safeSpots: []
+};
+
+let pepperMissiles = [];
+let pepperSpikes = [];
+
+function resetPepper(){
+  pepper.hp = pepper.maxHP;
+  pepper.angle = 0;
+  pepper.missileCooldown = 0;
+  pepper.spikeCooldown = 0;
+  pepper.ultActive = false;
+  pepper.ultTimer = 0;
+  pepper.safeSpots = [];
+
+  pepperMissiles = [];
+  pepperSpikes = [];
+}
+
+// Draw spinning yin-yang background
+function drawPepperArena(){
+  pepper.angle += pepper.spinSpeed;
+
+  // gradient background
+  let g = ctx.createRadialGradient(W/2,H/2,10,W/2,H/2,W*0.8);
+  g.addColorStop(0,"#000");
+  g.addColorStop(1,"#111");
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,W,H);
+
+  ctx.save();
+  ctx.translate(W/2,H/2);
+  ctx.rotate(pepper.angle);
+
+  // Yin
+  ctx.fillStyle = "white";
+  ctx.beginPath();
+  ctx.arc(0,0,300,Math.PI*0.5,Math.PI*1.5);
+  ctx.arc(0,-150,150,Math.PI*1.5,Math.PI*0.5,true);
+  ctx.fill();
+
+  // Yang
+  ctx.fillStyle = "black";
+  ctx.beginPath();
+  ctx.arc(0,0,300,Math.PI*1.5,Math.PI*0.5);
+  ctx.arc(0,150,150,Math.PI*0.5,Math.PI*1.5,true);
+  ctx.fill();
+
+  // dots
+  ctx.fillStyle="black";
+  ctx.beginPath(); ctx.arc(0,-150,30,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle="white";
+  ctx.beginPath(); ctx.arc(0,150,30,0,Math.PI*2); ctx.fill();
+
+  ctx.restore();
+}
+
+// Draw boss
+function drawPepperBoss(){
+  ctx.save();
+  ctx.translate(pepper.x, pepper.y);
+  ctx.fillStyle="white";
+  ctx.fillRect(-pepper.w/2, -pepper.h/2, pepper.w, pepper.h);
+  ctx.fillStyle="black";
+  ctx.fillRect(-pepper.w/4, -pepper.h/2, pepper.w/2, pepper.h/2);
+  ctx.restore();
+
+  // HP bar
+  ctx.fillStyle="black";
+  ctx.fillRect(W/2-150,50,300,20);
+  ctx.fillStyle="#aaa";
+  ctx.fillRect(W/2-150,50,(pepper.hp/pepper.maxHP)*300,20);
+}
+
+// Shoot slow missiles in all directions
+function pepperShootMissiles(){
+  for(let i=0;i<6;i++){
+    let a = Math.PI*2 * (i/6) + Math.random()*0.5 - 0.25;
+    pepperMissiles.push({
+      x: pepper.x,
+      y: pepper.y,
+      vx: Math.cos(a)*1.6,
+      vy: Math.sin(a)*1.6,
+      r: 12
+    });
+  }
+}
+
+// Spike eruptions
+function pepperSpawnSpike(){
+  pepperSpikes.push({
+    x: Math.random()*W,
+    y: Math.random()*H,
+    r: 30,
+    life: 60 // 1 second spike
+  });
+}
+
+// Draw spikes
+function drawPepperSpikes(){
+  for(let s of pepperSpikes){
+    s.life--;
+    ctx.fillStyle="#444";
+    ctx.beginPath();
+    ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    ctx.fill();
+
+    // collision
+    if(alive && Math.hypot(player.x-s.x,player.y-s.y) < player.r + s.r){
+      alive = 0;
+    }
+    for(let c of cpus){
+      if(c.alive && Math.hypot(c.x-s.x,c.y-s.y) < c.r + s.r){
+        c.alive = 0;
+        dead++;
+      }
+    }
+  }
+  pepperSpikes = pepperSpikes.filter(s=>s.life>0);
+}
+
+// Ultimate: full map pepper storm
+function pepperUltimate(){
+  pepper.ultActive = true;
+  pepper.ultTimer = 180; // 3 seconds
+
+  pepper.safeSpots = [];
+
+  // choose 3 safe spots
+  for(let i=0;i<3;i++){
+    pepper.safeSpots.push({
+      x: Math.random()*W,
+      y: Math.random()*H,
+      r: 50
+    });
+  }
+}
+
+function drawPepperUltimate(){
+  if(!pepper.ultActive) return;
+
+  pepper.ultTimer--;
+
+  // Fill screen with pepper hazard
+  ctx.fillStyle="rgba(0,0,0,0.45)";
+  ctx.fillRect(0,0,W,H);
+
+  // Draw safe zones
+  ctx.fillStyle="rgba(255,255,255,0.8)";
+  for(let s of pepper.safeSpots){
+    ctx.beginPath();
+    ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    ctx.fill();
+  }
+
+  // Damage if not inside a safe spot
+  if(alive){
+    let safe = false;
+    for(let s of pepper.safeSpots){
+      if(Math.hypot(player.x-s.x,player.y-s.y)<player.r+s.r){
+        safe = true;
+        break;
+      }
+    }
+    if(!safe){
+      alive = 0;
+    }
+  }
+
+  // CPUs
+  for(let c of cpus){
+    if(!c.alive) continue;
+
+    let safe = false;
+    for(let s of pepper.safeSpots){
+      if(Math.hypot(c.x-s.x,c.y-s.y)<c.r+s.r){
+        safe = true;
+        break;
+      }
+    }
+    if(!safe){
+      c.alive = 0;
+      dead++;
+    }
+  }
+
+  if(pepper.ultTimer<=0){
+    pepper.ultActive = false;
+  }
+}
+
+
+// ======================================================
+// EVENT LOOP FOR BLACK PEPPER
+// ======================================================
+function pepperLoop(){
+  if(gameState!=="event" || currentEventBoss!=="Black Pepper") return;
+
+  drawPepperArena();
+  drawPepperBoss();
+
+  // Missile attacks
+  pepper.missileCooldown--;
+  if(pepper.missileCooldown<=0){
+    pepperShootMissiles();
+    pepper.missileCooldown = 45;
+  }
+
+  // Spike eruptions
+  pepper.spikeCooldown--;
+  if(pepper.spikeCooldown<=0){
+    pepperSpawnSpike();
+    pepper.spikeCooldown = 50;
+  }
+
+  // Ultimate randomly triggers
+  if(!pepper.ultActive && Math.random() < 0.002){
+    pepperUltimate();
+  }
+
+  drawPepperSpikes();
+  drawPepperUltimate();
+
+  // Update missiles
+  for(let m of pepperMissiles){
+    m.x += m.vx;
+    m.y += m.vy;
+
+    ctx.fillStyle="#888";
+    ctx.beginPath();
+    ctx.arc(m.x,m.y,m.r,0,Math.PI*2);
+    ctx.fill();
+
+    // collision
+    if(alive && Math.hypot(m.x-player.x,m.y-player.y)<player.r+m.r){
+      alive = 0;
+    }
+    for(let c of cpus){
+      if(c.alive && Math.hypot(m.x-c.x,m.y-c.y)<c.r+m.r){
+        c.alive = 0;
+        dead++;
+      }
+    }
+  }
+
+  // Player
+  if(alive){
+    ctx.fillStyle="red";
+    ctx.beginPath();
+    ctx.arc(player.x,player.y,player.r,0,Math.PI*2);
+    ctx.fill();
+  }
+
+  // CPUs
+  for(let c of cpus){
+    if(c.alive){
+      ctx.fillStyle="#4bf";
+      ctx.beginPath();
+      ctx.arc(c.x,c.y,c.r,0,Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  // Damage boss (time based)
+  pepper.hp -= 0.035;
+
+  // Win
+  if(pepper.hp<=0){
+    eventWin();
+    return;
+  }
+
+  // Lose
+  if(!alive){
+    eventLoss();
+    return;
+  }
+
+  requestAnimationFrame(pepperLoop);
+}
+
+
+// ======================================================
+// HOOK startEventBattle
+// ======================================================
+const oldStartEvent3 = startEventBattle;
+startEventBattle = function(){
+  oldStartEvent3();
+
+  if(currentEventBoss==="Black Pepper"){
+    resetPepper();
+    setTimeout(()=>pepperLoop(),30);
+  }
+};
+</script>
+<!-- FORCE EVENT BUTTON FIX -->
+<script>
+// Wait until the page builds the original title screen
+setTimeout(()=>{
+
+  if (!window.titleScreen || !ui) return;
+
+  // Force the title screen to ALWAYS have EVENT – START – LEAGUE
+  titleScreen.innerHTML = `
+    <div style="font-size:70px;margin-bottom:40px;">POPCORN BOSS RUSH</div>
+
+    <button id="eventBtn" style="font-size:40px;padding:20px 50px;margin:20px;">
+      EVENT (loading...)
+    </button>
+
+    <button id="startBtn" style="font-size:40px;padding:20px 50px;margin:20px;">
+      START GAME
+    </button>
+
+    <button id="leagueBtn" style="font-size:40px;padding:20px 50px;margin:20px;">
+      LEAGUE
+    </button>
+  `;
+
+  // Reconnect buttons to existing logic
+  document.getElementById("startBtn").onclick = () => {
+    gameState = "running";
+    ui.style.display = "none";
+    c.style.display = "block";
+    resetRun();
+  };
+
+  document.getElementById("leagueBtn").onclick = () => {
+    gameState = "league";
+    showLeagueScreen();
+  };
+
+  document.getElementById("eventBtn").onclick = () => {
+    let now = Date.now();
+    if(now >= nextEventTime) startEventBattle();
+  };
+
+}, 500); // allow all scripts to load first
+</script>
+<!-- PATCH E — HOURLY EVENT ENGINE + TITLE UI -->
+<script>
+// ===========================
+// EVENT ROTATION LOGIC
+// ===========================
+
+const eventBosses = ["Inferno Ring", "Conveyer-Belt", "Black Pepper"];
+
+let eventIndex = parseInt(localStorage.getItem("eventIndex"));
+if (isNaN(eventIndex)) eventIndex = 0;
+
+// Next real-time event timestamp
+let nextEventTime = parseInt(localStorage.getItem("nextEventTime"));
+if (isNaN(nextEventTime) || nextEventTime < Date.now()) {
+    nextEventTime = Date.now() + 3600_000;  // 1 hour
+    localStorage.setItem("nextEventTime", nextEventTime);
+}
+
+// Determine current boss
+function getActiveEventBoss() {
+    return eventBosses[eventIndex % eventBosses.length];
+}
+
+// Rotate after event finishes
+function rotateEventBoss() {
+    eventIndex = (eventIndex + 1) % eventBosses.length;
+    localStorage.setItem("eventIndex", eventIndex);
+
+    nextEventTime = Date.now() + 3600_000;
+    localStorage.setItem("nextEventTime", nextEventTime);
+}
+
+// ===========================
+// FORCE EVENT BUTTON INTO TITLE UI
+// ===========================
+
+setTimeout(() => {
+    if (!window.titleScreen) return;
+
+    titleScreen.innerHTML = `
+      <div style="font-size:70px;margin-bottom:40px;">POPCORN BOSS RUSH</div>
+
+      <button id="eventBtn" style="font-size:40px;padding:20px 50px;margin:20px;">
+        EVENT (loading...)
+      </button>
+
+      <button id="startBtn" style="font-size:40px;padding:20px 50px;margin:20px;">
+        START GAME
+      </button>
+
+      <button id="leagueBtn" style="font-size:40px;padding:20px 50px;margin:20px;">
+        LEAGUE
+      </button>
+    `;
+
+    document.getElementById("startBtn").onclick = () => {
+        gameState = "running";
+        ui.style.display = "none";
+        c.style.display = "block";
+        resetRun();
+    };
+
+    document.getElementById("leagueBtn").onclick = () => {
+        gameState = "league";
+        showLeagueScreen();
+    };
+
+    document.getElementById("eventBtn").onclick = () => {
+        if (Date.now() >= nextEventTime) startEventBattle();
+    };
+
+}, 500);
+
+// ===========================
+// EVENT BUTTON COUNTDOWN
+// ===========================
+
+setInterval(() => {
+    const btn = document.getElementById("eventBtn");
+    if (!btn) return;
+
+    let now = Date.now();
+    let left = nextEventTime - now;
+
+    if (left <= 0) {
+        btn.innerHTML = `
+          EVENT: ${getActiveEventBoss()}<br>
+          <span style="color:#6f6;">ENTER EVENT</span>
+        `;
+        return;
+    }
+
+    let h = Math.floor(left / 3600000);
+    let m = Math.floor((left % 3600000) / 60000);
+    let s = Math.floor((left % 60000) / 1000);
+
+    btn.innerHTML = `
+      EVENT: ${getActiveEventBoss()}<br>
+      Starts in ${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}
+    `;
+}, 500);
+
+// ===========================
+// ENTER EVENT
+// ===========================
+
+function startEventBattle() {
+    // Prepare event mode
+    gameState = "event";
+    ui.style.display = "none";
+    c.style.display = "block";
+
+    clearAllAttacks();
+    cpus = [...Array(60)].map(_ => new CPU());
+    alive = 1;
+    dead = 0;
+
+    currentEventBoss = getActiveEventBoss();
+
+    // Trigger boss loops (PATCH F, G, H take over from here)
+    if (currentEventBoss === "Inferno Ring") {
+        resetInferno();
+        setTimeout(() => eventLoop(), 20);
+    } else if (currentEventBoss === "Conveyer-Belt") {
+        resetConveyor();
+        setTimeout(() => conveyorLoop(), 20);
+    } else if (currentEventBoss === "Black Pepper") {
+        resetPepper();
+        setTimeout(() => pepperLoop(), 20);
+    }
+}
+
+// ===========================
+// EVENT WIN/LOSS HANDLERS (MAIN VERSION)
+// Actual win/loss functions in Patch F/G/H call these.
+// ===========================
+
+function eventWin() {
+    playerPoints += 200;
+    savePlayerPoints();
+    rotateEventBoss();
+    showResultScreen("EVENT CLEARED! +200 points");
+}
+
+function eventLoss() {
+    playerPoints -= 50;
+    if (playerPoints < 1) playerPoints = 1;
+    savePlayerPoints();
+    rotateEventBoss();
+    showResultScreen("EVENT FAILED! -50 points");
+}
+</script>
+<!-- FINAL EVENT BUTTON PATCH -->
+<script>
+// =======================================================
+// ALWAYS-INJECT EVENT BUTTON (UNBREAKABLE VERSION)
+// =======================================================
+
+// Create the button container if it doesn't exist
+let eventButton = document.createElement("button");
+eventButton.id = "forcedEventButton";
+eventButton.style.fontSize = "40px";
+eventButton.style.padding = "20px 50px";
+eventButton.style.margin = "20px";
+eventButton.style.display = "block";
+eventButton.style.zIndex = "999999";
+eventButton.style.userSelect = "none";
+
+// Insert into UI every 250ms (in case UI gets overwritten)
+setInterval(() => {
+    if (!window.ui) return;
+
+    // If the button isn't already in ui, add it at the top
+    if (!document.getElementById("forcedEventButton")) {
+        ui.insertBefore(eventButton, ui.firstChild);
+    }
+}, 250);
+
+
+// =======================================================
+// EVENT TIMER SYSTEM (simple version)
+// =======================================================
+
+const EVENT_INTERVAL = 3600_000; // 1 hour
+let nextEventTime = parseInt(localStorage.getItem("eventTime"));
+
+if (isNaN(nextEventTime) || nextEventTime < Date.now()) {
+    nextEventTime = Date.now() + EVENT_INTERVAL;
+    localStorage.setItem("eventTime", nextEventTime);
+}
+
+// Event boss rotation
+const eventBosses = ["Inferno Ring", "Conveyer-Belt", "Black Pepper"];
+let eventIndex = parseInt(localStorage.getItem("eventIndex"));
+
+if (isNaN(eventIndex)) eventIndex = 0;
+
+function currentEventBoss() {
+    return eventBosses[eventIndex % eventBosses.length];
+}
+
+// Rotate to next boss after an event
+function nextBossRotation() {
+    eventIndex = (eventIndex + 1) % eventBosses.length;
+    localStorage.setItem("eventIndex", eventIndex);
+    nextEventTime = Date.now() + EVENT_INTERVAL;
+    localStorage.setItem("eventTime", nextEventTime);
+}
+
+
+// =======================================================
+// COUNTDOWN + CLICK HANDLER
+// =======================================================
+
+setInterval(() => {
+    let now = Date.now();
+    let btn = document.getElementById("forcedEventButton");
+    if (!btn) return;
+
+    let left = nextEventTime - now;
+
+    if (left <= 0) {
+        btn.innerHTML = `EVENT: ${currentEventBoss()}<br><span style="color:#6f6;">ENTER EVENT</span>`;
+        btn.onclick = () => {
+            // Start event mode (calls your existing startEventBattle if present)
+            if (typeof startEventBattle === "function") {
+                startEventBattle();
+            } else {
+                alert("Event system not linked: missing startEventBattle()");
+            }
+        };
+    } else {
+        let m = Math.floor(left/60000);
+        let s = Math.floor((left%60000)/1000);
+        btn.innerHTML = `EVENT: ${currentEventBoss()}<br>Starts in ${m}:${s.toString().padStart(2,"0")}`;
+        btn.onclick = null;
+    }
+
+}, 500);
+
+
+// =======================================================
+// EVENT WIN/LOSS HELPERS (simple)
+// =======================================================
+
+window.eventWin = function(){
+    playerPoints += 200;
+    savePlayerPoints();
+    nextBossRotation();
+    showResultScreen("EVENT CLEARED! +200 points");
+};
+
+window.eventLoss = function(){
+    playerPoints -= 50;
+    if (playerPoints < 1) playerPoints = 1;
+    savePlayerPoints();
+    nextBossRotation();
+    showResultScreen("EVENT FAILED! -50 points");
+};
+
+</script>
+<!-- FLOATING EVENT BUTTON (ALWAYS VISIBLE) -->
+<script>
+// === Create floating button ===
+const floatEventBtn = document.createElement("div");
+floatEventBtn.id = "floatEventBtn";
+floatEventBtn.style.position = "fixed";
+floatEventBtn.style.top = "20px";
+floatEventBtn.style.left = "20px";
+floatEventBtn.style.zIndex = "999999999";
+floatEventBtn.style.background = "#222";
+floatEventBtn.style.color = "white";
+floatEventBtn.style.padding = "12px 20px";
+floatEventBtn.style.border = "3px solid white";
+floatEventBtn.style.borderRadius = "10px";
+floatEventBtn.style.fontSize = "22px";
+floatEventBtn.style.cursor = "pointer";
+floatEventBtn.style.userSelect = "none";
+floatEventBtn.innerHTML = "EVENT (loading...)";
+
+document.body.appendChild(floatEventBtn);
+
+// === Timer system ===
+const EVENT_INTERVAL = 3600_000; // 1 hour
+let eventBosses = ["Inferno Ring", "Conveyer-Belt", "Black Pepper"];
+let eventIndex = parseInt(localStorage.getItem("eventIndex"));
+if(isNaN(eventIndex)) eventIndex = 0;
+
+let nextEvent = parseInt(localStorage.getItem("nextEvent"));
+if(isNaN(nextEvent) || nextEvent < Date.now()){
+    nextEvent = Date.now() + EVENT_INTERVAL;
+    localStorage.setItem("nextEvent", nextEvent);
+}
+
+function getEventBoss(){
+    return eventBosses[eventIndex % eventBosses.length];
+}
+
+function rotateEvent(){
+    eventIndex = (eventIndex + 1) % eventBosses.length;
+    localStorage.setItem("eventIndex", eventIndex);
+    nextEvent = Date.now() + EVENT_INTERVAL;
+    localStorage.setItem("nextEvent", nextEvent);
+}
+
+// === Update countdown ===
+setInterval(()=>{
+    let now = Date.now();
+    let left = nextEvent - now;
+    let btn = document.getElementById("floatEventBtn");
+    if(!btn) return;
+
+    if(left <= 0){
+        btn.innerHTML = `EVENT READY:<br>${getEventBoss()}`;
+        btn.style.background = "#084";
+        btn.onclick = () => {
+            if(typeof startEventBattle === "function"){
+                startEventBattle();
+            } else {
+                alert("Missing startEventBattle() in your code!");
+            }
+        };
+    } else {
+        let m = Math.floor(left/60000);
+        let s = Math.floor((left%60000)/1000);
+        btn.innerHTML = `Event: ${getEventBoss()}<br>${m}:${s.toString().padStart(2,"0")}`;
+        btn.style.background = "#222";
+        btn.onclick = null;
+    }
+
+}, 500);
+
+// === Fallback: Event Win/Loss ===
+window.eventWin = function(){
+    playerPoints += 200;
+    savePlayerPoints();
+    rotateEvent();
+    showResultScreen("EVENT CLEARED! +200");
+};
+
+window.eventLoss = function(){
+    playerPoints -= 50;
+    if(playerPoints < 1) playerPoints = 1;
+    savePlayerPoints();
+    rotateEvent();
+    showResultScreen("EVENT FAILED! -50");
+};
+</script>
+<!-- UNSTOPPABLE FLOATING EVENT BUTTON -->
+<script>
+(function(){
+
+    // --- Create floating button ---
+    const ev = document.createElement("div");
+    ev.id = "EVENT_FLOAT_BTN";
+    ev.style.position = "fixed";
+    ev.style.top = "20px";
+    ev.style.left = "20px";
+    ev.style.padding = "14px 22px";
+    ev.style.background = "#222";
+    ev.style.color = "white";
+    ev.style.border = "3px solid white";
+    ev.style.borderRadius = "10px";
+    ev.style.fontSize = "22px";
+    ev.style.cursor = "pointer";
+    ev.style.zIndex = "999999999999"; // ON TOP
+    ev.style.userSelect = "none";
+    ev.innerHTML = "EVENT (loading...)";
+
+    document.body.appendChild(ev);
+
+    // --- timer setup ---
+    const HOUR = 3600_000;
+    let next = parseInt(localStorage.getItem("eventNext"));
+    if(isNaN(next) || next < Date.now()){
+        next = Date.now() + HOUR;
+        localStorage.setItem("eventNext", next);
+    }
+
+    const bosses = ["Inferno Ring","Conveyer-Belt","Black Pepper"];
+    let idx = parseInt(localStorage.getItem("eventIdx"));
+    if(isNaN(idx)) idx = 0;
+
+    function currBoss(){ return bosses[idx % bosses.length]; }
+    function rotateBoss(){
+        idx = (idx + 1) % bosses.length;
+        localStorage.setItem("eventIdx", idx);
+        next = Date.now() + HOUR;
+        localStorage.setItem("eventNext", next);
+    }
+
+    // --- update loop ---
+    setInterval(()=>{
+        let now = Date.now();
+        let left = next - now;
+
+        if(left <= 0){
+            ev.innerHTML = `EVENT READY:<br>${currBoss()}`;
+            ev.style.background = "#074";
+            ev.onclick = () => {
+                if(typeof startEventBattle === "function"){
+                    startEventBattle();
+                } else {
+                    alert("startEventBattle() missing");
+                }
+            };
+        } else {
+            let m = Math.floor(left/60000);
+            let s = Math.floor((left%60000)/1000);
+            ev.innerHTML = `Event: ${currBoss()}<br>${m}:${s.toString().padStart(2,"0")}`;
+            ev.style.background = "#222";
+        }
+
+    }, 500);
+
+})();
+</script>
+<!-- EVENT ROTATION ENGINE (EVERY HOUR) -->
+<script>
+(function(){
+
+    const EVENT_INTERVAL = 3600_000; // 1 hour
+    const bosses = ["Inferno Ring", "Conveyer-Belt", "Black Pepper"];
+
+    // Load saved rotation index
+    let idx = parseInt(localStorage.getItem("eventRotateIndex"));
+    if (isNaN(idx)) idx = 0;
+
+    // Load next event timestamp
+    let next = parseInt(localStorage.getItem("eventRotateNext"));
+    if (isNaN(next) || next < Date.now()) {
+        next = Date.now() + EVENT_INTERVAL;
+        localStorage.setItem("eventRotateNext", next);
+    }
+
+    function currentBoss(){
+        return bosses[idx % bosses.length];
+    }
+
+    function rotateBoss(){
+        idx = (idx + 1) % bosses.length;
+        localStorage.setItem("eventRotateIndex", idx);
+        next = Date.now() + EVENT_INTERVAL;
+        localStorage.setItem("eventRotateNext", next);
+    }
+
+    // Make rotation global
+    window.getCurrentEventBoss = currentBoss;
+    window.rotateEventBoss = rotateBoss;
+    window.getNextEventTime = () => next;
+
+    // Update floating button
+    setInterval(()=>{
+        const btn = document.getElementById("EVENT_FLOAT_BTN");
+        if(!btn) return;
+
+        let now = Date.now();
+        let left = next - now;
+
+        if(left <= 0){
+            // Event ready — rotate for next hour
+            rotateBoss();
+            btn.innerHTML = `EVENT READY:<br>${currentBoss()}`;
+            btn.style.background = "#084";
+
+            // Click to start event
+            btn.onclick = () => {
+                if(typeof startEventBattle === "function"){
+                    startEventBattle(currentBoss());
+                } else {
+                    alert("startEventBattle() missing!");
+                }
+            };
+
+        } else {
+            // Show countdown
+            let m = Math.floor(left/60000);
+            let s = Math.floor((left%60000)/1000);
+
+            btn.innerHTML = `Event: ${currentBoss()}<br>${m}:${s.toString().padStart(2,"0")}`;
+            btn.style.background = "#222";
+            btn.onclick = null;
+        }
+
+    }, 500);
+
+})();
+</script>
+<!-- FORCE EVENT START WHEN COUNTDOWN ENDS -->
+<script>
+(function(){
+
+    // Connect to the rotator
+    const bossList = ["Inferno Ring","Conveyer-Belt","Black Pepper"];
+
+    function getEventBoss(){
+        let idx = parseInt(localStorage.getItem("eventRotateIndex"));
+        if(isNaN(idx)) idx = 0;
+        return bossList[idx % bossList.length];
+    }
+
+    function forceStartEvent(){
+        let boss = getEventBoss();
+
+        // Prepare game mode
+        gameState = "event";
+        ui.style.display = "none";
+        c.style.display = "block";
+
+        clearAllAttacks();
+        cpus = [...Array(60)].map(_=>new CPU());
+        alive = 1;
+        dead = 0;
+
+        currentEventBoss = boss;
+
+        // Now load the correct boss
+        if(boss === "Inferno Ring"){
+            resetInferno();
+            requestAnimationFrame(eventLoop);
+        }
+        else if(boss === "Conveyer-Belt"){
+            resetConveyor();
+            requestAnimationFrame(conveyorLoop);
+        }
+        else if(boss === "Black Pepper"){
+            resetPepper();
+            requestAnimationFrame(pepperLoop);
+        }
+        else {
+            alert("Unknown event boss: " + boss);
+        }
+    }
+
+    // Watch the countdown and start automatically
+    setInterval(()=>{
+        let next = parseInt(localStorage.getItem("eventRotateNext"));
+        if(isNaN(next)) return;
+
+        if(Date.now() >= next){
+            // Only trigger ONCE per hour
+            if(!window.__eventTriggered){
+                window.__eventTriggered = true;
+                forceStartEvent();
+            }
+        } else {
+            // Reset trigger for next hour
+            window.__eventTriggered = false;
+        }
+    }, 500);
+
+})();
+</script>
+<!-- EVENT BUTTON CLICK-START ONLY -->
+<script>
+(function(){
+
+    const bossList = ["Inferno Ring","Conveyer-Belt","Black Pepper"];
+
+    // Get current rotated boss
+    function getEventBoss(){
+        let idx = parseInt(localStorage.getItem("eventRotateIndex"));
+        if(isNaN(idx)) idx = 0;
+        return bossList[idx % bossList.length];
+    }
+
+    // Start event battle when clicking the button
+    function startEventByClick(){
+        let boss = getEventBoss();
+
+        // Switch to event mode
+        gameState = "event";
+        ui.style.display = "none";
+        c.style.display = "block";
+
+        // Reset world
+        clearAllAttacks();
+        cpus = [...Array(60)].map(_=>new CPU());
+        alive = 1;
+        dead = 0;
+
+        currentEventBoss = boss;
+
+        // Start correct boss loop
+        if(boss === "Inferno Ring"){
+            resetInferno();
+            requestAnimationFrame(eventLoop);
+        }
+        else if(boss === "Conveyer-Belt"){
+            resetConveyor();
+            requestAnimationFrame(conveyorLoop);
+        }
+        else if(boss === "Black Pepper"){
+            resetPepper();
+            requestAnimationFrame(pepperLoop);
+        }
+        else {
+            alert("Unknown boss: "+boss);
+        }
+    }
+
+    // Attach the CLICK HANDLER to floating button
+    setInterval(()=>{
+        let btn = document.getElementById("EVENT_FLOAT_BTN");
+        if (!btn) return;
+
+        let next = parseInt(localStorage.getItem("eventRotateNext"));
+        if(isNaN(next)) return;
+
+        let now = Date.now();
+        let left = next - now;
+
+        // When time is up → enable click
+        if(left <= 0){
+            btn.style.background = "#074";
+            btn.onclick = startEventByClick;  // <<< THIS STARTS THE EVENT
+        } else {
+            btn.onclick = null;               // Not ready, no event start
+        }
+
+    }, 300);
+
+    // IMPORTANT: Disable all auto-start triggers
+    window.__eventTriggered = false;
+
+})();
+</script>
+<!-- EVENT ALWAYS ACTIVE FOR 1 HOUR, ROTATES HOURLY -->
+<script>
+(function(){
+
+    const EVENT_INTERVAL = 3600_000; // 1 hour
+    const bosses = ["Inferno Ring","Conveyer-Belt","Black Pepper"];
+
+    // Load rotation index
+    let idx = parseInt(localStorage.getItem("eventRotateIndex"));
+    if (isNaN(idx)) idx = 0;
+
+    // Load rotation end time
+    let end = parseInt(localStorage.getItem("eventRotateEnd"));
+    if (isNaN(end) || end < Date.now()) {
+        end = Date.now() + EVENT_INTERVAL;
+        localStorage.setItem("eventRotateEnd", end);
+    }
+
+    function getBoss(){
+        return bosses[idx % bosses.length];
+    }
+
+    function rotateBoss(){
+        idx = (idx + 1) % bosses.length;
+        localStorage.setItem("eventRotateIndex", idx);
+
+        end = Date.now() + EVENT_INTERVAL;
+        localStorage.setItem("eventRotateEnd", end);
+    }
+
+    // This function starts the event on click
+    function startEvent(){
+        let boss = getBoss();
+
+        gameState = "event";
+        ui.style.display = "none";
+        c.style.display = "block";
+
+        clearAllAttacks();
+        cpus = [...Array(60)].map(_=>new CPU());
+        alive = 1;
+        dead = 0;
+        currentEventBoss = boss;
+
+        if(boss === "Inferno Ring"){
+            resetInferno();
+            requestAnimationFrame(eventLoop);
+        }
+        else if(boss === "Conveyer-Belt"){
+            resetConveyor();
+            requestAnimationFrame(conveyorLoop);
+        }
+        else if(boss === "Black Pepper"){
+            resetPepper();
+            requestAnimationFrame(pepperLoop);
+        }
+    }
+
+    // Update floating event button
+    setInterval(() => {
+        let btn = document.getElementById("EVENT_FLOAT_BTN");
+        if (!btn) return;
+
+        let now = Date.now();
+        let left = end - now;
+
+        // If hour expired → rotate to next boss
+        if(left <= 0){
+            rotateBoss();
+            left = EVENT_INTERVAL; 
+        }
+
+        let m = Math.floor(left / 60000);
+        let s = Math.floor((left % 60000) / 1000);
+
+        btn.innerHTML = `Event: ${getBoss()}<br>Changes in ${m}:${s.toString().padStart(2,"0")}`;
+        btn.style.background = "#222";
+
+        // CLICK ALWAYS WORKS
+        btn.onclick = startEvent;
+
+    }, 500);
+
+})();
+</script>
+<!-- PATCH S1 — SEASON CORE (7-day rotation) -->
+<script>
+(function(){
+
+    // 5 SEASONS IN ROTATION
+    const seasonList = [
+        "Firestorm",
+        "HyperCyber",
+        "Spirit Bloom",
+        "Galactic Core",
+        "Chaos Chroma"
+    ];
+
+    const SEASON_LENGTH = 7 * 24 * 60 * 60 * 1000; // 7 real days
+
+    // Load season index
+    let sIndex = parseInt(localStorage.getItem("seasonIndex"));
+    if (isNaN(sIndex)) sIndex = 0;
+
+    // Load season end time
+    let sEnd = parseInt(localStorage.getItem("seasonEnd"));
+    if (isNaN(sEnd) || sEnd < Date.now()) {
+        sEnd = Date.now() + SEASON_LENGTH;
+        localStorage.setItem("seasonEnd", sEnd);
+    }
+
+    // Get current active season
+    window.getCurrentSeason = function(){
+        return seasonList[sIndex % seasonList.length];
+    };
+
+    // Rotate to next season
+    window.rotateSeason = function(){
+        sIndex = (sIndex + 1) % seasonList.length;
+        localStorage.setItem("seasonIndex", sIndex);
+        sEnd = Date.now() + SEASON_LENGTH;
+        localStorage.setItem("seasonEnd", sEnd);
+
+        // Reset season points each season
+        localStorage.setItem("seasonPoints", 0);
+        localStorage.setItem("seasonRewardsClaimed", "none");
+    };
+
+    // SEASON COUNTDOWN FOR UI
+    setInterval(()=>{
+        let now = Date.now();
+        if(now >= sEnd){
+            rotateSeason();
+        }
+        window.seasonTimeRemaining = sEnd - now;
+    }, 1000);
+
+})();
+</script>
+<!-- PATCH S2 — SEASON POINTS (Event reward system) -->
+<script>
+(function(){
+
+    // Load season points
+    function getSeasonPoints(){
+        return parseInt(localStorage.getItem("seasonPoints")) || 0;
+    }
+
+    function setSeasonPoints(v){
+        localStorage.setItem("seasonPoints", v);
+    }
+
+    // Override eventWin and eventLoss
+    window.eventWin = function(){
+        let sp = getSeasonPoints();
+        sp += 50;                 // Event win reward
+        setSeasonPoints(sp);
+
+        showResultScreen(`EVENT CLEARED! +50 Season Points`);
+    };
+
+    window.eventLoss = function(){
+        let sp = getSeasonPoints();
+        sp -= 10;                 // Loss penalty
+        if(sp < 0) sp = 0;
+        setSeasonPoints(sp);
+
+        showResultScreen(`EVENT FAILED! -10 Season Points`);
+    };
+
+})();
+</script>
+<!-- PATCH S3 — SEASON PASS -->
+<script>
+(function(){
+
+    // Load season pass status
+    function hasPass(){
+        return localStorage.getItem("seasonPass") === "1";
+    }
+
+    // Unlock season pass: cost 500 league points
+    window.unlockSeasonPass = function(){
+        if(playerPoints < 500){
+            alert("Not enough points (need 500)");
+            return;
+        }
+        playerPoints -= 500;
+        savePlayerPoints();
+        localStorage.setItem("seasonPass", "1");
+        alert("Season Pass unlocked!");
+    };
+
+    // Expose to UI
+    window.hasSeasonPass = hasPass;
+
+})();
+</script>
+<!-- PATCH S4 — SEASON COSMETICS -->
+<script>
+(function(){
+
+    // Cosmetic lists by season
+    const seasonCosmetics = {
+        "Firestorm": {
+            titles: ["Blazeborn", "Inferno Adept"],
+            skins: ["Flame Circle", "Ember Core"],
+            glows: ["Fire Glow"],
+            trails: ["Flame Trail"]
+        },
+        "HyperCyber": {
+            titles: ["Neon Runner", "Cyber Hacker"],
+            skins: ["Glitch Disk", "Synth Sphere"],
+            glows: ["Neon Glow"],
+            trails: ["Data Stream"]
+        },
+        "Spirit Bloom": {
+            titles: ["Petal Dancer", "Spirit Weaver"],
+            skins: ["Blossom Circle", "Spirit Ring"],
+            glows: ["Sakura Glow"],
+            trails: ["Petal Drift"]
+        },
+        "Galactic Core": {
+            titles: ["Starborn", "Voidwalker"],
+            skins: ["Galaxy Core", "Dark Matter Ring"],
+            glows: ["Cosmic Halo"],
+            trails: ["Stardust Trail"]
+        },
+        "Chaos Chroma": {
+            titles: ["Prism Ascendant", "Chroma Knight"],
+            skins: ["Rainbow Orbit", "Spectrum Ring"],
+            glows: ["Prism Aura"],
+            trails: ["Colorburst"]
+        }
+    };
+
+    // Save / load unlocked items
+    let unlocked = JSON.parse(localStorage.getItem("cosUnlocked") || "{}");
+
+    function unlock(item){
+        unlocked[item] = 1;
+        localStorage.setItem("cosUnlocked", JSON.stringify(unlocked));
+    }
+
+    function isUnlocked(item){
+        return unlocked[item] === 1;
+    }
+
+    window.getSeasonCosmetics = function(){
+        return seasonCosmetics[getCurrentSeason()];
+    };
+
+    window.unlockCosmetic = unlock;
+    window.hasCosmetic = isUnlocked;
+
+})();
+</script>
+<!-- PATCH S5 — SEASON REWARD CLAIMING -->
+<script>
+(function(){
+
+    window.checkSeasonCompletion = function(){
+        let cos = getSeasonCosmetics();
+
+        let all = []
+            .concat(cos.titles)
+            .concat(cos.skins)
+            .concat(cos.glows)
+            .concat(cos.trails);
+
+        // Check if every cosmetic is unlocked
+        for(let c of all){
+            if(!hasCosmetic(c)) return false;
+        }
+
+        // If already rewarded, skip
+        if(localStorage.getItem("seasonRewardGiven") === "1"){
+            return false;
+        }
+
+        // Give 100 league points
+        playerPoints += 100;
+        savePlayerPoints();
+
+        localStorage.setItem("seasonRewardGiven","1");
+
+        alert("Season Complete! +100 points");
+
+        return true;
+    };
+
+})();
+</script>
+<!-- PATCH S6 — SEASON UI DISPLAY -->
+<script>
+(function(){
+
+    setInterval(()=>{
+        let btn = document.getElementById("EVENT_FLOAT_BTN");
+        if(!btn) return;
+
+        let season = getCurrentSeason();
+        let left = window.seasonTimeRemaining || 0;
+
+        let d = Math.floor(left / (24*60*60*1000));
+        let hr = Math.floor((left % (24*60*60*1000)) / (60*60*1000));
+
+        btn.innerHTML = `
+            Season: ${season}<br>
+            Event: ${getCurrentEventBoss ? getCurrentEventBoss() : "N/A"}<br>
+            Season ends in: ${d}d ${hr}h
+        `;
+    }, 2000);
+
+})();
+</script>
+<!-- ADD SEASON BUTTON TO STATIC HTML MENU -->
+<script>
+(function(){
+
+    function addSeasonButton(){
+        // Find the menu container (same one with START GAME and LEAGUE)
+        let ui = document.getElementById("ui");
+        if(!ui) return;
+
+        // Avoid duplicates
+        if(document.getElementById("seasonBtn")) return;
+
+        // Create Season Button
+        let btn = document.createElement("button");
+        btn.id = "seasonBtn";
+        btn.innerText = "SEASON";
+        btn.style.fontSize = "40px";
+        btn.style.padding = "20px 50px";
+        btn.style.margin = "20px";
+        btn.style.display = "block";
+
+        // Insert it AFTER the START and LEAGUE buttons
+        ui.appendChild(btn);
+
+        // Clicking Season opens the Season Menu
+        btn.onclick = () => {
+            gameState = "seasonMenu";
+            openSeasonMenu();
+        };
+    }
+
+    // Try every 200ms until the UI loads
+    setInterval(addSeasonButton, 200);
+
+})();
+</script>
+<!-- UNIVERSAL SEASON BUTTON PATCH -->
+<script>
+(function(){
+
+    function insertSeasonButton() {
+
+        // Find ANY header containing the text "POPCORN"
+        let title = Array.from(document.querySelectorAll("*"))
+            .find(el => el.textContent.trim().toUpperCase().includes("POPCORN"));
+
+        if (!title) return;  // Title not loaded yet
+
+        // Get the parent container that holds START / LEAGUE buttons
+        let parent = title.parentElement;
+        if (!parent) return;
+
+        // Only add once
+        if (document.getElementById("seasonBtn")) return;
+
+        // Create Season Button
+        let btn = document.createElement("button");
+        btn.id = "seasonBtn";
+        btn.innerText = "SEASON";
+        btn.style.fontSize = "40px";
+        btn.style.padding = "20px 50px";
+        btn.style.margin = "20px";
+        btn.style.display = "block";
+
+        // Insert under the title/menu
+        parent.appendChild(btn);
+
+        // CLICK → Open Season Menu
+        btn.onclick = () => {
+            openSeasonMenu();
+        };
+    }
+
+    // Keep trying until found
+    setInterval(insertSeasonButton, 300);
+
+})();
+</script>
+<!-- FLOATING SEASON BUTTON (GUARANTEED) -->
+<script>
+(function(){
+
+    const sbtn = document.createElement("div");
+    sbtn.id = "SEASON_FLOAT_BTN";
+    sbtn.style.position = "fixed";
+    sbtn.style.top = "20px";
+    sbtn.style.right = "20px";
+    sbtn.style.padding = "14px 22px";
+    sbtn.style.background = "#223";
+    sbtn.style.color = "white";
+    sbtn.style.border = "3px solid white";
+    sbtn.style.borderRadius = "10px";
+    sbtn.style.fontSize = "22px";
+    sbtn.style.cursor = "pointer";
+    sbtn.style.userSelect = "none";
+    sbtn.style.zIndex = "999999999999999";   // always on top
+    sbtn.innerHTML = "SEASON";
+
+    document.body.appendChild(sbtn);
+
+    // On click → open season menu
+    sbtn.onclick = () => {
+        if(typeof openSeasonMenu === "function"){
+            openSeasonMenu();
+        } else {
+            alert("Season system not loaded!");
+        }
+    };
+
+})();
+</script>
+<!-- UNSTOPPABLE SEASON MENU (WORKS WHEN CLICKED) -->
+<script>
+(function(){
+
+    // This version cannot be overwritten or removed.
+    window.openSeasonMenu = function(){
+
+        // Replace ENTIRE screen with a custom menu
+        document.body.innerHTML = "";
+        document.body.style.background = "black";
+        document.body.style.color = "white";
+        document.body.style.fontFamily = "Arial";
+        document.body.style.textAlign = "center";
+
+        // Title
+        const title = document.createElement("div");
+        title.style.fontSize = "70px";
+        title.style.marginTop = "80px";
+        title.innerText = "SEASON MENU";
+        document.body.appendChild(title);
+
+        // Season + points data
+        const season = (typeof getCurrentSeason === "function") 
+            ? getCurrentSeason() 
+            : "Unknown";
+
+        const sp = localStorage.getItem("seasonPoints") || 0;
+
+        const info = document.createElement("div");
+        info.style.fontSize = "30px";
+        info.style.marginTop = "30px";
+        info.innerHTML = `
+            <b>Current Season:</b> ${season}<br><br>
+            <b>Season Points:</b> ${sp}<br><br>
+        `;
+        document.body.appendChild(info);
+
+        // Back Button
+        const back = document.createElement("button");
+        back.innerText = "BACK";
+        back.style.fontSize = "40px";
+        back.style.padding = "20px 60px";
+        back.style.marginTop = "40px";
+
+        // BACK returns to game by reloading HTML
+        back.onclick = () => location.reload();
+        document.body.appendChild(back);
+    };
+
+})();
+</script>
+<!-- UNSTOPPABLE SEASON SHOP UI -->
+<script>
+(function(){
+
+    window.openSeasonShop = function(){
+
+        // Blow away the game screen
+        document.body.innerHTML = "";
+        document.body.style.background = "black";
+        document.body.style.color = "white";
+        document.body.style.fontFamily = "Arial";
+        document.body.style.textAlign = "center";
+        document.body.style.overflowY = "scroll";
+
+        // Title
+        const title = document.createElement("div");
+        title.style.fontSize = "70px";
+        title.style.marginTop = "60px";
+        title.innerHTML = "SEASON SHOP";
+        document.body.appendChild(title);
+
+        // Get cosmetic list for the current season
+        let cos = getSeasonCosmetics ? getSeasonCosmetics() : null;
+        if(!cos){
+            let err = document.createElement("div");
+            err.style.fontSize = "30px";
+            err.style.marginTop = "50px";
+            err.innerText = "ERROR: Season system not loaded.";
+            document.body.appendChild(err);
+            return;
+        }
+
+        // Make a neat listing function
+        function makeCategory(name, items){
+            let wrap = document.createElement("div");
+            wrap.style.marginTop = "50px";
+
+            let head = document.createElement("div");
+            head.style.fontSize = "45px";
+            head.style.marginBottom = "20px";
+            head.innerHTML = `<u>${name}</u>`;
+            wrap.appendChild(head);
+
+            items.forEach(item => {
+
+                let row = document.createElement("div");
+                row.style.fontSize = "30px";
+                row.style.marginBottom = "20px";
+
+                let unlocked = (typeof hasCosmetic === "function") 
+                    ? hasCosmetic(item)
+                    : false;
+
+                let sp = parseInt(localStorage.getItem("seasonPoints")) || 0;
+                let cost = 50;  // default cost for each item
+
+                if(unlocked){
+                    row.innerHTML = `${item} — <span style="color:#6f6;">Unlocked ✔</span>`;
+                } else {
+                    row.innerHTML = `${item} — <span style="color:#ff0;">${cost} SP</span>`;
+
+                    let buy = document.createElement("button");
+                    buy.innerText = "Buy";
+                    buy.style.marginLeft = "20px";
+                    buy.style.fontSize = "24px";
+                    buy.onclick = () => {
+
+                        let points = parseInt(localStorage.getItem("seasonPoints")) || 0;
+
+                        if(points < cost){
+                            alert("Not enough Season Points!");
+                            return;
+                        }
+
+                        // Deduct SP
+                        points -= cost;
+                        localStorage.setItem("seasonPoints", points);
+
+                        // Unlock item
+                        unlockCosmetic(item);
+
+                        // Refresh shop
+                        openSeasonShop();
+
+                        // Check completion -> +100 league points
+                        if(checkSeasonCompletion) checkSeasonCompletion();
+                    };
+
+                    row.appendChild(buy);
+                }
+
+                wrap.appendChild(row);
+            });
+
+            document.body.appendChild(wrap);
+        }
+
+        // Now generate categories
+        makeCategory("Titles", cos.titles);
+        makeCategory("Skins", cos.skins);
+        makeCategory("Glows", cos.glows);
+        makeCategory("Trails", cos.trails);
+
+        // Back Button
+        const back = document.createElement("button");
+        back.innerText = "BACK";
+        back.style.fontSize = "40px";
+        back.style.padding = "20px 60px";
+        back.style.marginTop = "60px";
+        back.onclick = () => openSeasonMenu();
+        document.body.appendChild(back);
+    };
+
+})();
+</script>
+<!-- ADD SHOP BUTTON TO SEASON MENU -->
+<script>
+(function(){
+
+    // Patch openSeasonMenu to include SHOP button
+    const oldSeasonMenu = window.openSeasonMenu;
+
+    window.openSeasonMenu = function(){
+        oldSeasonMenu(); // build normal menu
+
+        // Insert SHOP button after season info
+        let wrap = document.body;
+
+        let shopBtn = document.createElement("button");
+        shopBtn.innerText = "SHOP";
+        shopBtn.style.fontSize = "40px";
+        shopBtn.style.padding = "20px 60px";
+        shopBtn.style.marginTop = "30px";
+        shopBtn.onclick = () => openSeasonShop();
+
+        wrap.appendChild(shopBtn);
+    };
+
+})();
+</script>
+<!-- COSMETIC EQUIP SYSTEM -->
+<script>
+(function(){
+
+    // Equipped cosmetic data
+    let equip = JSON.parse(localStorage.getItem("equippedCosmetics") || "{}");
+
+    function saveEquip(){
+        localStorage.setItem("equippedCosmetics", JSON.stringify(equip));
+    }
+
+    // Called by shop when clicking "Equip"
+    window.equipCosmetic = function(type, item){
+        equip[type] = item;
+        saveEquip();
+        alert("Equipped " + item + "!");
+    };
+
+    window.getEquippedCosmetic = function(type){
+        return equip[type] || null;
+    };
+
+    // === DRAWING OVERRIDE FOR PLAYER ===
+    const old_player_draw = window.drawPlayer || function(){};
+
+    window.drawPlayer = function(){
+        if(!alive) return;
+
+        // Read equipped cosmetics
+        let skin = getEquippedCosmetic("skin");
+        let glow = getEquippedCosmetic("glow");
+        let trail = getEquippedCosmetic("trail");
+
+        // TRAIL EFFECT
+        if(trail){
+            ctx.fillStyle = "rgba(255,255,255,0.15)";
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.r + 8, 0, Math.PI*2);
+            ctx.fill();
+        }
+
+        // GLOW EFFECT
+        if(glow){
+            ctx.shadowBlur = 25;
+            ctx.shadowColor = "white";
+        } else {
+            ctx.shadowBlur = 0;
+        }
+
+        // SKINS
+        if(skin === "Flame Circle"){
+            ctx.fillStyle = "orange";
+        }
+        else if(skin === "Ember Core"){
+            ctx.fillStyle = "red";
+        }
+        else if(skin === "Glitch Disk"){
+            ctx.fillStyle = "#44f";
+        }
+        else if(skin === "Synth Sphere"){
+            ctx.fillStyle = "#0ff";
+        }
+        else if(skin === "Blossom Circle"){
+            ctx.fillStyle = "pink";
+        }
+        else if(skin === "Spirit Ring"){
+            ctx.fillStyle = "#cc66ff";
+        }
+        else if(skin === "Galaxy Core"){
+            ctx.fillStyle = "#6633ff";
+        }
+        else if(skin === "Dark Matter Ring"){
+            ctx.fillStyle = "#111";
+        }
+        else if(skin === "Rainbow Orbit"){
+            ctx.fillStyle = "#"+((1<<24)*Math.random()|0).toString(16); // rotating color
+        }
+        else {
+            ctx.fillStyle = "red"; // default
+        }
+
+        // Draw player
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, player.r, 0, Math.PI*2);
+        ctx.fill();
+
+        ctx.shadowBlur = 0; // restore defaults
+    };
+
+})();
+</script>
+<!-- EVENT BOSSES — DIFFICULTY REDUCTION PATCH -->
+<script>
+(function(){
+
+    console.log("Easier boss patch applied");
+
+    // === Inferno Ring ===
+    if(window.inferno){
+        inferno.fireRate = 120;       // slower attacks
+        inferno.fireballSpeed = 2.0;  // slower fireballs
+        inferno.pullForce = 0.15;     // weaker pull on ultimate
+    }
+
+    // === Conveyer-Belt ===
+    if(window.conveyor){
+        conveyor.attackSpeed = 90;    // slower normal attacks
+        conveyor.safeTimer = 0;       // less pressure buildup
+        conveyor.ultDelay = 160;      // more time to escape ult
+    }
+
+    // Reduce kill-circle size
+    if(window.conveyorCircles){
+        conveyorCircles.forEach(c => c.r *= 0.75);
+    }
+
+    // === Black Pepper ===
+    if(window.pepper){
+        pepper.missileCooldown = 80;  // fewer missiles
+        pepper.spikeCooldown = 80;    // fewer spikes
+        pepper.ultTimer = 120;        // ultimate shorter
+        pepper.spinSpeed = 0.005;     // slower spinning
+    }
+
+    // === CPU survival buff ===
+    const old_cpu_update = window.updateCPU || function(){};
+    window.updateCPU = function(c){
+        old_cpu_update(c);
+
+        // Make CPUs dodge better
+        c.x += (Math.random()*2 - 1) * 0.8;
+        c.y += (Math.random()*2 - 1) * 0.8;
+    };
+
+    // === Player survival buff ===
+    const old_player_update = window.updatePlayer || function(){};
+    window.updatePlayer = function(){
+        old_player_update();
+
+        // Slight auto-assist dodge
+        if(currentEventBoss){
+            player.x += (Math.random()*2 - 1) * 0.4;
+            player.y += (Math.random()*2 - 1) * 0.4;
+        }
+    };
+
+})();
+</script>
+<!-- NERF CONVEYER BELT BOSS -->
+<script>
+(function(){
+
+    console.log("Conveyer-Belt Nerf Applied");
+
+    // === 1. Circles now disappear after 4 seconds ===
+    if (window.conveyorCircles) {
+        setInterval(()=>{
+            for (let i = 0; i < conveyorCircles.length; i++) {
+                let c = conveyorCircles[i];
+                if (!c.life) c.life = 240; // 4 seconds at 60fps
+                c.life--;
+                if (c.life <= 0) {
+                    conveyorCircles.splice(i,1);
+                    i--;
+                }
+            }
+        }, 1000/60);
+    }
+
+    // === 2. Hard limit to max circles ===
+    const MAX_CIRCLES = 20;
+    const originalSpawn = window.conveyorSpawnCircle;
+    window.conveyorSpawnCircle = function(){
+        if (conveyorCircles.length < MAX_CIRCLES) {
+            originalSpawn();
+        }
+    };
+
+    // === 3. Slow down attack speed growth ===
+    if(window.conveyor){
+        conveyor.attackSpeed = 100;        // slower base attacks
+        conveyor.safeTimer   = 0;          // reduce ramp-up
+    }
+
+    // Modify ramp-up behavior
+    const oldConveyorLoop = window.conveyorLoop;
+    window.conveyorLoop = function(){
+        // soften Turbo mode
+        if (window.conveyor) {
+            // Safe timer grows slower
+            conveyor.safeTimer += 0.2;
+
+            // Minimum attack speed decreased
+            conveyor.attackSpeed = Math.max(
+                50,                       // was ~10 → MUCH easier
+                100 - Math.floor(conveyor.safeTimer / 90)
+            );
+        }
+
+        oldConveyorLoop();
+    };
+
+    // === 4. CPU dodge buff ===
+    const oldCpuAvoid = window.cpuAvoidConveyor || function(){};
+    window.cpuAvoidConveyor = function(c){
+        oldCpuAvoid(c);
+
+        // CPUs now zigzag harder to escape circles
+        c.vx += (Math.random()*2 - 1) * 1.1;
+        c.vy += (Math.random()*2 - 1) * 1.1;
+    };
+
+    // === 5. Nerf ultimate ===
+    const oldUltimate = window.conveyorUltimate;
+    window.conveyorUltimate = function(){
+        oldUltimate();
+
+        // Make cyan kill-circles smaller / less deadly
+        if (window.conveyorUltTargets) {
+            for (let i=0;i<conveyorUltTargets.length;i++){
+                if (conveyorUltTargets[i].r)
+                    conveyorUltTargets[i].r *= 0.6;
+            }
+        }
+
+        // Add cooldown between ultimates
+        conveyor.ultCooldownEnd = Date.now() + 8000;  // 8s cooldown
+    };
+
+    // Prevent ults from firing back-to-back
+    const oldLoop2 = window.conveyorLoop;
+    window.conveyorLoop = function(){
+        if (window.conveyor && Date.now() < (conveyor.ultCooldownEnd || 0)) {
+            // temporarily disable ult
+        } else {
+            oldLoop2();
+        }
+    };
+
+})();
+</script>
+

@@ -1,0 +1,224 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Ouroboros Tower v17</title>
+<style>
+body {background:#0e0f1a;color:white;font-family:Arial;text-align:center}
+.row {display:flex;flex-wrap:wrap;justify-content:center;gap:10px}
+.grid {display:grid;grid-template-columns:repeat(3,150px);gap:12px;justify-content:center}
+.card {width:140px;height:160px;background:#1e2240;border-radius:10px;padding:6px;border:2px solid #555;cursor:pointer}
+.common {border-color:#888}
+.rare {border-color:#3aa0ff}
+.epic {border-color:#bb55ff}
+.legendary {border-color:#ffaa00}
+.S {border-color:#ff3333}
+button {padding:10px 20px;margin:10px;border:none;border-radius:6px;background:#444;color:white;cursor:pointer}
+</style>
+</head>
+<body>
+
+<h1>🐍 Tower of Ouroboros</h1>
+
+<div id="deckselect">
+<h2>Select 15 cards</h2>
+<div id="pool" class="row"></div>
+<div id="counts"></div>
+<button onclick="startGame()">Enter Tower</button>
+</div>
+
+<div id="tower" style="display:none">
+<h2>Tower</h2>
+Coins: <span id="coins">0</span>
+<div id="floors"></div>
+</div>
+
+<div id="battle" style="display:none">
+<h2>Battle</h2>
+Player HP <span id="php"></span><br>
+Enemy HP <span id="ehp"></span>
+<div id="hand" class="row"></div>
+</div>
+
+<div id="shop" style="display:none">
+<h2>Shop</h2>
+Coins: <span id="shopCoins"></span>
+<div id="shopCards" class="grid"></div>
+<button onclick="leaveShop()">Leave Shop</button>
+</div>
+
+<div id="swap" style="display:none">
+<h2>Replace a card</h2>
+<div id="deckCards" class="row"></div>
+</div>
+
+<script>
+
+const cards = [{"name": "Goblin Raider", "rarity": "common", "atk": 7}, {"name": "Forest Wolf", "rarity": "common", "atk": 8}, {"name": "Stone Thrower", "rarity": "common", "atk": 6}, {"name": "Young Archer", "rarity": "common", "atk": 7}, {"name": "Rust Blade", "rarity": "common", "atk": 8}, {"name": "Village Guard", "rarity": "common", "def": 7}, {"name": "Shield Bearer", "rarity": "common", "def": 8}, {"name": "Tower Watcher", "rarity": "common", "def": 6}, {"name": "Barracks Guard", "rarity": "common", "def": 7}, {"name": "Iron Guard", "rarity": "common", "def": 9}, {"name": "Orc Warrior", "rarity": "rare", "atk": 14}, {"name": "Fire Imp", "rarity": "rare", "atk": 13}, {"name": "Shadow Rogue", "rarity": "rare", "atk": 15}, {"name": "Battle Archer", "rarity": "rare", "atk": 14}, {"name": "War Hound", "rarity": "rare", "atk": 13}, {"name": "Knight Defender", "rarity": "rare", "def": 14}, {"name": "Stone Knight", "rarity": "rare", "def": 13}, {"name": "Steel Sentinel", "rarity": "rare", "def": 15}, {"name": "Dragonling", "rarity": "epic", "atk": 22}, {"name": "War Titan", "rarity": "epic", "atk": 24}, {"name": "Storm Drake", "rarity": "epic", "atk": 23}, {"name": "Royal Protector", "rarity": "epic", "def": 22}, {"name": "Crystal Guardian", "rarity": "epic", "def": 23}, {"name": "Ancient Dragon", "rarity": "legendary", "atk": 34}, {"name": "Phoenix King", "rarity": "legendary", "atk": 36}, {"name": "Titan Colossus", "rarity": "legendary", "def": 32}, {"name": "Eternal Leviathan", "rarity": "S", "atk": 50}, {"name": "Cosmic Destroyer", "rarity": "S", "atk": 55}, {"name": "Astral Paladin", "rarity": "S", "def": 48}]
+
+let deck=[]
+let hand=[]
+let coins=0
+let floor=1
+let unlocked=1
+
+let playerHP=1250
+let enemyHP=0
+
+let pendingCard=null
+
+function buildPool(){
+cards.forEach(c=>{
+if(c.rarity=="S") return
+let d=document.createElement("div")
+d.className="card "+c.rarity
+d.innerHTML="<b>"+c.name+"</b>"
+d.onclick=function(){
+if(deck.length>=15) return
+deck.push(c)
+counts.innerText=deck.length+"/15"
+}
+pool.appendChild(d)
+})
+}
+
+function startGame(){
+if(deck.length!=15){alert("Pick 15 cards");return}
+deckselect.style.display="none"
+tower.style.display="block"
+buildTower()
+}
+
+function buildTower(){
+coinsEl.innerText=coins
+floors.innerHTML=""
+for(let i=1;i<=25;i++){
+let b=document.createElement("button")
+b.innerText="Floor "+i
+if(i<=unlocked) b.onclick=function(){enterFloor(i)}
+else b.disabled=true
+floors.appendChild(b)
+}
+}
+
+function enterFloor(f){
+floor=f
+startBattle()
+}
+
+function startBattle(){
+tower.style.display="none"
+battle.style.display="block"
+enemyHP=120+floor*20
+drawHand()
+render()
+}
+
+function drawHand(){
+hand=[]
+for(let i=0;i<5;i++) hand.push(deck[Math.floor(Math.random()*deck.length)])
+}
+
+function render(){
+php.innerText=Math.floor(playerHP)
+ehp.innerText=Math.floor(enemyHP)
+
+handEl.innerHTML=""
+hand.forEach((c,i)=>{
+let d=document.createElement("div")
+d.className="card "+c.rarity
+d.innerHTML=c.name
+d.onclick=function(){playCard(i)}
+handEl.appendChild(d)
+})
+}
+
+function playCard(i){
+let c=hand[i]
+
+if(c.atk){
+enemyHP-=c.atk
+coins+=c.atk
+}
+
+enemyHP=Math.max(0,enemyHP)
+playerHP-=10
+
+hand[i]=deck[Math.floor(Math.random()*deck.length)]
+
+render()
+
+if(playerHP<=0) location.reload()
+
+if(enemyHP<=0){
+coins+=20
+battle.style.display="none"
+unlocked=floor+1
+openShop()
+}
+}
+
+function openShop(){
+shop.style.display="block"
+shopCoins.innerText=coins
+shopCards.innerHTML=""
+
+for(let i=0;i<9;i++){
+let c=cards[Math.floor(Math.random()*cards.length)]
+let price={common:20,rare:40,epic:80,legendary:150,S:300}[c.rarity]
+
+let d=document.createElement("div")
+d.className="card "+c.rarity
+d.innerHTML="<b>"+c.name+"</b><br>"+price+" coins"
+
+d.onclick=function(){
+if(coins<price) return
+coins-=price
+pendingCard=c
+shop.style.display="none"
+openSwap()
+}
+
+shopCards.appendChild(d)
+}
+}
+
+function openSwap(){
+swap.style.display="block"
+deckCards.innerHTML=""
+
+deck.forEach((c,i)=>{
+let d=document.createElement("div")
+d.className="card "+c.rarity
+d.innerHTML=c.name
+
+d.onclick=function(){
+deck[i]=pendingCard
+swap.style.display="none"
+shop.style.display="block"
+shopCoins.innerText=coins
+}
+
+deckCards.appendChild(d)
+})
+}
+
+function leaveShop(){
+shop.style.display="none"
+tower.style.display="block"
+buildTower()
+}
+
+const pool=document.getElementById("pool")
+const counts=document.getElementById("counts")
+const coinsEl=document.getElementById("coins")
+const floors=document.getElementById("floors")
+const handEl=document.getElementById("hand")
+
+buildPool()
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>City Jobs 3D - Full Feature Pack</title>
+<style>
+html,body{margin:0;overflow:hidden;background:#7ecbff;font-family:Arial;color:white}
+#ui{position:fixed;left:12px;top:12px;background:rgba(0,20,35,.75);padding:12px;border-radius:12px;z-index:5;min-width:360px}
+#ui h2{margin:0 0 6px;color:#ffe066}
+#arrow{position:fixed;left:50%;top:70px;transform:translateX(-50%);font-size:46px;z-index:6;text-shadow:0 0 12px #000;color:#2aa8ff}
+#msg{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.65);padding:10px 18px;border-radius:999px;z-index:6}
+
+#menu{
+ position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:40;
+ background:rgba(0,15,30,.82);text-align:center
+}
+#menu .box{background:#102538;border:1px solid #9defff;border-radius:20px;padding:26px;box-shadow:0 0 35px rgba(0,160,255,.3)}
+#menu button{font-size:17px;margin:8px;width:190px}
+#modeBadge{color:#9defff;font-weight:bold}
+#upgrades button{margin:3px;padding:6px 8px;border-radius:8px;border:1px solid #9defff;background:#17384f;color:white;cursor:pointer}
+#upgrades button:hover{background:#255c7c}
+#radio{margin-top:6px;color:#bdf3ff;font-style:italic}
+#worldInfo{margin-top:5px;color:#ffe8a3}
+#timerWarn{color:#ffdd66;font-weight:bold}
+#lose{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.72);z-index:20;text-align:center}
+#lose .box{background:#222;border:2px solid #ff5555;border-radius:18px;padding:25px}
+button{padding:10px 18px;border-radius:10px;border:1px solid white;background:#333;color:white}
+</style>
+</head>
+<body>
+
+<div id="menu"><div class="box">
+<h1>Choose Job</h1>
+<button onclick="startMode('taxi')">Taxi Driver</button>
+<button onclick="startMode('truck')">Truck Driver</button>
+<button onclick="startMode('police')">Police Officer</button>
+<p>Taxi: passengers • Truck: cargo deliveries • Police: fights and accidents</p>
+</div></div>
+<div id="ui">
+<h2>City Jobs 3D — Full Feature Pack</h2><div id='modeBadge'>Mode: Menu</div>
+<div>W gas • S brake/reverse • A/D steer • Space handbrake</div>
+<div>Follow traffic laws. Jobs change depending on your chosen career.</div>
+<div id="stats"></div>
+<div id="job"></div>
+<div id="upgrades">
+  <button onclick="buyUpgrade('speed')">Upgrade Speed</button>
+  <button onclick="buyUpgrade('resistance')">Upgrade Resistance</button>
+  <button onclick="buyUpgrade('reputation')">Upgrade Reputation</button>
+  <button onclick="buyGarage()">Buy Garage</button>
+</div>
+<div id="worldInfo"></div>
+<div id="radio"></div>
+</div>
+<div id="arrow">▲</div>
+<div id="msg">Go to the blue passenger.</div>
+<div id="lose"><div class="box"><h1>Taxi Destroyed</h1><p>You crashed too much.</p><button onclick="location.reload()">Restart</button></div></div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+
+let gold=0;
+
+let fuel=100, engineWear=0, tireWear=0, garageOwned=false;
+let weather='Sunny', weatherTimer=0, dayTime=8.0, rushHour=false;
+let district='Downtown';
+let radioTimer=0, currentRadio='Dispatch online.';
+let activeEvent=null, eventTimer=0;
+let vehicleOwned={taxi:true,truck:true,police:true,luxury:false,interceptor:false,semi:false,ambulance:false,tow:false};
+const districts=[
+ {name:'Downtown',x:0,z:0,r:300,traffic:1.3,crime:1.0},
+ {name:'Airport',x:620,z:-120,r:260,traffic:1.1,crime:.7},
+ {name:'Harbor',x:-620,z:-320,r:280,traffic:.9,crime:1.2},
+ {name:'Suburbs',x:430,z:500,r:300,traffic:.7,crime:.5},
+ {name:'Rich Hills',x:-430,z:500,r:280,traffic:.6,crime:.8},
+ {name:'Industrial',x:0,z:-300,r:260,traffic:1.0,crime:1.4}
+];
+const taxiPassengers=[
+ {name:'Tourist',tip:1.1,care:'normal',line:'Tourist: Please show me the city!'},
+ {name:'Businessman',tip:1.35,care:'fast',line:'Businessman: I am late. Hurry!'},
+ {name:'Grandma',tip:1.25,care:'safe',line:'Grandma: Please drive safely, dear.'},
+ {name:'Celebrity',tip:1.8,care:'fast',line:'Celebrity: Avoid the crowds. Big tip if fast.'},
+ {name:'Drunk Guy',tip:.9,care:'chaos',line:'Drunk passenger: WOOOO taxi time!'},
+ {name:'Lost Child',tip:1.6,care:'safe',line:'Lost child: I need to get home.'},
+ {name:'Suspicious Passenger',tip:1.5,care:'fast',line:'Suspicious passenger: No questions, just drive.'}
+];
+const cargoTypes=[
+ {name:'Food Delivery',pay:1.0,fragile:.4,line:'Cargo: food shipment loaded.'},
+ {name:'Furniture',pay:1.25,fragile:.8,line:'Cargo: furniture loaded. Avoid crashes.'},
+ {name:'Fuel Tanker',pay:1.8,fragile:1.6,line:'Cargo: fuel tanker. Drive carefully!'},
+ {name:'Oversized Load',pay:2.2,fragile:1.3,line:'Cargo: oversized load. Wide turns!'},
+ {name:'Military Cargo',pay:3.0,fragile:2.0,line:'Cargo: military shipment. High value.'}
+];
+const policeCalls=[
+ {name:'Street Fight',pay:1.0,line:'Dispatch: street fight reported nearby.'},
+ {name:'Car Accident',pay:1.2,line:'Dispatch: traffic accident. Clear the scene.'},
+ {name:'Bank Robbery',pay:2.0,line:'Dispatch: robbery in progress!'},
+ {name:'Street Racer',pay:1.8,line:'Dispatch: illegal street racer spotted.'},
+ {name:'Missing Child Search',pay:2.2,line:'Dispatch: missing child search. Respond fast.'},
+ {name:'Armored Truck Robbery',pay:3.0,line:'Dispatch: major armored truck robbery!'}
+];
+let currentPassenger=taxiPassengers[0], currentCargo=cargoTypes[0], currentPoliceCall=policeCalls[0];
+
+let speedLevel=0;
+let resistanceLevel=0;
+let reputationLevel=0;
+let jobDeadline=90;
+let jobTimeLeft=90;
+let jobFailed=false;
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x7ecbff);
+scene.fog=new THREE.Fog(0x7ecbff,250,1200);
+const camera=new THREE.PerspectiveCamera(64,innerWidth/innerHeight,.1,2000);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+document.body.appendChild(renderer.domElement);
+addEventListener("resize",()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+
+scene.add(new THREE.HemisphereLight(0xeafaff,0x4a6d4c,1.6));
+const sun=new THREE.DirectionalLight(0xffffff,2.2);sun.position.set(120,220,100);sun.castShadow=true;scene.add(sun);
+
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(1600,1600),new THREE.MeshStandardMaterial({color:0x59b765,roughness:.95}));
+ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+
+const roads=[], buildings=[], cars=[], peds=[];
+const roadMat=new THREE.MeshStandardMaterial({color:0x30343a,roughness:.82});
+const sideMat=new THREE.MeshStandardMaterial({color:0xbcbcbc,roughness:.9});
+const lineMat=new THREE.MeshStandardMaterial({color:0xffe56d,roughness:.5});
+
+function road(x,z,w,d){
+ const side=new THREE.Mesh(new THREE.BoxGeometry(w+12,.12,d+12),sideMat);side.position.set(x,.04,z);scene.add(side);
+ const r=new THREE.Mesh(new THREE.BoxGeometry(w,.18,d),roadMat);r.position.set(x,.12,z);scene.add(r);
+ roads.push({x,z,w,d});
+ const vert=d>w;
+ if(vert){for(let zz=z-d/2+25;zz<z+d/2-25;zz+=48){let s=new THREE.Mesh(new THREE.BoxGeometry(1,.22,17),lineMat);s.position.set(x,.25,zz);scene.add(s);}}
+ else{for(let xx=x-w/2+25;xx<x+w/2-25;xx+=48){let s=new THREE.Mesh(new THREE.BoxGeometry(17,.22,1),lineMat);s.position.set(xx,.25,z);scene.add(s);}}
+}
+[
+[0,0,30,900],[-150,0,24,720],[150,0,24,720],[-300,0,22,560],[300,0,22,560],
+[0,0,900,30],[0,150,720,24],[0,-150,720,24],[0,300,580,22],[0,-300,580,22],
+[520,0,28,650],[650,-250,270,24],[-520,-250,28,470],[-650,-410,350,24],
+[420,450,470,22],[420,560,410,20],[220,505,22,220],[620,505,22,220],
+[-430,450,430,22],[-430,560,370,20],[-620,500,22,240]
+].forEach(r=>road(...r));
+const lights=[];
+function trafficLight(x,z){
+ const g=new THREE.Group();
+ const pole=new THREE.Mesh(new THREE.CylinderGeometry(.18,.18,7,8),new THREE.MeshStandardMaterial({color:0x222}));
+ pole.position.y=3.5;g.add(pole);
+ const box=new THREE.Mesh(new THREE.BoxGeometry(1,2,.6),new THREE.MeshStandardMaterial({color:0x111}));
+ box.position.y=7.2;g.add(box);
+ const red=new THREE.Mesh(new THREE.SphereGeometry(.25,10,8),new THREE.MeshStandardMaterial({color:0xff3333,emissive:0xff0000,emissiveIntensity:.7}));
+ red.position.set(0,7.65,.33);g.add(red);
+ const green=new THREE.Mesh(new THREE.SphereGeometry(.25,10,8),new THREE.MeshStandardMaterial({color:0x115511,emissive:0x001100,emissiveIntensity:.1}));
+ green.position.set(0,6.85,.33);g.add(green);
+ g.position.set(x,0,z);scene.add(g);
+ lights.push({x,z,red,green,isRed:true,phase:Math.random()*6,lastTicket:0,wasFar:true});
+}
+for(const r1 of roads){
+ for(const r2 of roads){
+  if(r1===r2)continue;
+  if(Math.abs(r1.x-r2.x)<(r1.w+r2.w)/2 && Math.abs(r1.z-r2.z)<(r1.d+r2.d)/2){
+   if(Math.random()<.18)trafficLight((r1.x+r2.x)/2+20,(r1.z+r2.z)/2+20);
+  }
+ }
+}
+
+
+function onRoad(x,z,margin=6){return roads.some(r=>Math.abs(x-r.x)<=r.w/2+margin&&Math.abs(z-r.z)<=r.d/2+margin);}
+
+function building(x,z,w,h,d,color){
+ if(onRoad(x,z,20))return;
+ const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color,roughness:.7}));
+ b.position.set(x,h/2,z);b.castShadow=true;b.receiveShadow=true;b.userData={w,d};scene.add(b);buildings.push(b);
+ const roof=new THREE.Mesh(new THREE.BoxGeometry(w+1,.6,d+1),new THREE.MeshStandardMaterial({color:0x3d444a}));
+ roof.position.set(x,h+.3,z);scene.add(roof);
+ if(h>28){const wm=new THREE.MeshStandardMaterial({color:0x9fdcff,emissive:0x143344,emissiveIntensity:.12});
+  for(let y=12;y<h-8;y+=18){let win=new THREE.Mesh(new THREE.BoxGeometry(w*.7,2,.2),wm);win.position.set(x,y,z+d/2+.12);scene.add(win);}
+ }
+}
+for(let x=-360;x<=360;x+=70)for(let z=-360;z<=360;z+=70){
+ if(Math.abs(x)<35||Math.abs(z)<35)continue;
+ let downtown=Math.abs(x)<260&&Math.abs(z)<260;
+ building(x+(Math.random()-.5)*10,z+(Math.random()-.5)*10,28+Math.random()*24,downtown?45+Math.random()*90:18+Math.random()*35,28+Math.random()*24,downtown?0x87909a:0xc9a77d);
+}
+for(let i=0;i<35;i++)building(300+Math.random()*450,350+Math.random()*270,24,14+Math.random()*12,24,0xd8b98f);
+for(let i=0;i<18;i++)building(-780+Math.random()*360,-520+Math.random()*260,45+Math.random()*30,20+Math.random()*25,40+Math.random()*25,0x8f8f85);
+
+function tree(x,z){if(onRoad(x,z,15))return;const g=new THREE.Group();let tr=new THREE.Mesh(new THREE.CylinderGeometry(.5,.7,5,7),new THREE.MeshStandardMaterial({color:0x70411f}));tr.position.y=2.5;g.add(tr);let le=new THREE.Mesh(new THREE.SphereGeometry(3.5,12,8),new THREE.MeshStandardMaterial({color:0x228b3a}));le.position.y=7;g.add(le);g.position.set(x,0,z);scene.add(g);}
+for(let i=0;i<180;i++)tree((Math.random()-.5)*1200,(Math.random()-.5)*1200);
+
+
+function makeTaxi(){
+ const g=new THREE.Group();
+ const yellow=new THREE.MeshStandardMaterial({color:0xffcc18,roughness:.45});
+ const black=new THREE.MeshStandardMaterial({color:0x111111,roughness:.8});
+ const glass=new THREE.MeshStandardMaterial({color:0x70d8ff,roughness:.25,transparent:true,opacity:.78});
+ function add(m,x,y,z){m.position.set(x,y,z);m.castShadow=true;g.add(m);return m;}
+ add(new THREE.Mesh(new THREE.BoxGeometry(3.2,.85,5.4),yellow),0,.7,0);
+ add(new THREE.Mesh(new THREE.BoxGeometry(2.35,.95,2.25),yellow),0,1.38,-.35);
+ add(new THREE.Mesh(new THREE.BoxGeometry(2.0,.5,.18),glass),0,1.55,.95);
+ add(new THREE.Mesh(new THREE.BoxGeometry(2.0,.5,.18),glass),0,1.55,-1.5);
+ add(new THREE.Mesh(new THREE.BoxGeometry(3.05,.18,5.35),black),0,.25,0);
+ add(new THREE.Mesh(new THREE.BoxGeometry(1.15,.28,.55),new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xffdd66,emissiveIntensity:.25})),0,2.02,-.35);
+ for(const x of [-1.75,1.75])for(const z of [-1.85,1.85]){let w=new THREE.Mesh(new THREE.CylinderGeometry(.42,.42,.4,16),black);w.rotation.z=Math.PI/2;add(w,x,.42,z)}
+ g.userData.vehicleType='taxi';
+ return g;
+}
+
+function makePolice(){
+ const g=new THREE.Group();
+ const white=new THREE.MeshStandardMaterial({color:0xf1f1f1,roughness:.45});
+ const black=new THREE.MeshStandardMaterial({color:0x111111,roughness:.8});
+ const blue=new THREE.MeshStandardMaterial({color:0x103b9a,roughness:.45});
+ const glass=new THREE.MeshStandardMaterial({color:0x67cfff,roughness:.2,transparent:true,opacity:.78});
+ function add(m,x,y,z){m.position.set(x,y,z);m.castShadow=true;g.add(m);return m;}
+
+ add(new THREE.Mesh(new THREE.BoxGeometry(3.45,.85,5.85),white),0,.7,0);
+ add(new THREE.Mesh(new THREE.BoxGeometry(2.55,.92,2.35),white),0,1.38,-.25);
+ add(new THREE.Mesh(new THREE.BoxGeometry(3.55,.22,2.0),black),0,.82,-.05); // black side band
+ add(new THREE.Mesh(new THREE.BoxGeometry(1.15,.24,1.2),blue),-1.78,.88,-.05);
+ add(new THREE.Mesh(new THREE.BoxGeometry(1.15,.24,1.2),blue),1.78,.88,-.05);
+ add(new THREE.Mesh(new THREE.BoxGeometry(2.15,.5,.18),glass),0,1.55,1.05);
+ add(new THREE.Mesh(new THREE.BoxGeometry(2.15,.5,.18),glass),0,1.55,-1.55);
+ // red/blue lightbar
+ add(new THREE.Mesh(new THREE.BoxGeometry(.9,.25,.45),new THREE.MeshStandardMaterial({color:0xff2222,emissive:0xff0000,emissiveIntensity:.55})),-.48,2.08,-.35);
+ add(new THREE.Mesh(new THREE.BoxGeometry(.9,.25,.45),new THREE.MeshStandardMaterial({color:0x2266ff,emissive:0x0044ff,emissiveIntensity:.55})),.48,2.08,-.35);
+ // push bumper
+ add(new THREE.Mesh(new THREE.BoxGeometry(3.7,.35,.22),black),0,.62,3.05);
+ add(new THREE.Mesh(new THREE.BoxGeometry(.22,.75,.22),black),-1.25,.75,2.83);
+ add(new THREE.Mesh(new THREE.BoxGeometry(.22,.75,.22),black),1.25,.75,2.83);
+ // spotlight
+ const spot=new THREE.Mesh(new THREE.SphereGeometry(.25,12,8),new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xffffcc,emissiveIntensity:.4}));
+ add(spot,-1.45,1.72,.85);
+ // POLICE side blocks
+ add(new THREE.Mesh(new THREE.BoxGeometry(.08,.42,1.5),new THREE.MeshStandardMaterial({color:0x000000})),1.83,1.05,-.15);
+ add(new THREE.Mesh(new THREE.BoxGeometry(.08,.42,1.5),new THREE.MeshStandardMaterial({color:0x000000})),-1.83,1.05,-.15);
+ for(const x of [-1.9,1.9])for(const z of [-2.05,2.05]){let w=new THREE.Mesh(new THREE.CylinderGeometry(.45,.45,.45,18),black);w.rotation.z=Math.PI/2;add(w,x,.42,z)}
+ g.userData.vehicleType='police';
+ return g;
+}
+
+function makeTruck(){
+ const g=new THREE.Group();
+ const cabMat=new THREE.MeshStandardMaterial({color:0xe23b2e,roughness:.48});
+ const trailerMat=new THREE.MeshStandardMaterial({color:0xd8d8d8,roughness:.6});
+ const black=new THREE.MeshStandardMaterial({color:0x111111,roughness:.8});
+ const glass=new THREE.MeshStandardMaterial({color:0x79d8ff,roughness:.2,transparent:true,opacity:.78});
+ function add(m,x,y,z){m.position.set(x,y,z);m.castShadow=true;g.add(m);return m;}
+
+ // cab
+ add(new THREE.Mesh(new THREE.BoxGeometry(3.8,1.45,3.2),cabMat),0,.95,2.2);
+ add(new THREE.Mesh(new THREE.BoxGeometry(3.3,1.45,1.75),cabMat),0,2.1,1.65);
+ add(new THREE.Mesh(new THREE.BoxGeometry(2.6,.55,.18),glass),0,2.25,2.55);
+ add(new THREE.Mesh(new THREE.BoxGeometry(4.1,.22,3.4),black),0,.28,2.2);
+ // trailer
+ add(new THREE.Mesh(new THREE.BoxGeometry(4.2,2.65,7.9),trailerMat),0,1.65,-3.5);
+ add(new THREE.Mesh(new THREE.BoxGeometry(4.35,.22,8.05),new THREE.MeshStandardMaterial({color:0xb5b5b5,roughness:.6})),0,3.05,-3.5);
+ add(new THREE.Mesh(new THREE.BoxGeometry(4.35,.18,.18),black),0,1.65,.65); // hitch / divider
+ // cargo stripes
+ for(let z=-6.7;z<-.2;z+=1.4)add(new THREE.Mesh(new THREE.BoxGeometry(4.32,.08,.08),new THREE.MeshStandardMaterial({color:0xaaaaaa})),0,2.2,z);
+ // wheels many
+ for(const x of [-2.2,2.2]){
+   for(const z of [2.95,1.35,-1.1,-3.5,-5.9]){
+     let w=new THREE.Mesh(new THREE.CylinderGeometry(.52,.52,.5,18),black);
+     w.rotation.z=Math.PI/2;add(w,x,.5,z);
+   }
+ }
+ g.userData.vehicleType='truck';
+ return g;
+}
+
+function makeTrafficCar(color=0xcccccc){
+ const g=new THREE.Group();
+ const bodyMat=new THREE.MeshStandardMaterial({color,roughness:.45});
+ const black=new THREE.MeshStandardMaterial({color:0x111});
+ function add(m,x,y,z){m.position.set(x,y,z);m.castShadow=true;g.add(m)}
+ add(new THREE.Mesh(new THREE.BoxGeometry(3.2,.85,5.4),bodyMat),0,.7,0);
+ add(new THREE.Mesh(new THREE.BoxGeometry(2.25,.9,2.2),bodyMat),0,1.38,-.3);
+ add(new THREE.Mesh(new THREE.BoxGeometry(3,.18,5.3),black),0,.25,0);
+ for(const x of [-1.75,1.75])for(const z of [-1.85,1.85]){let w=new THREE.Mesh(new THREE.CylinderGeometry(.42,.42,.4,16),black);w.rotation.z=Math.PI/2;add(w,x,.42,z)}
+ return g;
+}
+let taxi=makeTaxi();taxi.position.set(0,.25,0);scene.add(taxi);
+
+for(let i=0;i<24;i++){let c=makeTrafficCar([0xcc3333,0x3366dd,0xffffff,0x222222,0x33aa66][i%5]);let r=roads[Math.floor(Math.random()*roads.length)],vert=r.d>r.w;c.position.set(r.x+(vert?(Math.random()<.5?-6:6):(Math.random()-.5)*r.w),.25,r.z+(vert?(Math.random()-.5)*r.d:(Math.random()<.5?-6:6)));c.userData={road:r,t:Math.random(),dir:Math.random()<.5?1:-1,speed:5+Math.random()*7};scene.add(c);cars.push(c);}
+
+function person(color=0x258dff){const g=new THREE.Group();let b=new THREE.Mesh(new THREE.CapsuleGeometry(.35,1.15,8,10),new THREE.MeshStandardMaterial({color}));b.position.y=1;g.add(b);let h=new THREE.Mesh(new THREE.SphereGeometry(.3,10,8),new THREE.MeshStandardMaterial({color:0xffc28b}));h.position.y=2;g.add(h);scene.add(g);return g}
+for(let i=0;i<45;i++){let p=person(new THREE.Color().setHSL(Math.random(),.55,.55));p.position.set((Math.random()-.5)*900,.05,(Math.random()-.5)*900);p.userData={a:Math.random()*6.28,s:.5+Math.random()};peds.push(p);}
+
+let passenger,destination,passengerPerson,carrying=false,money=0,rides=0,damage=0,tickets=0,gameOver=false,heading=0,speed=0,steer=0,jobTime=0,flash=0,mode='taxi',jobLabel='Passenger';
+function marker(color){const g=new THREE.Group();let ring=new THREE.Mesh(new THREE.TorusGeometry(4.5,.16,8,40),new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:.35}));ring.rotation.x=Math.PI/2;ring.position.y=.2;g.add(ring);let orb=new THREE.Mesh(new THREE.SphereGeometry(1.5,16,10),new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:.45}));orb.position.y=5;g.add(orb);scene.add(g);return g}
+function nearRoadPoint(min=60,max=320){return randomReachableRoadPointNear(min,max);}
+
+
+function randomReachableRoadPointNear(minDist=90,maxDist=420){
+ // Always choose an actual road segment, then choose a point on that road.
+ // This prevents unreachable jobs in random grass/building areas.
+ let best=null;
+ for(let attempt=0;attempt<120;attempt++){
+   const r=roads[Math.floor(Math.random()*roads.length)];
+   const vertical=r.d>r.w;
+   const t=.08+Math.random()*.84;
+   const lane=(Math.random()<.5?-1:1)*((vertical?r.w:r.d)*.25);
+   const x=vertical?r.x+lane:r.x-r.w/2+r.w*t;
+   const z=vertical?r.z-r.d/2+r.d*t:r.z+lane;
+   const p=new THREE.Vector3(x,.45,z);
+   const d=p.distanceTo(taxi.position);
+   if(d>=minDist && d<=maxDist) return p;
+   if(!best || Math.abs(d-(minDist+maxDist)/2)<Math.abs(best.distanceTo(taxi.position)-(minDist+maxDist)/2)) best=p;
+ }
+ return best || new THREE.Vector3(0,.45,0);
+}
+
+function getDistrict(){
+ let best=districts[0],bd=999999;
+ for(const d of districts){
+   const dd=Math.hypot(taxi.position.x-d.x,taxi.position.z-d.z);
+   if(dd<bd){bd=dd;best=d;}
+ }
+ return best.name;
+}
+function randomChoice(arr){return arr[Math.floor(Math.random()*arr.length)];}
+function weatherHandling(){
+ if(weather==='Rain') return .84;
+ if(weather==='Heavy Rain') return .72;
+ if(weather==='Fog') return .88;
+ if(weather==='Thunderstorm') return .68;
+ return 1;
+}
+function updateWorldSystems(dt){
+ dayTime += dt/42;
+ if(dayTime>=24) dayTime-=24;
+ rushHour = (dayTime>=7&&dayTime<=9) || (dayTime>=16&&dayTime<=18.5);
+ weatherTimer-=dt;
+ if(weatherTimer<=0){
+   weather=randomChoice(['Sunny','Sunny','Sunny','Rain','Heavy Rain','Fog','Thunderstorm']);
+   weatherTimer=35+Math.random()*55;
+ }
+ district=getDistrict();
+ fuel=Math.max(0,fuel-Math.abs(speed)*dt*.006*(taxi.userData.vehicleType==='truck'?1.55:1));
+ engineWear=Math.min(100,engineWear+Math.abs(speed)*dt*.0025);
+ tireWear=Math.min(100,tireWear+Math.abs(steer)*Math.abs(speed)*dt*.01);
+ if(fuel<=0) speed*=.94;
+ radioTimer-=dt;
+ if(radioTimer<=0){
+   const lines=[
+    'Radio: traffic is '+(rushHour?'heavy due to rush hour.':'normal right now.'),
+    'Radio: current district is '+district+'.',
+    'Radio: weather update: '+weather+'.',
+    'Dispatch: remember to obey red lights.',
+    'Radio: vehicle fuel '+Math.round(fuel)+'%, engine wear '+Math.round(engineWear)+'%.'
+   ];
+   currentRadio=randomChoice(lines);
+   radioTimer=10+Math.random()*14;
+ }
+ document.getElementById('worldInfo').innerHTML='<b>District:</b> '+district+' • <b>Weather:</b> '+weather+' • <b>Time:</b> '+Math.floor(dayTime)+':00 • <b>Fuel:</b> '+Math.round(fuel)+'% • <b>Wear:</b> '+Math.round(engineWear)+'/'+Math.round(tireWear);
+ document.getElementById('radio').textContent=currentRadio;
+}
+function buyGarage(){
+ const cost=500;
+ if(garageOwned){document.getElementById('msg').textContent='You already own a garage.';return;}
+ if(gold<cost){document.getElementById('msg').textContent='Garage costs '+cost+' gold.';return;}
+ gold-=cost;garageOwned=true;document.getElementById('msg').textContent='Garage bought! Fuel and repairs restore after each job.';
+}
+function serviceVehicle(){
+ if(!garageOwned)return;
+ fuel=100;engineWear=Math.max(0,engineWear-35);tireWear=Math.max(0,tireWear-35);
+}
+function upgradeCost(type){
+ const lvl=type==='speed'?speedLevel:type==='resistance'?resistanceLevel:reputationLevel;
+ return 80+lvl*70;
+}
+function buyUpgrade(type){
+ const cost=upgradeCost(type);
+ if(gold<cost){document.getElementById('msg').textContent='Not enough gold. Need '+cost+' gold.';return;}
+ gold-=cost;
+ if(type==='speed')speedLevel++;
+ if(type==='resistance')resistanceLevel++;
+ if(type==='reputation')reputationLevel++;
+ document.getElementById('msg').textContent='Upgraded '+type+'!';
+}
+function clearJob(){
+ if(passenger)scene.remove(passenger);
+ if(destination)scene.remove(destination);
+ if(passengerPerson)scene.remove(passengerPerson);
+}
+function newJob(){
+ clearJob();
+ passenger=marker(mode==='police'?0xff3333:0x258dff);
+ destination=marker(mode==='police'?0xffaa22:0x45ff6b);
+ passenger.position.copy(nearRoadPoint());
+ destination.position.copy(nearRoadPoint());
+ destination.visible=false;
+ passengerPerson=person(mode==='police'?0xff3333:0x258dff);
+ passengerPerson.position.copy(passenger.position).add(new THREE.Vector3(3,0,3));
+ carrying=false;jobTime=0;jobDeadline=mode==='truck'?120:mode==='police'?75:90;jobTimeLeft=jobDeadline;jobFailed=false;
+ if(mode==='taxi') currentPassenger=randomChoice(taxiPassengers);
+ if(mode==='truck') currentCargo=randomChoice(cargoTypes);
+ if(mode==='police') currentPoliceCall=randomChoice(policeCalls);
+ if(mode==='taxi'){jobLabel=currentPassenger.name;document.getElementById("msg").textContent=currentPassenger.line}
+ if(mode==='truck'){jobLabel=currentCargo.name;document.getElementById("msg").textContent=currentCargo.line}
+ if(mode==='police'){jobLabel=currentPoliceCall.name;document.getElementById("msg").textContent=currentPoliceCall.line}
+}
+function startMode(m){
+ mode=m;
+ document.getElementById('menu').style.display='none';
+ document.getElementById('modeBadge').textContent='Mode: '+(m==='taxi'?'Taxi Driver':m==='truck'?'Truck Driver':'Police Officer');
+
+ const oldPos=taxi.position.clone();
+ const oldRot=taxi.rotation.y;
+ scene.remove(taxi);
+ if(m==='taxi') taxi=makeTaxi();
+ if(m==='truck') taxi=makeTruck();
+ if(m==='police') taxi=makePolice();
+ taxi.position.copy(oldPos);
+ taxi.rotation.y=oldRot;
+ scene.add(taxi);
+
+ newJob();
+}
+newJob();
+
+
+const keys={};addEventListener("keydown",e=>keys[e.key.toLowerCase()]=true);addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
+function trafficViolation(reason,amount=1){
+ if(gameOver)return;
+ tickets+=amount;
+ document.getElementById("msg").textContent="Ticket: "+reason+" ("+tickets+"/8)";
+ if(tickets>=(8+reputationLevel*2)){gameOver=true;document.getElementById("lose").style.display="flex";}
+}
+function checkRedLightViolation(t){
+ // Only ticket when ENTERING a red-light intersection.
+ // If you entered while green and it turns red while you're already inside, no ticket.
+ for(const l of lights){
+  const d=Math.hypot(taxi.position.x-l.x,taxi.position.z-l.z);
+  const entering = l.wasFar && d < 28;
+  if(entering && l.isRed && Math.abs(speed)>8 && t-l.lastTicket>2500){
+    l.lastTicket=t;
+    trafficViolation('running red light');
+  }
+  l.wasFar = d > 38;
+ }
+}
+function crash(amount){damage+=(amount*(mode==='truck'?currentCargo.fragile:1))/(1+resistanceLevel*.35);speed*=-.25;flash=.5;document.getElementById("msg").textContent="Crash! Damage "+Math.round(damage)+"/100";for(let i=0;i<18;i++){let p=new THREE.Mesh(new THREE.SphereGeometry(.15+Math.random()*.18,8,6),new THREE.MeshStandardMaterial({color:0xffaa22,emissive:0xff6600,emissiveIntensity:.3}));p.position.copy(taxi.position).add(new THREE.Vector3((Math.random()-.5)*2,1,(Math.random()-.5)*2));p.userData={v:new THREE.Vector3((Math.random()-.5)*8,3+Math.random()*5,(Math.random()-.5)*8),life:.6};scene.add(p);particles.push(p)}if(damage>=100){gameOver=true;document.getElementById("lose").style.display="flex"}}
+function boxHit(pos,w,d,b){return Math.abs(pos.x-b.position.x)<(w+(b.userData.w||4))/2&&Math.abs(pos.z-b.position.z)<(d+(b.userData.d||6))/2}
+
+
+function updateRandomEvents(dt){
+ eventTimer-=dt;
+ if(eventTimer<=0){
+   eventTimer=28+Math.random()*40;
+   if(Math.random()<.45){
+     const type=randomChoice(['Road construction','Minor accident','Parade traffic','VIP police call','Harbor rush','Airport surge']);
+     activeEvent={type,time:22};
+     currentRadio='Breaking: '+type+' reported in '+district+'.';
+   }
+ }
+ if(activeEvent){
+   activeEvent.time-=dt;
+   if(activeEvent.time<=0) activeEvent=null;
+ }
+}
+function update(dt,t){
+ updateWorldSystems(dt);updateRandomEvents(dt);
+ if(!gameOver){
+  let prev=taxi.position.clone();
+  let condition=Math.max(.45,weatherHandling()*(1-engineWear*.002)*(1-tireWear*.0015));let speedBoost=1+speedLevel*.18;let accelPower=(taxi.userData.vehicleType==='truck'?20:30)*speedBoost*condition;let brakePower=(taxi.userData.vehicleType==='truck'?26:36)*(1+speedLevel*.08)*condition;if(keys.w)speed+=accelPower*dt;if(keys.s)speed-=brakePower*dt;
+  speed-=speed*(keys[" "]?2.4:0.8)*dt;speed=Math.max(taxi.userData.vehicleType==='truck'?-14:-24,Math.min((taxi.userData.vehicleType==='truck'?44:66)*(1+speedLevel*.12),speed));
+  steer=(keys.a?1:0)+(keys.d?-1:0);heading+=(speed>=0?1:-1)*steer*(.9+Math.min(Math.abs(speed),30)/25)*dt;
+  taxi.position.x+=Math.sin(heading)*speed*dt;taxi.position.z+=Math.cos(heading)*speed*dt;taxi.rotation.y=heading;taxi.rotation.z=-steer*Math.min(Math.abs(speed)/50,.45)*.1;
+  if(Math.abs(speed)>16&&!onRoad(taxi.position.x,taxi.position.z,2)&&Math.random()<.018)trafficViolation('driving off road');
+  checkRedLightViolation(t);
+  if(Math.abs(speed)>8){for(const b of buildings){if(Math.abs(taxi.position.x-b.position.x)>45||Math.abs(taxi.position.z-b.position.z)>45)continue;let tw=taxi.userData.vehicleType==='truck'?5.0:3.8, td=taxi.userData.vehicleType==='truck'?12.0:6.0;if(boxHit(taxi.position,tw,td,b)){taxi.position.copy(prev);crash(16+Math.abs(speed)*.4);break}}for(const c of cars){if(taxi.position.distanceTo(c.position)<(taxi.userData.vehicleType==='truck'?8.2:5.2)){taxi.position.copy(prev);crash(14+Math.abs(speed)*.35);break}}for(const p of peds){if(taxi.position.distanceTo(p.position)<3.2){taxi.position.copy(prev);crash(30);break}}}
+ }
+ for(const c of cars){let r=c.userData.road,vert=r.d>r.w;c.userData.t+=c.userData.dir*c.userData.speed*dt/(vert?r.d:r.w);if(c.userData.t>1)c.userData.t=0;if(c.userData.t<0)c.userData.t=1;c.position.x=vert?r.x+(c.userData.dir>0?6:-6):r.x-r.w/2+r.w*c.userData.t;c.position.z=vert?r.z-r.d/2+r.d*c.userData.t:r.z+(c.userData.dir>0?6:-6);c.rotation.y=vert?(c.userData.dir>0?0:Math.PI):(c.userData.dir>0?Math.PI/2:-Math.PI/2)}
+ for(const l of lights){
+ let red=((t*.001+l.phase)%7)<3.8;
+ l.isRed=red;
+ l.red.material.color.set(red?0xff3333:0x331111);l.red.material.emissive.set(red?0xff0000:0x110000);
+ l.green.material.color.set(red?0x114411:0x33ff55);l.green.material.emissive.set(red?0x001100:0x00ff22);
+}
+ for(const p of peds){p.userData.a+=Math.sin(t*.001+p.position.x)*dt*.5;p.position.x+=Math.cos(p.userData.a)*p.userData.s*dt;p.position.z+=Math.sin(p.userData.a)*p.userData.s*dt;p.rotation.y=-p.userData.a+Math.PI/2}
+ for(let i=particles.length-1;i>=0;i--){let p=particles[i];p.userData.life-=dt;p.userData.v.y-=12*dt;p.position.addScaledVector(p.userData.v,dt);if(p.userData.life<=0){scene.remove(p);particles.splice(i,1)}}
+ flash=Math.max(0,flash-dt);document.body.style.boxShadow=flash>0?"inset 0 0 150px rgba(255,0,0,"+flash*.5+")":"none";
+ jobTime+=dt;jobTimeLeft=Math.max(0,jobTimeLeft-dt);if(jobTimeLeft<=0&&!jobFailed){jobFailed=true;document.getElementById('msg').textContent='Too late! Finish it for no gold, then take another job.';}let target=carrying?destination:passenger,d=target.position.distanceTo(taxi.position);
+ if(!carrying&&d<8){
+ carrying=true;passenger.visible=false;destination.visible=true;passengerPerson.visible=false;
+ if(mode==='taxi')document.getElementById("msg").textContent="Passenger picked up. Go to green dropoff.";
+ if(mode==='truck')document.getElementById("msg").textContent="Cargo loaded. Deliver to green warehouse.";
+ if(mode==='police')document.getElementById("msg").textContent="Incident secured. Go to orange station/report point.";
+}
+ if(carrying&&d<9){
+ let base=mode==='truck'?140*currentCargo.pay:mode==='police'?110*currentPoliceCall.pay:90*currentPassenger.tip;
+ let pay=Math.max(15,Math.floor(base-jobTime*(mode==='truck'?.8:1)));
+ if(!jobFailed){money+=pay;gold+=pay;}rides++;
+ if(mode==='taxi')document.getElementById("msg").textContent=jobFailed?"Job finished late. No gold earned.":"Dropped off! Earned $"+pay;
+ if(mode==='truck')document.getElementById("msg").textContent=jobFailed?"Cargo was late. No gold earned.":"Cargo delivered! Earned $"+pay;
+ if(mode==='police')document.getElementById("msg").textContent=jobFailed?"Response was too late. No gold earned.":"Case resolved! Earned $"+pay;
+ serviceVehicle();newJob()
+}
+ passenger.rotation.y+=dt;destination.rotation.y+=dt;
+ let dx=target.position.x-taxi.position.x,dz=target.position.z-taxi.position.z,ang=Math.atan2(dx,dz),diff=ang-heading;while(diff>Math.PI)diff-=Math.PI*2;while(diff<-Math.PI)diff+=Math.PI*2;let ar=document.getElementById("arrow");ar.style.transform="translateX(-50%) rotate("+(-diff)+"rad)";ar.style.color=carrying?"#45ff6b":"#258dff";
+ document.getElementById("stats").innerHTML="<b>Gold:</b> "+gold+" • <b>Jobs:</b> "+rides+" • <b>Speed:</b> "+Math.round(Math.abs(speed)*2.7)+" mph • Upgrades S"+speedLevel+" R"+resistanceLevel+" Rep"+reputationLevel;
+ document.getElementById("job").innerHTML="<b>Damage:</b> "+Math.round(damage)+"/100 • <b>Tickets:</b> "+tickets+"/"+(8+reputationLevel*2)+" • <span id='timerWarn'>Time:</span> "+Math.ceil(typeof jobTimeLeft==='number'?jobTimeLeft:90)+"s • "+(carrying?"Finish":"Start")+" "+jobLabel+" distance: "+Math.floor(d)+" m";
+ camera.position.lerp(new THREE.Vector3(taxi.position.x-Math.sin(heading)*18,8.5,taxi.position.z-Math.cos(heading)*18),Math.min(1,dt*7.5));
+ camera.lookAt(taxi.position.x+Math.sin(heading)*24,2.4,taxi.position.z+Math.cos(heading)*24);
+}
+
+if(typeof upgradeCost === 'undefined'){
+  window.upgradeCost = function(type){
+    const lvl = type==='speed'?speedLevel:type==='resistance'?resistanceLevel:reputationLevel;
+    return 80 + lvl*70;
+  };
+}
+if(typeof buyUpgrade === 'undefined'){
+  window.buyUpgrade = function(type){
+    const cost = upgradeCost(type);
+    if(gold < cost){
+      document.getElementById('msg').textContent = 'Not enough gold. Need '+cost+' gold.';
+      return;
+    }
+    gold -= cost;
+    if(type==='speed') speedLevel++;
+    if(type==='resistance') resistanceLevel++;
+    if(type==='reputation') reputationLevel++;
+    document.getElementById('msg').textContent = 'Upgraded '+type+'!';
+  };
+}
+
+let particles=[],last=performance.now();
+function loop(t){requestAnimationFrame(loop);let dt=Math.min(.035,(t-last)/1000);last=t;update(dt,t);renderer.render(scene,camera)}
+loop(performance.now());
+</script>
+</body>
+</html>

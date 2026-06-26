@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>GodCraft 3D Fixed</title>
+<style>
+html,body{margin:0;overflow:hidden;background:#7ecbff;color:white;font-family:system-ui,Arial}
+#hud{position:fixed;left:10px;top:10px;background:rgba(0,0,0,.55);padding:12px;border-radius:12px;z-index:5;max-width:470px}
+#craft{position:fixed;right:10px;top:10px;width:330px;max-height:88vh;overflow:auto;background:rgba(0,0,0,.62);padding:12px;border-radius:12px;z-index:5}
+#bar{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:5}
+.slot{width:62px;height:54px;background:rgba(0,0,0,.5);border:2px solid #456;border-radius:10px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;font-weight:900;cursor:pointer}
+.sel{border-color:#00ffff;background:rgba(0,255,255,.25)}
+button{margin:4px;padding:8px 10px;border:0;border-radius:9px;background:#2563eb;color:white;font-weight:900;cursor:pointer}
+.god{background:linear-gradient(90deg,#ffd84a,#ff8c00);color:#201000}
+#cross{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:6;font-size:26px;color:white;text-shadow:0 0 6px black}
+#msg{position:fixed;left:50%;top:80px;transform:translateX(-50%);z-index:8;background:rgba(0,0,0,.7);padding:9px 18px;border-radius:999px;opacity:0;transition:.2s}
+#error{position:fixed;inset:0;background:#111;color:#ffb4b4;z-index:99;display:none;align-items:center;justify-content:center;text-align:center;padding:25px;font-size:18px}
+</style>
+</head>
+<body>
+<div id="error"></div>
+<div id="cross">+</div>
+<div id="msg"></div>
+<div id="hud">Loading GodCraft...</div>
+<div id="craft"></div>
+<div id="bar"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+function showError(t){let e=document.getElementById('error');e.style.display='flex';e.innerHTML='<div><h1>GodCraft crashed before starting</h1><p>'+t+'</p></div>'}
+window.onerror=(m,s,l,c,e)=>showError(String(m)+'<br>line '+l);
+
+function initGame(){
+if(!window.THREE){showError('THREE is missing.');return}
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x87ceeb);
+scene.fog=new THREE.Fog(0x87ceeb,55,160);
+
+const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,.1,1000);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x334422,1.6));
+const sun=new THREE.DirectionalLight(0xffffff,1.4);sun.position.set(30,70,20);scene.add(sun);
+
+const world=new Map(), meshes=new Map(), enemies=[];
+const key={};
+let yaw=0,pitch=0,selected=0,onGround=false;
+let vel=new THREE.Vector3();
+let player={pos:new THREE.Vector3(0,18,8),hp:100,maxHp:100,armor:0,weapon:'Fist',power:0};
+let inv={dirt:20,stone:10,wood:10,iron:0,gold:0,diamond:0,obsidian:0,starShard:0,voidCrystal:0,dragonCore:0,worldHeart:0,godIngot:0,
+godSpear:0,godSword:0,godMace:0,godAxe:0,godHelmet:0,godChestplate:0,godBelt:0,godNecklace:0,godLeggings:0,godBoots:0};
+
+const types={
+ dirt:[0x80512d,'dirt'], grass:[0x3fa34d,'dirt'], stone:[0x888888,'stone'], wood:[0x8b5527,'wood'],
+ leaves:[0x2d8a35,'wood'], iron:[0xc9c9c9,'iron'], gold:[0xffcc33,'gold'], diamond:[0x55eaff,'diamond'],
+ obsidian:[0x181020,'obsidian'], star:[0xfff176,'starShard'], void:[0x7c3aed,'voidCrystal'],
+ dragon:[0xff4444,'dragonCore'], heart:[0xff55cc,'worldHeart']
+};
+const placeables=['dirt','stone','wood','obsidian','diamond','gold','iron'];
+
+function K(x,y,z){return x+','+y+','+z}
+function getB(x,y,z){return world.get(K(x,y,z))}
+function setB(x,y,z,t){
+ const k=K(x,y,z);
+ if(t==null){world.delete(k);let m=meshes.get(k);if(m){scene.remove(m);meshes.delete(k)}return}
+ if(world.has(k))return;
+ world.set(k,t);
+ const mat=new THREE.MeshLambertMaterial({color:types[t][0]});
+ const mesh=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),mat);
+ mesh.position.set(x+.5,y+.5,z+.5);mesh.userData={x,y,z,t};scene.add(mesh);meshes.set(k,mesh);
+}
+function height(x,z){return Math.floor(6+Math.sin(x*.22)*2+Math.cos(z*.19)*2)}
+for(let x=-32;x<=32;x++)for(let z=-32;z<=32;z++){
+ let h=height(x,z);
+ for(let y=0;y<=h;y++){
+  let t=y==h?'grass':y>h-3?'dirt':'stone';
+  if(y<h-3&&Math.random()<.025)t='iron';
+  if(y<h-4&&Math.random()<.018)t='gold';
+  if(y<h-5&&Math.random()<.012)t='diamond';
+  if(y<3&&Math.random()<.025)t='obsidian';
+  setB(x,y,z,t);
+ }
+ if(Math.random()<.03){
+  for(let y=h+1;y<h+5;y++)setB(x,y,z,'wood');
+  for(let dx=-2;dx<=2;dx++)for(let dz=-2;dz<=2;dz++)for(let dy=3;dy<=5;dy++)if(Math.abs(dx)+Math.abs(dz)+Math.random()<4)setB(x+dx,h+dy,z+dz,'leaves');
+ }
+}
+for(let i=0;i<30;i++){
+ let x=Math.floor(Math.random()*58-29),z=Math.floor(Math.random()*58-29),h=height(x,z);
+ let r=['star','void','dragon','heart'][i%4];
+ setB(x,h+1,z,r);
+ setB(x+1,h+1,z,'obsidian');setB(x-1,h+1,z,'obsidian');setB(x,h+1,z+1,'obsidian');setB(x,h+1,z-1,'obsidian');
+}
+
+function spawnEnemy(){
+ let a=Math.random()*Math.PI*2,r=24+Math.random()*18,x=Math.cos(a)*r,z=Math.sin(a)*r,y=height(Math.floor(x),Math.floor(z))+2;
+ let m=new THREE.Mesh(new THREE.BoxGeometry(.8,1.6,.8),new THREE.MeshLambertMaterial({color:0x9b111e}));
+ m.position.set(x,y,z);scene.add(m);enemies.push({m,hp:90,cd:0});
+}
+for(let i=0;i<7;i++)spawnEnemy();setInterval(()=>{if(enemies.length<16)spawnEnemy()},5000);
+
+const ray=new THREE.Raycaster();
+function aimBlock(){ray.setFromCamera({x:0,y:0},camera);let h=ray.intersectObjects([...meshes.values()],false);return h[0]}
+function toast(s){let m=document.getElementById('msg');m.textContent=s;m.style.opacity=1;clearTimeout(m.t);m.t=setTimeout(()=>m.style.opacity=0,1400)}
+function add(k,n=1){inv[k]=(inv[k]||0)+n;ui()}
+function spend(c){for(let k in c)if((inv[k]||0)<c[k])return false;for(let k in c)inv[k]-=c[k];return true}
+
+function mine(){
+ let h=aimBlock();if(!h||h.distance>7)return;
+ let d=h.object.userData,drop=types[d.t][1];
+ setB(d.x,d.y,d.z,null);add(drop,1);toast('Mined '+d.t);
+}
+function place(){
+ let t=placeables[selected];if((inv[t]||0)<=0){toast('No '+t);return}
+ let h=aimBlock();if(!h||h.distance>7)return;
+ let d=h.object.userData,n=h.face.normal,x=d.x+n.x,y=d.y+n.y,z=d.z+n.z;
+ if(getB(x,y,z))return;inv[t]--;setB(x,y,z,t);ui();
+}
+function attack(){
+ let dmg=8+player.power;
+ ray.setFromCamera({x:0,y:0},camera);
+ let h=ray.intersectObjects(enemies.map(e=>e.m),false)[0];
+ if(!h||h.distance>9)return;
+ let e=enemies.find(e=>e.m===h.object);e.hp-=dmg;toast(player.weapon+' hit '+dmg);
+ if(player.weapon==='God Mace')for(let o of enemies)if(o.m.position.distanceTo(e.m.position)<4)o.hp-=dmg*.5;
+ if(player.weapon==='God Sword')player.hp=Math.min(player.maxHp,player.hp+5);
+}
+
+function craftIngot(){
+ let c={diamond:12,obsidian:24,starShard:4,voidCrystal:4,dragonCore:2,worldHeart:1,gold:30};
+ if(!spend(c)){toast('Need more insane resources');return}
+ add('godIngot',1);toast('Forged God Ingot');
+}
+const recipes={
+ godSpear:['God Spear',{godIngot:3,starShard:8,diamond:20},55],
+ godSword:['God Sword',{godIngot:4,voidCrystal:8,diamond:24},70],
+ godMace:['God Mace',{godIngot:5,dragonCore:8,obsidian:40},95],
+ godAxe:['God Axe',{godIngot:4,worldHeart:3,wood:80},80],
+ godHelmet:['God Helmet',{godIngot:2,diamond:18,starShard:4},10,'armor'],
+ godChestplate:['God Chestplate',{godIngot:5,diamond:35,voidCrystal:6},26,'armor'],
+ godBelt:['God Belt',{godIngot:2,gold:40,dragonCore:2},7,'armor'],
+ godNecklace:['God Necklace',{godIngot:3,worldHeart:2,starShard:10},12,'armor'],
+ godLeggings:['God Leggings',{godIngot:4,diamond:28,obsidian:25},18,'armor'],
+ godBoots:['God Boots',{godIngot:2,diamond:16,voidCrystal:4},9,'armor']
+};
+window.craftIngot=craftIngot;
+window.craftGod=function(id){
+ let r=recipes[id]; if(inv[id]){toast('Already crafted');return}
+ if(!spend(r[1])){toast('Not enough for '+r[0]);return}
+ inv[id]=1;
+ if(r[3]==='armor'){player.armor+=r[2];player.maxHp+=r[2]*2;player.hp=player.maxHp}else{player.weapon=r[0];player.power=Math.max(player.power,r[2])}
+ toast('Crafted '+r[0]);ui();
+};
+window.sel=i=>{selected=i;ui()};
+
+addEventListener('mousedown',e=>{
+ if(document.pointerLockElement!==renderer.domElement){renderer.domElement.requestPointerLock();return}
+ if(e.button===0)mine(); if(e.button===2)place(); if(e.button===1)attack();
+});
+addEventListener('contextmenu',e=>e.preventDefault());
+addEventListener('keydown',e=>{key[e.code]=true;let n=parseInt(e.key);if(n>=1&&n<=7){selected=n-1;ui()}});
+addEventListener('keyup',e=>key[e.code]=false);
+addEventListener('mousemove',e=>{if(document.pointerLockElement===renderer.domElement){yaw-=e.movementX*.0025;pitch-=e.movementY*.0025;pitch=Math.max(-1.4,Math.min(1.4,pitch))}});
+
+function solid(p){return getB(Math.floor(p.x),Math.floor(p.y),Math.floor(p.z))||getB(Math.floor(p.x),Math.floor(p.y+1),Math.floor(p.z))}
+function updatePlayer(dt){
+ camera.rotation.order='YXZ';camera.rotation.y=yaw;camera.rotation.x=pitch;
+ let f=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)),r=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw)),w=new THREE.Vector3();
+ if(key.KeyW)w.add(f);if(key.KeyS)w.sub(f);if(key.KeyD)w.add(r);if(key.KeyA)w.sub(r);
+ if(w.length())w.normalize().multiplyScalar(key.ShiftLeft?8:5);
+ vel.x=w.x;vel.z=w.z;vel.y-=18*dt;if(onGround&&key.Space){vel.y=7;onGround=false}
+ let n=player.pos.clone().addScaledVector(vel,dt);
+ if(!solid(new THREE.Vector3(n.x,player.pos.y,player.pos.z)))player.pos.x=n.x;
+ if(!solid(new THREE.Vector3(player.pos.x,player.pos.y,n.z)))player.pos.z=n.z;
+ if(!solid(new THREE.Vector3(player.pos.x,n.y,player.pos.z))){player.pos.y=n.y;onGround=false}else{if(vel.y<0)onGround=true;vel.y=0}
+ if(player.pos.y<-20)player.pos.set(0,18,8);
+ camera.position.copy(player.pos).add(new THREE.Vector3(0,1.6,0));
+}
+function updateEnemies(dt){
+ for(let i=enemies.length-1;i>=0;i--){
+  let e=enemies[i]; if(e.hp<=0){scene.remove(e.m);enemies.splice(i,1);if(Math.random()<.5)add('starShard',1);if(Math.random()<.3)add('voidCrystal',1);if(Math.random()<.18)add('dragonCore',1);if(Math.random()<.08)add('worldHeart',1);continue}
+  let dir=player.pos.clone().sub(e.m.position);dir.y=0;let d=dir.length();
+  if(d>1.6){dir.normalize();e.m.position.addScaledVector(dir,2.2*dt)}else{e.cd-=dt;if(e.cd<=0){player.hp-=Math.max(1,8-player.armor*.25);e.cd=1;toast('Enemy hit you')}} 
+ }
+ if(player.hp<=0){player.hp=player.maxHp;player.pos.set(0,18,8);toast('Respawned')}
+}
+
+function ui(){
+ document.getElementById('hud').innerHTML='<b style="color:#67e8f9;font-size:20px">GodCraft 3D FIXED</b><br>WASD move • Space jump • click to lock mouse<br>Left mine • Right place • Middle click attack<br><b>HP</b> '+Math.ceil(player.hp)+'/'+player.maxHp+' <b>Armor</b> '+player.armor+' <b>Weapon</b> '+player.weapon;
+ document.getElementById('bar').innerHTML=placeables.map((b,i)=>'<div class="slot '+(i===selected?'sel':'')+'" onclick="sel('+i+')">'+b+'<br>'+inv[b]+'</div>').join('');
+ document.getElementById('craft').innerHTML='<b style="color:#67e8f9;font-size:20px">God Crafting</b><br>Rare shrine blocks + enemy drops make God gear.<hr>'+
+ ['iron','gold','diamond','obsidian','starShard','voidCrystal','dragonCore','worldHeart','godIngot'].map(k=>'<b>'+k+':</b> '+(inv[k]||0)+'<br>').join('')+
+ '<hr><button class="god" onclick="craftIngot()">Forge God Ingot</button><br><small>12 diamond, 24 obsidian, 4 starShard, 4 voidCrystal, 2 dragonCore, 1 worldHeart, 30 gold</small><hr>'+
+ Object.entries(recipes).map(([id,r])=>'<button class="god" onclick="craftGod(\''+id+'\')">'+r[0]+'</button><br><small>'+Object.entries(r[1]).map(([k,v])=>v+' '+k).join(', ')+'</small><br>').join('');
+}
+ui();
+
+let last=performance.now();
+function loop(now){
+ let dt=Math.min(.05,(now-last)/1000);last=now;
+ updatePlayer(dt);updateEnemies(dt);renderer.render(scene,camera);
+ requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+}
+
+if (window.THREE) { initGame(); } else { showError("Three.js did not load. Try opening the file with internet enabled."); }
+</script>
+</body>
+</html>

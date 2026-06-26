@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Deep Transit: Wilderness</title>
+<style>
+  html,body{margin:0;overflow:hidden;background:#020409;color:white;font-family:Arial,Helvetica,sans-serif;user-select:none}
+  #hud{position:fixed;inset:0;pointer-events:none;text-shadow:0 2px 8px #000;z-index:5}
+  #top{position:absolute;left:20px;top:16px;font-size:18px;line-height:1.45}
+  #msg{position:absolute;left:50%;top:18%;transform:translateX(-50%);font-size:24px;text-align:center;color:#dbe9ff;max-width:900px}
+  #objective{position:absolute;left:50%;bottom:42px;transform:translateX(-50%);font-size:19px;color:#e6e6e6;background:rgba(0,0,0,.35);padding:10px 18px;border:1px solid rgba(255,255,255,.12);border-radius:8px}
+  #staminaWrap{position:absolute;left:20px;bottom:28px;width:250px;height:14px;background:#111;border:1px solid #555}
+  #stamina{height:100%;width:100%;background:linear-gradient(90deg,#79e6ff,#ffffff)}
+  #hurt{position:fixed;inset:0;background:radial-gradient(circle,transparent 35%,rgba(140,0,0,.45));opacity:0;transition:.12s;pointer-events:none;z-index:4}
+  #start{position:fixed;inset:0;background:radial-gradient(circle at 50% 35%,rgba(26,42,60,.92),#010204 72%);z-index:10;display:flex;align-items:center;justify-content:center;text-align:center}
+  #panel{width:min(760px,90vw);border:1px solid rgba(180,210,255,.25);background:rgba(0,0,0,.58);box-shadow:0 0 60px rgba(70,120,160,.25);padding:32px;border-radius:16px}
+  h1{font-size:46px;margin:0 0 8px;letter-spacing:2px}.small{color:#b9c7d8;font-size:16px;line-height:1.5}.btn{margin-top:24px;display:inline-block;padding:14px 24px;border:1px solid #afc8e8;border-radius:8px;background:#172334;color:white;font-weight:bold;cursor:pointer;pointer-events:auto}.btn:hover{background:#26384f}
+  #cross{position:fixed;left:50%;top:50%;width:10px;height:10px;margin-left:-5px;margin-top:-5px;z-index:6;pointer-events:none}#cross:before,#cross:after{content:"";position:absolute;background:rgba(255,255,255,.65)}#cross:before{left:4px;top:0;width:2px;height:10px}#cross:after{left:0;top:4px;width:10px;height:2px}
+</style>
+</head>
+<body>
+<div id="start"><div id="panel"><h1>DEEP TRANSIT: WILDERNESS</h1><div class="small">First-person 3D horror. Night rain. Real forest. Abandoned houses. Doors scattered through the woods.<br><br><b>WASD</b> move, <b>Mouse</b> look, <b>Shift</b> sprint, <b>E</b> interact, <b>F</b> flashlight, <b>Space</b> jump.<br>Find the key, survive monsters, unlock the next wilderness door.</div><div class="btn" id="play">CLICK TO ENTER</div></div></div>
+<div id="hud"><div id="top">Area <span id="area">1</span>/150<br>Health <span id="hp">100</span><br>Key: <span id="key">NO</span><br>Flashlight: <span id="flash">ON</span></div><div id="msg"></div><div id="objective">Find the key hidden in the abandoned village.</div><div id="staminaWrap"><div id="stamina"></div></div></div><div id="hurt"></div><div id="cross"></div>
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+
+let scene,camera,renderer,player,flashlight,ambient,dirLight,rain,clock=new THREE.Clock();
+let keys={},vel=new THREE.Vector3(),yaw=0,pitch=0,locked=false;
+let area=1,hp=100,hasKey=false,stamina=100,canJump=false,msgTimer=0;
+let interactables=[],monsters=[],areaGroup=new THREE.Group();
+const hud={area:document.getElementById('area'),hp:document.getElementById('hp'),key:document.getElementById('key'),flash:document.getElementById('flash'),msg:document.getElementById('msg'),objective:document.getElementById('objective'),stamina:document.getElementById('stamina'),hurt:document.getElementById('hurt')};
+
+const mat={ground:new THREE.MeshStandardMaterial({color:0x111611,roughness:1}),mud:new THREE.MeshStandardMaterial({color:0x17100b,roughness:1}),wall:new THREE.MeshStandardMaterial({color:0x2b2621,roughness:.9}),roof:new THREE.MeshStandardMaterial({color:0x171518,roughness:1}),wood:new THREE.MeshStandardMaterial({color:0x2e2118,roughness:1}),leaf:new THREE.MeshStandardMaterial({color:0x07130a,roughness:1}),door:new THREE.MeshStandardMaterial({color:0x27110e,roughness:.8,emissive:0x180403}),key:new THREE.MeshStandardMaterial({color:0xffd56a,emissive:0x6a4300}),eye:new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xffffff}),monster:new THREE.MeshStandardMaterial({color:0x09090b,roughness:1}),water:new THREE.MeshStandardMaterial({color:0x07131a,roughness:.3,metalness:.1,transparent:true,opacity:.72})};
+
+function init(){
+ scene=new THREE.Scene(); scene.background=new THREE.Color(0x0b1220); scene.fog=new THREE.FogExp2(0x0c111a,.010);
+ const moon=new THREE.HemisphereLight(0x8fb2ff,0x101010,.95); scene.add(moon);
+ camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,.1,900);
+ renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setSize(innerWidth,innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.shadowMap.enabled=true; document.body.appendChild(renderer.domElement);
+ player=new THREE.Object3D(); player.position.set(0,2,8); scene.add(player); player.add(camera); camera.position.set(0,0.2,0);
+ ambient=new THREE.AmbientLight(0x8aa6d8,.72); scene.add(ambient); dirLight=new THREE.DirectionalLight(0xb7c9ff,.85); dirLight.position.set(-60,80,20); dirLight.castShadow=true; scene.add(dirLight);
+ flashlight=new THREE.SpotLight(0xffffff,9.5,120,Math.PI/5,.45,.8); flashlight.position.set(0,0,0); flashlight.target.position.set(0,0,-1); camera.add(flashlight); camera.add(flashlight.target);
+ scene.add(areaGroup); makeRain(); buildArea(1);
+ addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+ document.getElementById('play').onclick=()=>{document.getElementById('start').style.display='none';renderer.domElement.requestPointerLock()};
+ document.addEventListener('pointerlockchange',()=>locked=document.pointerLockElement===renderer.domElement);
+ document.addEventListener('mousemove',e=>{if(!locked)return; yaw-=e.movementX*.0022; pitch-=e.movementY*.0022; pitch=Math.max(-1.35,Math.min(1.35,pitch)); player.rotation.y=yaw; camera.rotation.x=pitch;});
+ document.addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='KeyF'){flashlight.visible=!flashlight.visible;hud.flash.textContent=flashlight.visible?'ON':'OFF'} if(e.code==='KeyE')interact(); if(e.code==='Space'&&canJump){vel.y=8;canJump=false;}});
+ document.addEventListener('keyup',e=>keys[e.code]=false);
+ animate();
+}
+function clearGroup(g){while(g.children.length){let o=g.children.pop();o.traverse?.(x=>{x.geometry?.dispose?.()});}}
+function rand(seed){let x=Math.sin(seed*999.91)*10000;return x-Math.floor(x)}
+function msg(t){hud.msg.textContent=t;msgTimer=3.2}
+function buildArea(n){area=n; hud.area.textContent=n; hasKey=false; hud.key.textContent='NO'; clearGroup(areaGroup); interactables=[]; monsters=[]; player.position.set(0,2,42); yaw=0; pitch=0; player.rotation.y=0; camera.rotation.x=0; vel.set(0,0,0);
+ const biome=n<26?'Forgotten Village':n<51?'Flooded Forest':n<76?'Canyon Settlement':n<101?'Caverns':n<126?'Snowbound Hamlet':n<150?'Black Pines':'Terminus Grounds';
+ hud.objective.textContent = n===30?'RUN. SEEK IS IN THE TREES.': n===75?'Destroy the Creaker heart and reach the cave door.': n===120?'Avoid Executer and open the fortress door.': n===150?'Reach the final door under Terminus.':'Find the key. Unlock the next door. Survive the rain.';
+ msg('Area '+n+' - '+biome);
+ const ground=new THREE.Mesh(new THREE.PlaneGeometry(340,340,48,48), n>=51&&n<76?mat.mud:mat.ground); ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; areaGroup.add(ground);
+ // guaranteed visible village street right in front of spawn, so the game is not just black trees
+ makeHouse(-16,18,13,12,.12); makeHouse(18,14,15,11,-.18); makeHouse(-28,-8,12,15,.35); makeHouse(28,-12,14,14,-.28);
+ makeBusStop(0,34); makeChurch(0,-42);
+ for(let i=0;i<7;i++){let lamp=new THREE.Group();lamp.position.set(-30+i*10,0,6+Math.sin(i)*6);areaGroup.add(lamp);let pole=new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,7,8),mat.wood);pole.position.y=3.5;lamp.add(pole);let bulb=new THREE.Mesh(new THREE.SphereGeometry(.45,12,12),new THREE.MeshStandardMaterial({color:0xcad6ff,emissive:0x789cff,emissiveIntensity:1.5}));bulb.position.y=7.2;lamp.add(bulb);let light=new THREE.PointLight(0x87a7ff,1.3,24);light.position.y=7;lamp.add(light);}
+
+ // paths
+ for(let i=0;i<7;i++){let path=new THREE.Mesh(new THREE.BoxGeometry(10+rand(n+i)*20,.05,80+rand(n-i)*80), new THREE.MeshStandardMaterial({color:0x1d1a15,roughness:1})); path.position.set((rand(n*7+i)-.5)*180,.03,(rand(n*11+i)-.5)*180); path.rotation.y=rand(i+n)*Math.PI; areaGroup.add(path)}
+ // village/houses landmarks
+ const houseCount=n<26?12:n<51?5:n<76?8:n<101?2:n<126?9:6;
+ for(let i=0;i<houseCount;i++) makeHouse((rand(n*30+i)-.5)*230,(rand(n*40+i)-.5)*230, 7+rand(i)*8, 7+rand(i+9)*7, rand(n+i)*Math.PI);
+ // actual dense forest
+ const treeCount=n<101?130:100; for(let i=0;i<treeCount;i++){let x=(rand(n*100+i)-.5)*320,z=(rand(n*200+i)-.5)*320;if(Math.abs(x)<8&&z>0&&z<34)continue;makeTree(x,z,rand(i+n));}
+ // props
+ for(let i=0;i<28;i++) makeRock((rand(n*9+i)-.5)*300,(rand(n*13+i)-.5)*300,rand(n+i));
+ if(n<26){makeChurch(-45,-65);makePlayground(55,-52);makeBusStop(0,28)}
+ if(n>=26&&n<51) for(let i=0;i<6;i++) makeWater((rand(n+i)-.5)*250,(rand(n*2+i)-.5)*250,30+rand(i)*25);
+ if(n>=76&&n<101) makeCave();
+ makeDoor(0,-138); makeKey((rand(n*5)-.5)*170,-30-(rand(n*8)*90));
+ // monster density
+ const mcount= n%30===0||n===75||n===120||n===150?1:2+Math.floor(n/35);
+ for(let i=0;i<mcount;i++) spawnMonster(['Lurker','Smiler','Hound','Widow'][Math.floor(rand(n*77+i)*4)], (rand(n*17+i)-.5)*220, (rand(n*23+i)-.5)*220);
+ if(n===30) spawnBoss('Seek'); if(n===75) spawnBoss('Creaker'); if(n===120) spawnBoss('Executer'); if(n===150) spawnBoss('Terminus');
+}
+function add(mesh){mesh.castShadow=true;mesh.receiveShadow=true;areaGroup.add(mesh);return mesh}
+function makeHouse(x,z,w,d,r){let h=5+Math.random()*2; let g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=r;areaGroup.add(g);let body=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat.wall);body.position.y=h/2;body.castShadow=body.receiveShadow=true;g.add(body);let roof=new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,d)*.78,3,4),mat.roof);roof.position.y=h+1.5;roof.rotation.y=Math.PI/4;roof.castShadow=true;g.add(roof);let door=new THREE.Mesh(new THREE.BoxGeometry(1.6,2.8,.18),mat.door);door.position.set(0,1.4,d/2+.1);g.add(door);for(let sx of[-1,1]){let win=new THREE.Mesh(new THREE.BoxGeometry(1.1,1.1,.2),new THREE.MeshStandardMaterial({color:0x17233a,emissive:0x34507d,emissiveIntensity:0.9}));win.position.set(sx*w*.28,3,d/2+.12);g.add(win)}}
+function makeChurch(x,z){makeHouse(x,z,16,24,.3);let tower=add(new THREE.Mesh(new THREE.BoxGeometry(7,18,7),mat.wall));tower.position.set(x,9,z+15);let spire=add(new THREE.Mesh(new THREE.ConeGeometry(5,9,4),mat.roof));spire.position.set(x,22,z+15);spire.rotation.y=Math.PI/4;}
+function makePlayground(x,z){for(let i=0;i<2;i++){let p=add(new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,5,8),mat.wood));p.position.set(x+i*7,2.5,z)}let bar=add(new THREE.Mesh(new THREE.BoxGeometry(8,.25,.25),mat.wood));bar.position.set(x+3.5,5,z);for(let i=0;i<2;i++){let s=add(new THREE.Mesh(new THREE.BoxGeometry(1.8,.15,1.2),mat.wood));s.position.set(x+2+i*3,2,z);}}
+function makeBusStop(x,z){let base=add(new THREE.Mesh(new THREE.BoxGeometry(12,.2,5),mat.wood));base.position.set(x,.12,z);let roof=add(new THREE.Mesh(new THREE.BoxGeometry(13,.35,6),mat.roof));roof.position.set(x,4,z);for(let sx of[-5,5])for(let sz of[-2,2]){let p=add(new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,4,8),mat.wood));p.position.set(x+sx,2,z+sz)}}
+function makeTree(x,z,s){let g=new THREE.Group();g.position.set(x,0,z);areaGroup.add(g);let trunk=new THREE.Mesh(new THREE.CylinderGeometry(.75+s*.55,1.05+s*.7,6+s*5,10),mat.wood);trunk.position.y=(7+s*7)/2;trunk.castShadow=true;g.add(trunk);let levels=3+Math.floor(s*3);for(let i=0;i<levels;i++){let crown=new THREE.Mesh(new THREE.ConeGeometry(6+s*5-i*1.05,8+s*4,10),mat.leaf);crown.position.y=6+i*3+s*3;crown.castShadow=true;g.add(crown)}}
+function makeRock(x,z,s){let rock=add(new THREE.Mesh(new THREE.DodecahedronGeometry(1+s*3),new THREE.MeshStandardMaterial({color:0x24272a,roughness:1})));rock.position.set(x,.7+s,z);rock.scale.y=.45+s*.4;}
+function makeWater(x,z,rad){let w=new THREE.Mesh(new THREE.CircleGeometry(rad,32),mat.water);w.rotation.x=-Math.PI/2;w.position.set(x,.06,z);areaGroup.add(w)}
+function makeCave(){let mouth=add(new THREE.Mesh(new THREE.TorusGeometry(22,5,12,28),new THREE.MeshStandardMaterial({color:0x151515,roughness:1})));mouth.position.set(0,20,-88);mouth.rotation.x=Math.PI/2;let dark=add(new THREE.Mesh(new THREE.BoxGeometry(38,28,8),new THREE.MeshStandardMaterial({color:0x000000})));dark.position.set(0,14,-90)}
+function makeDoor(x,z){let g=new THREE.Group();g.position.set(x,0,z);areaGroup.add(g);let frame=new THREE.Mesh(new THREE.BoxGeometry(7,10,.6),mat.door);frame.position.y=5;frame.castShadow=true;g.add(frame);let glow=new THREE.PointLight(0x6fa8ff,1.8,35);glow.position.set(0,5,2);g.add(glow);interactables.push({type:'door',obj:g});}
+function makeKey(x,z){let k=new THREE.Group();k.position.set(x,1.2,z);areaGroup.add(k);let ring=new THREE.Mesh(new THREE.TorusGeometry(.7,.12,8,18),mat.key);k.add(ring);let stem=new THREE.Mesh(new THREE.BoxGeometry(1.8,.18,.18),mat.key);stem.position.x=1.2;k.add(stem);let glow=new THREE.PointLight(0xffcc55,1.5,22);glow.position.y=1;k.add(glow);interactables.push({type:'key',obj:k});}
+function spawnMonster(type,x,z){let g=new THREE.Group();g.position.set(x,0,z);areaGroup.add(g);let height=type==='Hound'?1.6:type==='Smiler'?3.2:type==='Widow'?4.5:5.8;let body=new THREE.Mesh(new THREE.CapsuleGeometry(type==='Hound'?0.8:.55,height,4,8),mat.monster);body.position.y=height/2;body.castShadow=true;g.add(body);for(let sx of[-.25,.25]){let eye=new THREE.Mesh(new THREE.SphereGeometry(.09,8,8),mat.eye);eye.position.set(sx,height*.82,.5);g.add(eye)}let light=new THREE.PointLight(type==='Smiler'?0xffffff:0x551111,.5,10);light.position.y=height*.8;g.add(light);monsters.push({type,obj:g,speed:type==='Hound'?8:type==='Smiler'?4:type==='Widow'?2.2:3.5,cool:0});}
+function spawnBoss(type){let z=-105,x=type==='Seek'?0:type==='Creaker'?-40:type==='Executer'?40:0;let g=new THREE.Group();g.position.set(x,0,z);areaGroup.add(g);let color=type==='Terminus'?0x020203:0x050505;let body=new THREE.Mesh(new THREE.CapsuleGeometry(type==='Terminus'?5:2,type==='Terminus'?34:13,6,12),new THREE.MeshStandardMaterial({color,emissive:type==='Terminus'?0x140000:0x050000}));body.position.y=type==='Terminus'?20:8;body.castShadow=true;g.add(body);let light=new THREE.PointLight(type==='Seek'?0xff0000:type==='Creaker'?0x66ffaa:type==='Executer'?0xffaa33:0xcc0000,6,90);light.position.y=12;g.add(light);monsters.push({type,obj:g,speed:type==='Seek'?13:type==='Executer'?7:type==='Creaker'?4:5,cool:0,boss:true});msg(type+' is here.');}
+function makeRain(){
+ let count=900, positions=new Float32Array(count*6);
+ for(let i=0;i<count;i++) resetDrop(positions,i,true);
+ let geom=new THREE.BufferGeometry(); geom.setAttribute('position',new THREE.BufferAttribute(positions,3));
+ rain=new THREE.LineSegments(geom,new THREE.LineBasicMaterial({color:0x8da9c9,transparent:true,opacity:.35}));
+ scene.add(rain);
+}
+function resetDrop(arr,i,randomY=false){
+ let x=(Math.random()-.5)*230+player.position.x, y=randomY?Math.random()*80:75, z=(Math.random()-.5)*230+player.position.z;
+ arr[i*6]=x; arr[i*6+1]=y; arr[i*6+2]=z;
+ arr[i*6+3]=x-0.35; arr[i*6+4]=y-3.2; arr[i*6+5]=z+0.15;
+}
+function interact(){let best=null,bd=999;for(let it of interactables){let d=it.obj.position.distanceTo(player.position);if(d<bd){bd=d;best=it}} if(!best||bd>7){msg('Nothing close enough.');return;} if(best.type==='key'){hasKey=true;hud.key.textContent='YES';areaGroup.remove(best.obj);interactables=interactables.filter(x=>x!==best);msg('You found the key. Find the door.');} else if(best.type==='door'){if(!hasKey && area%30!==0 && area!==75 && area!==120 && area!==150){msg('The door is locked. Find the key.');return;} buildArea(Math.min(150,area+1));}}
+function animate(){requestAnimationFrame(animate);let dt=Math.min(clock.getDelta(),.033);update(dt);renderer.render(scene,camera)}
+function update(dt){if(msgTimer>0){msgTimer-=dt;if(msgTimer<=0)hud.msg.textContent=''}
+ const forward=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw)*-1); const right=new THREE.Vector3(Math.cos(yaw),0,Math.sin(yaw)); let move=new THREE.Vector3(); if(keys.KeyW)move.add(forward); if(keys.KeyS)move.sub(forward); if(keys.KeyD)move.add(right); if(keys.KeyA)move.sub(right); if(move.lengthSq()>0)move.normalize(); let sprint=keys.ShiftLeft&&stamina>2&&move.lengthSq()>0; let speed=sprint?12:6; if(sprint)stamina-=32*dt; else stamina=Math.min(100,stamina+20*dt); player.position.addScaledVector(move,speed*dt); vel.y-=22*dt; player.position.y+=vel.y*dt; if(player.position.y<2){player.position.y=2;vel.y=0;canJump=true;} player.position.x=Math.max(-160,Math.min(160,player.position.x));player.position.z=Math.max(-160,Math.min(160,player.position.z));
+ hud.stamina.style.width=stamina+'%'; hud.hp.textContent=Math.max(0,Math.floor(hp));
+ // rain follows player
+ const arr=rain.geometry.attributes.position.array; for(let i=0;i<arr.length;i+=6){arr[i+1]-=28*dt; arr[i+4]-=28*dt; if(arr[i+1]<0){let idx=i/6; resetDrop(arr,idx,false);}} rain.geometry.attributes.position.needsUpdate=true;
+ // monsters
+ for(let m of monsters){let to=new THREE.Vector3().subVectors(player.position,m.obj.position);let dist=to.length();to.y=0;if(to.lengthSq()>0)to.normalize();let aggro=m.boss?180:(m.type==='Widow'?55:90);let lit=flashlight.visible && dist<45 && Math.abs(angleToMonster(m.obj.position))<.28; if(dist<aggro){let sp=m.speed;if(m.type==='Lurker'&&lit)sp=0;if(m.type==='Smiler'&&!lit)sp*=1.4;m.obj.position.addScaledVector(to,sp*dt);m.obj.lookAt(player.position.x,m.obj.position.y,player.position.z);} if(dist<3.5+(m.boss?4:0)){m.cool-=dt;if(m.cool<=0){hp-=m.boss?28:12;m.cool=1.1;hud.hurt.style.opacity=1;setTimeout(()=>hud.hurt.style.opacity=0,120);msg(m.type+' hit you!');if(hp<=0){hp=100;buildArea(area);msg('You died. Area reset.')}}}}
+}
+function angleToMonster(pos){let dir=new THREE.Vector3().subVectors(pos,player.position);dir.y=0;dir.normalize();let f=new THREE.Vector3(Math.sin(yaw),0,-Math.cos(yaw));return Math.acos(Math.max(-1,Math.min(1,dir.dot(f))));}
+init();
+</script>
+</body>
+</html>

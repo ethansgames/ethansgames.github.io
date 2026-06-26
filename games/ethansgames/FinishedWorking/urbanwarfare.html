@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<body style="margin:0; overflow:hidden; background:#713434;">
+<canvas id="game"></canvas>
+<script>
+// === ULTRA-COMPRESSED BATTLE ROYALE ===
+const c = document.getElementById("game"), x = c.getContext("2d");
+c.width = innerWidth; c.height = innerHeight;
+let W=50000, N=30, PR=12, BR=12, PS=3, BS=2.5;
+let wp={f:{d:5,cd:10,r:300},mg:{d:15,cd:60,r:1200},p:{d:18,cd:350,r:900}, r:{d:32,cd:150,r:1300}, s:{d:70,cd:1100,r:2200}}, lt=["p","r","s"];
+let k={}, m={x:0,y:0,d:0};
+window.addEventListener('keydown', e=>k[e.key]=1);
+window.addEventListener('keyup', e=>k[e.key]=0);
+c.onmousedown=_=>m.d=1; c.onmouseup=_=>m.d=0;
+c.onmousemove=e=>{let r=c.getBoundingClientRect(); m.x=e.clientX-r.left; m.y=e.clientY-r.top;};
+let pl, bs=[], lo=[], cv=[], bl=[], cx=0, cy=0, SR=W/2; // storm radius updated for new world
+const R=Math.random, D=Math.hypot, C=Math.atan2;
+
+function nl(){return {x:R()*W, y:R()*W, h:100, a:1, w:lt[(R()*3)|0], t:0};}
+
+function ini(){
+  pl={x:W/2, y:W/2, h:100, a:1, w:"f", t:0};
+  bs=[]; bl=[]; cv=[]; lo=[];
+  for(let i=0;i<N;i++) bs.push(nl());
+  for(let i=0;i<2000;i++){ let w=40+R()*100, h=40+R()*100; cv.push({x:R()*(W-w), y:R()*(W-h), w, h}); }
+  // --- BUILDINGS (random dense city with interiors) ---
+  // clear existing buildings
+  // generate city clusters
+  for(let ci=0; ci<40; ci++){
+    let cx0 = R()*W, cy0 = R()*W;
+    let count = 20 + (R()*30|0);
+    for(let j=0;j<count;j++){
+      let bw = 200 + R()*500,
+          bh = 200 + R()*500,
+          ox = cx0 + (R()*800 - 400),
+          oy = cy0 + (R()*800 - 400);
+      if(ox<0||oy<0||ox>W||oy>W) continue;
+      cv.push({x:ox, y:oy, w:bw, h:bh});
+      // add simple interior walls
+      let rooms = 3 + (R()*3|0);
+      for(let r=0;r<rooms;r++){
+        let rw = bw*0.2, rh = bh*(0.2+R()*0.2);
+        let rx = ox + R()*(bw-rw), ry = oy + R()*(bh-rh);
+        cv.push({x:rx, y:ry, w:rw, h:rh});
+      }
+    }
+  }
+  for(let i=0;i<150;i++){ let bw=300+R()*600, bh=300+R()*600; cv.push({x:R()*(W-bw), y:R()*(W-bh), w:bw, h:bh}); }
+  for(let i=0;i<150;i++) lo.push({x:R()*W, y:R()*W, t:lt[(R()*3)|0]});
+}
+
+function sh(o,a){ let w=wp[o.w]; bl.push({x:o.x, y:o.y, vx:Math.cos(a)*7, vy:Math.sin(a)*7, d:w.d, r:w.r, ds:0, o, al:1}); }
+function hc(b){ for(let c of cv) if(b.x>c.x && b.x<c.x+c.w && b.y>c.y && b.y<c.y+c.h) return 1; }
+
+function upP(t){
+  if(!pl.a) return;
+  let dx=(k.w?-1:0)+(k.s?1:0), dy=(k.a?-1:0)+(k.d?1:0), l=D(dx,dy)||1;
+  dx/=l; dy/=l;
+  let px=pl.x, py=pl.y;
+pl.x=Math.max(0,Math.min(W,pl.x+dy*PS));
+pl.y=Math.max(0,Math.min(W,pl.y+dx*PS));
+for(let c of cv){if(pl.x>c.x&&pl.x<c.x+c.w&&pl.y>c.y&&pl.y<c.y+c.h){pl.x=px;pl.y=py;}}
+  if(m.d){ let w=wp[pl.w]; if(t-pl.t>w.cd){ sh(pl, C(m.y+cy-pl.y, m.x+cx-pl.x)); pl.t=t; }}
+  for(let i=lo.length;i--;) if((pl.x-lo[i].x)**2+(pl.y-lo[i].y)**2<300){ pl.w=lo[i].t; lo.splice(i,1);} 
+}
+
+function upB(t){
+  for(let b of bs){ if(!b.a) continue;
+    let tg=pl, td=(pl.x-b.x)**2+(pl.y-b.y)**2;
+    for(let o of bs){ if(!o.a||o===b) continue; let d=(o.x-b.x)**2+(o.y-b.y)**2; if(d<td){ td=d; tg=o; } }
+    let a=C(tg.y-b.y, tg.x-b.x);
+    let bx=b.x, by=b.y;
+b.x=Math.max(0,Math.min(W,b.x+Math.cos(a)*BS));
+b.y=Math.max(0,Math.min(W,b.y+Math.sin(a)*BS));
+for(let c of cv){if(b.x>c.x&&b.x<c.x+c.w&&b.y>c.y&&b.y<c.y+c.h){b.x=bx;b.y=by;}}
+    let w=wp[b.w];
+    if(t-b.t>w.cd){ sh(b, a+(R()-.5)*.15); b.t=t; }
+  }
+}
+
+function upBL(){
+  for(let b of bl){ if(!b.al) continue;
+    b.x+=b.vx; b.y+=b.vy; b.ds+=7;
+    if(b.ds>b.r || hc(b)) b.al=0;
+    if(pl.a && b.o!==pl && Math.hypot(pl.x-b.x, pl.y-b.y) < (PR+8)){
+      pl.h-=b.d; if(pl.h<=0) pl.a=0; b.al=0;
+    }
+    for(let o of bs){ if(!o.a||o===b.o) continue;
+      if(Math.hypot(o.x-b.x, o.y-b.y) < (BR+8)){ o.h-=b.d; if(o.h<=0) o.a=0; b.al=0; break; }
+    }
+  }
+  bl=bl.filter(b=>b.al);
+}
+
+function storm(){
+  SR-=.05; if(SR<200) SR=200;
+  let ck=e=>{ let dx=e.x-W/2, dy=e.y-W/2; if(dx*dx+dy*dy>SR*SR) e.h-=.09; if(e.h<=0) e.a=0; };
+  ck(pl); for(let b of bs) if(b.a) ck(b);
+}
+
+function cam(){
+  cx=Math.max(0,Math.min(W-c.width, pl.x-c.width/2));
+  cy=Math.max(0,Math.min(W-c.height, pl.y-c.height/2));
+}
+
+function dr(){
+  x.fillStyle="#000"; x.fillRect(0,0,c.width,c.height);
+  x.fillStyle="#444"; for(let o of cv) x.fillRect(o.x-cx, o.y-cy, o.w,o.h);
+  x.fillStyle="gold"; for(let o of lo) x.fillRect(o.x-cx-3, o.y-cy-3,6,6);
+  x.fillStyle="red"; for(let o of bs) if(o.a) x.fillRect(o.x-cx-5, o.y-cy-5,10,10);
+  x.fillStyle="#fff"; for(let o of bl) x.fillRect(o.x-cx, o.y-cy,10,10);
+  x.fillStyle=pl.a?"cyan":"gray"; x.fillRect(pl.x-cx-6, pl.y-cy-6,12,12);
+  x.strokeStyle="rgba(0,150,255,.4)";
+  x.beginPath(); x.arc(W/2-cx, W/2-cy, SR, 0,7); x.stroke();
+  let s=150, k=s/W, px=c.width-s-20, py=20;
+  x.fillStyle="#111"; x.fillRect(px,py,s,s);
+  x.strokeStyle="#444"; x.strokeRect(px,py,s,s);
+  x.fillStyle="#666"; for(let o of cv) x.fillRect(px+o.x*k, py+o.y*k, o.w*k, o.h*k);
+  x.fillStyle="red"; for(let o of bs) if(o.a) x.fillRect(px+o.x*k, py+o.y*k,3,3);
+  x.fillStyle="cyan"; x.fillRect(px+pl.x*k-2, py+pl.y*k-2,4,4);
+  x.strokeStyle="rgba(0,150,255,.5)";
+  x.beginPath(); x.arc(px+W/2*k, py+W/2*k, SR*k, 0,7); x.stroke();
+}
+
+let gameOver=false;
+function showMenu(){x.fillStyle="rgba(0,0,0,0.6)";x.fillRect(0,0,c.width,c.height);x.fillStyle="#fff";x.font="40px sans-serif";x.fillText("GAME OVER",c.width/2-120,c.height/2-20);x.font="25px sans-serif";x.fillText("Click to Restart",c.width/2-110,c.height/2+30);} 
+
+c.addEventListener('click',()=>{if(gameOver){ini();pl.a=1;pl.h=100;gameOver=false;}});
+
+function loop(t){ upP(t); upB(t); upBL(); storm(); cam();
+  if(!pl.a){gameOver=true; showMenu(); return;} dr(); requestAnimationFrame(loop);} 
+
+ini(); requestAnimationFrame(loop);
+</script>
+</body>
+</html>

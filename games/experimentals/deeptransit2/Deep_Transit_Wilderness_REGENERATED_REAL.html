@@ -1,0 +1,114 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Deep Transit: Wilderness - Regenerated</title>
+<style>
+html,body{margin:0;overflow:hidden;background:#02050a;color:#dcecff;font-family:Arial,Helvetica,sans-serif;user-select:none}
+#ui{position:fixed;left:14px;top:12px;z-index:5;font-size:14px;line-height:1.42;text-shadow:0 2px 5px #000;background:rgba(0,0,0,.23);padding:8px 10px;border-radius:8px;border:1px solid rgba(180,210,255,.12);pointer-events:none}
+#msg{position:fixed;left:50%;bottom:46px;transform:translateX(-50%);z-index:6;min-width:320px;max-width:780px;text-align:center;padding:10px 14px;border-radius:9px;background:rgba(0,0,0,.55);border:1px solid rgba(160,190,230,.22);text-shadow:0 2px 4px #000;pointer-events:none}
+#cross{position:fixed;left:50%;top:50%;width:16px;height:16px;margin-left:-8px;margin-top:-8px;z-index:4;pointer-events:none;opacity:.65}
+#cross:before,#cross:after{content:"";position:absolute;background:#e9f6ff;box-shadow:0 0 4px #9fd1ff}
+#cross:before{left:7px;top:1px;width:2px;height:14px}#cross:after{left:1px;top:7px;width:14px;height:2px}
+#start{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;text-align:center;background:radial-gradient(circle at center,#172438 0%,#07101a 45%,#010306 100%)}
+#panel{max-width:820px;padding:30px;border-radius:16px;background:rgba(0,0,0,.62);border:1px solid rgba(190,220,255,.28);box-shadow:0 0 70px #000}
+button{font-size:20px;padding:12px 30px;border:0;border-radius:9px;background:#e2efff;color:#0d1b2a;font-weight:800;cursor:pointer}
+.small{opacity:.85;font-size:14px}
+</style>
+</head>
+<body>
+<div id="start"><div id="panel"><h1>DEEP TRANSIT: WILDERNESS</h1><p>Outdoor horror: dense rainy forest, abandoned villages, scattered doors, enterable houses, real flashlight visibility, and monsters in the trees.</p><p>WASD move • Mouse look • Shift sprint • F flashlight • E interact • R battery • M medkit</p><button id="play">ENTER THE WOODS</button><p class="small">Click after starting to lock mouse.</p></div></div>
+<div id="ui"></div><div id="cross"></div><div id="msg">Follow the trail. Search houses. Do not leave the light for long.</div>
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script>
+'use strict';
+let scene,camera,renderer,clock,raycaster;
+let keys={},locked=false,yaw=Math.PI,pitch=0;
+let area=1,hp=100,stamina=100,batteries=4,lockpicks=1,medkits=0,hasKey=false,flashlightOn=true,flashBattery=100;
+let player={pos:new THREE.Vector3(0,1.75,18)};
+let colliders=[],interactables=[],monsters=[],lanterns=[],rain,trailPts=[],objectiveDoor,flashLight;
+const ui=document.getElementById('ui'), msg=document.getElementById('msg');
+const rand=(a,b)=>a+Math.random()*(b-a), clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function show(t,ms=3500){msg.textContent=t;clearTimeout(show.t);show.t=setTimeout(()=>msg.textContent='Follow trails. Houses may contain keys, batteries, lockpicks, and medkits.',ms)}
+function mat(color,em=0){return new THREE.MeshStandardMaterial({color,roughness:.93,metalness:0,emissive:color,emissiveIntensity:em});}
+function add(mesh){scene.add(mesh);return mesh}
+function box(name,w,h,d,x,y,z,material,collide=false){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);m.name=name;m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;add(m);if(collide)colliders.push(m);return m}
+function cyl(name,r,h,x,y,z,material,seg=8,collide=false){const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,seg),material);m.name=name;m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;add(m);if(collide)colliders.push(m);return m}
+function cone(name,r,h,x,y,z,material,seg=10){const m=new THREE.Mesh(new THREE.ConeGeometry(r,h,seg),material);m.name=name;m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;add(m);return m}
+function init(){
+ scene=new THREE.Scene(); scene.background=new THREE.Color(0x09131f); scene.fog=new THREE.FogExp2(0x09131f,.018);
+ camera=new THREE.PerspectiveCamera(77,innerWidth/innerHeight,.08,650); camera.position.copy(player.pos);
+ renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'}); renderer.setSize(innerWidth,innerHeight); renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap; document.body.appendChild(renderer.domElement);
+ clock=new THREE.Clock(); raycaster=new THREE.Raycaster();
+ scene.add(new THREE.HemisphereLight(0x8aa4c0,0x1a1814,1.75));
+ const moon=new THREE.DirectionalLight(0xb5c9e8,1.15);moon.position.set(-70,120,50);moon.castShadow=true;moon.shadow.mapSize.set(2048,2048);moon.shadow.camera.left=-180;moon.shadow.camera.right=180;moon.shadow.camera.top=180;moon.shadow.camera.bottom=-180;scene.add(moon);
+ flashLight=new THREE.SpotLight(0xf1f8ff,12.5,92,Math.PI/4.15,.72,.72);flashLight.castShadow=true;flashLight.shadow.mapSize.set(1024,1024);flashLight.position.set(.18,-.13,.18);flashLight.target.position.set(0,-.20,-1);camera.add(flashLight);camera.add(flashLight.target);scene.add(camera);
+ bind(); buildArea(); makeRain(); animate();
+}
+function clearWorld(){for(let i=scene.children.length-1;i>=0;i--){let o=scene.children[i];if(o!==camera && !o.isLight) scene.remove(o)}colliders=[];interactables=[];monsters=[];lanterns=[];trailPts=[]}
+function buildArea(){clearWorld();hasKey=false;hp=Math.max(55,hp);player.pos.set(0,1.75,18);yaw=Math.PI;pitch=0;camera.position.copy(player.pos);
+ const ground=new THREE.Mesh(new THREE.PlaneGeometry(520,620,16,16),mat(0x151b13));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;add(ground);
+ makeTrails(); makeForest(); makeVillage(); makeLandmarks(); makeDoorAndLoot(); makeMonsters();
+ if([30,75,120,150].includes(area)) makeBoss();
+ show('Area '+area+'/150: raining forest, abandoned village, monsters crawling between the trees. Find the key and reach the wilderness door.',4600);
+}
+function pathPoint(i){return new THREE.Vector3(Math.sin(i*.9+area*.33)*18 + Math.sin(i*.37)*9,0,22-i*41)}
+function makeTrails(){for(let i=0;i<13;i++)trailPts.push(pathPoint(i));
+ for(let i=0;i<trailPts.length-1;i++){let a=trailPts[i],b=trailPts[i+1],mid=a.clone().add(b).multiplyScalar(.5),len=a.distanceTo(b);let p=box('muddy trail',15,.045,len,mid.x,.035,mid.z,mat(0x3b2a1c));p.rotation.y=Math.atan2(b.x-a.x,b.z-a.z);}
+ // side trails to houses
+ for(let i=2;i<11;i+=2){let p=trailPts[i],side=i%4===0?1:-1;let x=p.x+side*35,z=p.z+rand(-10,10);let len=Math.hypot(x-p.x,z-p.z);let mid=new THREE.Vector3((x+p.x)/2,0,(z+p.z)/2);let s=box('side trail',8,.04,len,mid.x,.04,mid.z,mat(0x322416));s.rotation.y=Math.atan2(x-p.x,z-p.z);}
+}
+function nearTrail(x,z,dist){return trailPts.some(p=>Math.hypot(x-p.x,z-p.z)<dist)}
+function makeForest(){
+ // huge dense wall of forest but trail gaps preserved
+ for(let i=0;i<900;i++){let x=rand(-245,245),z=rand(-535,70);let d=nearTrail(x,z,12);if(d&&Math.random()<.86)continue;makeTree(x,z,Math.random()<.13,rand(.85,1.35));}
+ for(let i=0;i<260;i++){let x=rand(-235,235),z=rand(-520,60);if(nearTrail(x,z,7)&&Math.random()<.75)continue;makeBush(x,z)}
+ for(let i=0;i<80;i++){let x=rand(-230,230),z=rand(-510,50);if(!nearTrail(x,z,20)) makeFallenLog(x,z)}
+}
+function makeTree(x,z,dead=false,scale=1){let h=rand(10,23)*scale;let trunk=cyl('thick trunk',rand(.42,.9)*scale,h,x,h/2,z,mat(dead?0x2c281f:0x33251b),9,true);if(!dead){for(let j=0;j<4;j++){let c=cone('pine needles',rand(2.8,5.2)*scale,rand(5.5,8.5)*scale,x,h*.45+j*h*.13,z,mat(0x0b2416),10);}}else{for(let k=0;k<2;k++){let br=box('dead branch',.22,.22,rand(2.5,5.5),x,h*rand(.45,.8),z,mat(0x2c281f));br.rotation.set(rand(-.7,.7),rand(0,6.28),rand(-.6,.6));}}}
+function makeBush(x,z){let b=box('wet bush',rand(2.2,4.8),rand(1.1,2.5),rand(2.2,4.8),x,rand(.55,1.25),z,mat(0x0b1f11));b.rotation.y=rand(0,6.28)}
+function makeFallenLog(x,z){let l=cyl('fallen log',.45,rand(5,11),x,.55,z,mat(0x2d2118),8,true);l.rotation.z=Math.PI/2;l.rotation.y=rand(0,6.28)}
+function makeVillage(){for(let i=2;i<11;i++){let p=trailPts[i],side=i%2?1:-1;let count=i%3===0?4:2;for(let h=0;h<count;h++)makeHouse(p.x+side*rand(22,55)+rand(-8,8),p.z+rand(-20,18),Math.random()<.32);if(i%2===0)makeLantern(p.x+side*9,p.z+rand(-5,5));}
+ // spawn bus stop
+ box('bus stop roof',8,.35,4,0,3,9,mat(0x20252b));box('bus stop back',8,3,.3,0,1.5,11,mat(0x16191d),true);for(let x of [-3.5,3.5])cyl('bus post',.12,3,x,1.5,7.5,mat(0x33383d),8,true);makeLantern(7,8);
+}
+function makeHouse(x,z,big=false){let w=big?16:11,d=big?14:10,h=big?6.4:5;let wall=mat(0x2e2c26),dark=mat(0x111216),wood=mat(0x3b2a1e);
+ box('house floor',w,.18,d,x,.09,z,mat(0x211b16));
+ // enterable shell with front doorway gap
+ box('back wall',w,h,.38,x,h/2,z-d/2,wall,true);box('left wall',.38,h,d,x-w/2,h/2,z,wall,true);box('right wall',.38,h,d,x+w/2,h/2,z,wall,true);
+ box('front left wall',w*.34,h,.38,x-w*.33,h/2,z+d/2,wall,true);box('front right wall',w*.34,h,.38,x+w*.33,h/2,z+d/2,wall,true);box('front top',w,h*.28,.38,x,h*.86,z+d/2,wall,true);
+ let roof=box('black roof',w+1,.75,d+1,x,h+.55,z,dark);roof.rotation.x=.06;box('window glow',1.2,1,.08,x-w/2-.02,2.7,z+rand(-2,2),mat(0xffb36a,.15));
+ box('table',2.6,.9,1.6,x+rand(-3,3),.55,z+rand(-3,2),wood,true);box('cabinet',1.4,2.2,.8,x+rand(-3,3),1.1,z-d/2+1,wood,true);box('bed',3,.55,1.8,x+rand(-3,3),.35,z+rand(-2,2),mat(0x1b2028),true);
+ if(Math.random()<.78)makeLoot(x+rand(-3,3),z+rand(-2.5,2.5)); if(Math.random()<.22)makeIndoorMonster(x,z);
+}
+function makeLandmarks(){makeChurch(trailPts[5].x-45,trailPts[5].z-5);makeWatchtower(trailPts[8].x+42,trailPts[8].z+4);}
+function makeChurch(x,z){makeHouse(x,z,true);box('church tower',5,12,5,x,10,z-1,mat(0x24221e),true);cone('steeple',3.5,6,x,19,z-1,mat(0x0d0d0e),8);makeLantern(x+9,z+9)}
+function makeWatchtower(x,z){let wood=mat(0x312317);for(let dx of[-4,4])for(let dz of[-4,4]){let p=cyl('tower leg',.25,13,x+dx,6.5,z+dz,wood,7,true);p.rotation.x=dx*.01}box('tower platform',10,.5,10,x,13,z,wood,true);box('tower hut',6,4,6,x,15.2,z,mat(0x22211c),true);makeLantern(x,z)}
+function makeLantern(x,z){cyl('lantern pole',.12,3.2,x,1.6,z,mat(0x171716),8,true);let bulb=new THREE.Mesh(new THREE.SphereGeometry(.22,12,8),new THREE.MeshStandardMaterial({color:0xffc27a,emissive:0xff9a35,emissiveIntensity:2.1}));bulb.position.set(x,2.95,z);add(bulb);let l=new THREE.PointLight(0xffb46b,3.2,34,1.75);l.position.set(x,2.35,z);l.castShadow=true;add(l);lanterns.push(l)}
+function makeDoorAndLoot(){let p=trailPts[12];objectiveDoor=makeDoor(p.x,p.z-10);for(let i=0;i<18;i++){let p=trailPts[Math.floor(rand(1,11))];makeLoot(p.x+rand(-55,55),p.z+rand(-24,24));}}
+function makeDoor(x,z){box('standing door frame',5.2,6.8,.6,x,3.4,z,mat(0x101010),true);let d=box('wilderness door',3.4,5.2,.36,x,2.75,z-.16,mat(0x4a2d1c));interactables.push({mesh:d,type:'next'});return d}
+function makeLoot(x,z){let type=['battery','battery','lockpick','medkit','key'][Math.floor(rand(0,5))];let color=type==='key'?0xffdc58:type==='battery'?0x9ee7ff:type==='lockpick'?0xbfc3cc:0xff5b5b;let o=box(type,.62,.28,.62,x,.34,z,new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:.35}));interactables.push({mesh:o,type});}
+function makeMonsters(){for(let i=0;i<30;i++){let p=trailPts[Math.floor(rand(1,12))];let x=p.x+rand(-95,95),z=p.z+rand(-50,50);if(Math.hypot(x,z-18)<25){i--;continue}makeMonster(x,z,i%5)} }
+function makeIndoorMonster(x,z){makeMonster(x+rand(-2,2),z+rand(-2,2),4)}
+function monsterMaterial(t){return mat([0x050505,0x120606,0x070910,0x06110a,0x1b1510][t]||0x050505)}
+function makeMonster(x,z,t){let g=new THREE.Group();g.position.set(x,0,z);add(g);let body=new THREE.Mesh(new THREE.BoxGeometry(t===2?1.8:1.1,t===3?1.2:3.0,t===2?.8:.65),monsterMaterial(t));body.position.y=t===3?.7:1.5;body.castShadow=true;g.add(body);
+ let eyeMat=new THREE.MeshStandardMaterial({color:t===1?0xffeeee:0xeef7ff,emissive:t===1?0xff1111:0xdcecff,emissiveIntensity:2.8});for(let ex of[-.28,.28]){let e=new THREE.Mesh(new THREE.BoxGeometry(.18,.11,.05),eyeMat);e.position.set(ex,t===3?1.1:2.28,-.36);g.add(e)}
+ monsters.push({g,type:t,spd:rand(1.25,3.25),wander:rand(0,6.28),cool:0});}
+function makeBoss(){let name={30:'Seek',75:'Creaker',120:'Executer',150:'Terminus'}[area],p=trailPts[8];let g=new THREE.Group();g.position.set(p.x,0,p.z);add(g);let col={Seek:0x020202,Creaker:0x1f311d,Executer:0x181818,Terminus:0x03030a}[name];let b=new THREE.Mesh(new THREE.BoxGeometry(area===150?9:6,area===150?22:13,area===75?6:4),mat(col));b.position.y=area===150?11:6.5;b.castShadow=true;g.add(b);monsters.push({g,type:99,spd:area===150?4.4:3.7,boss:name});show(name+' has entered the forest.',5000)}
+function makeRain(){const n=1400,geo=new THREE.BufferGeometry(),arr=new Float32Array(n*3);for(let i=0;i<n;i++){arr[i*3]=rand(-125,125);arr[i*3+1]=rand(0,65);arr[i*3+2]=rand(-125,95)}geo.setAttribute('position',new THREE.BufferAttribute(arr,3));rain=new THREE.Points(geo,new THREE.PointsMaterial({color:0x9db5ca,size:.035,transparent:true,opacity:.5}));add(rain)}
+function bind(){addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='KeyF'){flashlightOn=!flashlightOn;show('Flashlight '+(flashlightOn?'on':'off'))}if(e.code==='KeyR'&&batteries>0&&flashBattery<96){batteries--;flashBattery=100;flashlightOn=true;show('Battery replaced.')}if(e.code==='KeyM'&&medkits>0&&hp<95){medkits--;hp=clamp(hp+45,0,100);show('Medkit used.')}if(e.code==='KeyE')interact()});addEventListener('keyup',e=>keys[e.code]=false);
+ renderer.domElement.addEventListener('click',()=>renderer.domElement.requestPointerLock());document.addEventListener('pointerlockchange',()=>locked=document.pointerLockElement===renderer.domElement);document.addEventListener('mousemove',e=>{if(!locked)return;yaw-=e.movementX*.0022;pitch-=e.movementY*.0022;pitch=clamp(pitch,-1.38,1.38)});addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});document.getElementById('play').onclick=()=>{document.getElementById('start').style.display='none';renderer.domElement.requestPointerLock()}}
+function interact(){raycaster.setFromCamera(new THREE.Vector2(0,0),camera);let hits=raycaster.intersectObjects(interactables.map(i=>i.mesh),false);if(!hits.length||hits[0].distance>4.5){show('Nothing close enough.');return}let item=interactables.find(i=>i.mesh===hits[0].object);if(!item)return;
+ if(item.type==='next'){if(hasKey||lockpicks>0){if(!hasKey)lockpicks--;area=Math.min(150,area+1);buildArea()}else show('Locked. Find a key or use a lockpick.');return}
+ if(item.type==='battery'){batteries++;show('Battery found.')} if(item.type==='lockpick'){lockpicks++;show('Lockpick found.')} if(item.type==='medkit'){medkits++;show('Medkit found.')} if(item.type==='key'){hasKey=true;show('Key found. Reach the wilderness door.')} scene.remove(item.mesh); interactables=interactables.filter(i=>i!==item)}
+function move(dt){let forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));let right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));let dir=new THREE.Vector3();if(keys.KeyW)dir.add(forward);if(keys.KeyS)dir.sub(forward);if(keys.KeyD)dir.add(right);if(keys.KeyA)dir.sub(right);if(dir.lengthSq()>0)dir.normalize();let sprint=(keys.ShiftLeft||keys.ShiftRight)&&stamina>2;let speed=sprint?9.4:5.7;if(sprint)stamina=clamp(stamina-28*dt,0,100);else stamina=clamp(stamina+18*dt,0,100);let next=player.pos.clone().addScaledVector(dir,speed*dt);next.y=1.75;player.pos.copy(next);camera.position.copy(player.pos);camera.rotation.set(pitch,yaw,0,'YXZ')}
+function updateMonsters(dt){for(let m of monsters){let mp=m.g.position;let dx=player.pos.x-mp.x,dz=player.pos.z-mp.z,dist=Math.hypot(dx,dz)||1;let active=dist<70||m.type===99;if(active){let sp=m.spd;if(flashlightOn&&flashBattery>0&&dist<34&&m.type!==99)sp*=.38;if(m.type===4&&dist<16)sp*=1.8;mp.x+=dx/dist*sp*dt;mp.z+=dz/dist*sp*dt;m.g.lookAt(player.pos.x,1.4,player.pos.z)}else{m.wander+=rand(-.4,.4)*dt;mp.x+=Math.sin(m.wander)*.35*dt;mp.z+=Math.cos(m.wander)*.35*dt}if(dist<1.7){hp-= (m.type===99?26:10)*dt;if(hp<=0){hp=100;area=Math.max(1,area-1);buildArea();show('Something dragged you back through the woods.',4500);break}}}}
+function animate(){requestAnimationFrame(animate);let dt=Math.min(.04,clock.getDelta());move(dt);updateMonsters(dt);if(flashlightOn){flashBattery=clamp(flashBattery-2.2*dt,0,100);if(flashBattery<=0)flashlightOn=false}flashLight.visible=flashlightOn&&flashBattery>0;flashLight.intensity=12.5*(.55+flashBattery/220);
+ if(rain){let a=rain.geometry.attributes.position.array;for(let i=0;i<a.length;i+=3){a[i+1]-=22*dt;a[i]+=Math.sin(performance.now()*0.001+a[i+2])*.01;if(a[i+1]<0){a[i+1]=rand(30,66);a[i]=player.pos.x+rand(-115,115);a[i+2]=player.pos.z+rand(-95,110)}}rain.geometry.attributes.position.needsUpdate=true}
+ lanterns.forEach((l,i)=>l.intensity=2.6+Math.sin(performance.now()*.004+i)*.35);
+ ui.innerHTML=`AREA ${area}/150<br>HP ${Math.round(hp)} | Stamina ${Math.round(stamina)}<br>Flashlight ${Math.round(flashBattery)}% | Batteries ${batteries}<br>Lockpicks ${lockpicks} | Medkits ${medkits} | Key ${hasKey?'YES':'NO'}<br>Monsters nearby ${monsters.filter(m=>m.g.position.distanceTo(player.pos)<70).length}`;
+ renderer.render(scene,camera)}
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Spin the Wheel</title>
+<style>
+  body {background:#111;color:#fff;font-family:Arial,sans-serif;text-align:center;margin:0;transition:background .5s}
+  h1{margin-top:20px}
+  canvas{background:#222;border-radius:50%;margin-top:20px}
+  button{margin-top:12px;padding:12px 30px;font-size:18px;cursor:pointer;background:#00ffcc;border:none;border-radius:8px}
+  #result{margin-top:15px;font-size:22px;min-height:1.4em;white-space:pre-line}
+  #stats{margin-top:10px;font-size:16px}
+  #inventory{margin:20px auto;max-width:560px;background:#1a1a1a;padding:10px;border-radius:8px;font-size:14px;text-align:left}
+</style>
+</head>
+<body>
+<h1>🎡 Spin the Wheel</h1>
+<canvas id="wheel" width="400" height="400"></canvas><br>
+<button id="spin">SPIN</button>
+<div id="result"></div>
+<div id="stats"></div>
+<div style="margin-top:20px"><button id="clicker">💎 Click for Gems</button></div>
+<div><button id="buyTicket">Buy Ticket (5 💎)</button></div>
+<div id="inventory"></div>
+<div style="margin-top:15px"><button id="bulkCollect">Spend 10 🎟️ → Get 5 Collectables</button></div>
+<script>
+let gems=0,tickets=0,collectableSinceLegend=0;
+const rarityOrder=['common','good','rare','epic','legend','superlegend'];
+let ownedCollectables={};rarityOrder.forEach(r=>ownedCollectables[r]=[]);
+let ownedSkins=[];
+
+const rewards=['💎 10 Gems','💎 25 Gems','💎 50 Gems','🧸 Collectable','🎨 Skin','❌ Nothing'];
+
+const collectablesByRarity={
+common:['Fractured Stone','Toy Core','Carved Twig','Faded Note','Bent Fragment','Wax Stub','Murky Flask','Old Bone','Tarnished Coin','Crooked Compass','Tin Chime','Thread Charm','Iron Key','Hollow Crate','Loose Cog','Plain Feather','Pebble Idol','Scribbled Page','Cloth Totem','Rusted Plate','Wick Candle','Cloud Bottle','Fossil Chip','Copper Token','Wind Dial','Hand Bell','Rope Charm','Gate Key','Supply Box','Broken Trinket'],
+
+good:['Polished Eye','Ceramic Effigy','Silver Plume','Festival Visage','Data Slate','Bright Mirror','Brass Assembly','Pocket Chrono','Signal Horn','Bronze Sigil','Wand Shaft','Rune Block','Fire Capsule','Stone Sentinel','Lucky Medallion','Inked Scroll','Northfinder','Masquerade Mask','Gear Lattice','Wind Feather','Focus Crystal','Guard Emblem','Reinforced Case','Time Dial','Spark Rod'],
+
+rare:['Crystal Matrix','Arcane Lens','Precision Core','Runed Script','Chrono Dial','Mage Focus','Iron Aegis','Charged Orb','True Compass','Phantom Mask','Aether Feather','Void Key','Sealed Reliquary','Logic Core','Gilded Coin','Harmonic Engine','Sigil Codex','Flux Sphere','Ward Plate','Starfinder'],
+
+epic:['Ember Heart','Frost Core','Tidal Prism','Volcanic Shard','Star Fragment','Storm Capacitor','Gravity Lens','Dragon Crest','Bio Matrix','Oracle Eye','Void Anchor','Elixir Prime','Ancient Codex','Mythic Engine','Archmage Sigil'],
+
+legend:['Crown of Ages','Dragon Relic','Celestial Shard','Orb of Infinity','Quantum Core','Aegis Prime','Tome of Creation','Eye of Truth','World Engine','Phoenix Ember','Astral Keystone','Eternal Chrono','Prime Sigil','Genesis Matrix'],
+
+superlegend:[
+'Antimatter Construct','Singularity Heart','Reality Lattice','Omniscient Core','Paradox Engine','Causality Anchor','Prime Continuum','Infinite Recursion','Event Horizon Prism','Omega Timepiece','Absolute World Gear','Null Singularity','Cosmic Root','Final Observer','Universal Mindframe','Abyssal Singularity','Multiversal Lattice','Infinite Cognition Engine','Vacuum Genesis Core','Recursive Reality Loop','Chronoverse Anchor','Observer Paradox Node','Causal Fracture Relic','Determinism Engine','Prime Existence Root','Entropy Collapse Heart','Omniversal Witness','Horizon Breach Prism','Absolute Continuum Frame','Finality Convergence'
+]
+};
+
+const colors=['#ff4d4d','#ffcc00','#4dff4d','#4dd2ff','#b84dff','#ff884d'];
+const canvas=document.getElementById('wheel'),ctx=canvas.getContext('2d');
+const spinBtn=document.getElementById('spin'),resultEl=document.getElementById('result'),statsEl=document.getElementById('stats'),inventoryEl=document.getElementById('inventory');
+
+function totalCollectables(){return Object.values(ownedCollectables).reduce((a,b)=>a+b.length,0)}
+function updateStats(){statsEl.textContent=`💎 Gems: ${gems} | 🎟️ Tickets: ${tickets} | 🧸 Collectables: ${totalCollectables()}`}
+function updateInventory(){let h='<b>🧸 Collectables</b><br>';for(const r of rarityOrder){if(ownedCollectables[r].length)h+=`<div><b>${r.toUpperCase()}</b>: ${ownedCollectables[r].join(', ')}</div>`}inventoryEl.innerHTML=h}
+
+let angle=0,spinning=false,chosenIndex=0,targetAngle=0,startTime=0;const duration=4500,POINTER_ANGLE=Math.PI;
+function easeOut(t){return 1-Math.pow(1-t,3)}
+function drawWheel(){const r=200,s=2*Math.PI/rewards.length;for(let i=0;i<rewards.length;i++){ctx.beginPath();ctx.fillStyle=colors[i%colors.length];ctx.moveTo(r,r);ctx.arc(r,r,r,angle+i*s,angle+(i+1)*s);ctx.fill();ctx.save();ctx.translate(r,r);ctx.rotate(angle+(i+.5)*s);ctx.fillStyle='#000';ctx.font='14px Arial';ctx.textAlign='right';ctx.fillText(rewards[i],r-10,5);ctx.restore()}ctx.fillStyle='#fff';ctx.beginPath();ctx.moveTo(0,r-10);ctx.lineTo(0,r+10);ctx.lineTo(24,r);ctx.fill()}
+
+function rollCollectable(){let rarity; if(collectableSinceLegend>=70){rarity='legend';collectableSinceLegend=0}else{const x=Math.random();rarity=x>0.995?'superlegend':x>0.97?'legend':x>0.85?'epic':x>0.6?'rare':x>0.3?'good':'common';collectableSinceLegend++}const pool=collectablesByRarity[rarity];const item=pool[Math.floor(Math.random()*pool.length)];ownedCollectables[rarity].push(item);return `[${rarity.toUpperCase()}] ${item}`}
+
+function resolveReward(r){if(r.startsWith('💎')){const b=parseInt(r.match(/\d+/)[0]);const bonus=Math.floor(b*totalCollectables()*0.01);gems+=b+bonus;resultEl.textContent=`You gained ${b+bonus} 💎 gems`}else if(r==='🧸 Collectable'){resultEl.textContent='Collectable obtained: '+rollCollectable()}else if(r==='🎨 Skin'){resultEl.textContent='Skin unlocked'}else resultEl.textContent='Nothing this time.';updateStats();updateInventory()}
+
+function animate(t){const p=Math.min((t-startTime)/duration,1);angle=targetAngle*easeOut(p);ctx.clearRect(0,0,400,400);drawWheel();p<1?requestAnimationFrame(animate):(spinning=false,resolveReward(rewards[chosenIndex]))}
+function spinTo(i){const s=2*Math.PI/rewards.length;chosenIndex=i;targetAngle=6*2*Math.PI+(POINTER_ANGLE-(i*s+s/2));startTime=performance.now();spinning=true;requestAnimationFrame(animate)}
+
+spinBtn.onclick=()=>{if(spinning||tickets<=0)return;tickets--;updateStats();spinTo(Math.floor(Math.random()*rewards.length))}
+document.getElementById('clicker').onclick=()=>{gems++;updateStats()}
+document.getElementById('buyTicket').onclick=()=>{if(gems>=5){gems-=5;tickets++;updateStats()}}
+document.getElementById('bulkCollect').onclick=()=>{if(tickets<10){resultEl.textContent='Need 10 tickets';return}tickets-=10;let g=[];for(let i=0;i<5;i++)g.push(rollCollectable());resultEl.textContent='Bulk reward:\n'+g.join(' | ');updateStats();updateInventory()}
+updateStats();updateInventory();drawWheel();
+</script>
+</body>
+</html>

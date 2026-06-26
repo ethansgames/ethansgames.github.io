@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Reverse TD RPG - 15 Maps</title>
+<style>
+html,body{margin:0;overflow:hidden;background:#07131f;font-family:Arial,sans-serif;color:white;user-select:none}
+canvas{display:block;position:relative;z-index:0}
+#ui{position:fixed;inset:0;pointer-events:none;z-index:10}
+#hud{position:absolute;top:12px;left:12px;padding:12px 14px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.23);border-radius:14px;line-height:1.45;min-width:285px}
+#help{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);text-align:center;padding:10px 16px;background:rgba(0,0,0,.5);border-radius:14px;border:1px solid rgba(255,255,255,.22)}
+#start,#shop{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.75);pointer-events:auto}
+#shop{display:none}
+.panel{width:min(980px,94vw);max-height:92vh;overflow:auto;padding:22px;border-radius:22px;background:#101b2b;border:1px solid rgba(255,255,255,.25);box-shadow:0 18px 70px rgba(0,0,0,.55)}
+button{padding:11px 13px;border:0;border-radius:12px;color:white;background:#2b6cff;font-weight:bold;cursor:pointer;margin:5px}
+button:hover{filter:brightness(1.15)}
+button:disabled{background:#455061;color:#b8c0cd;cursor:not-allowed;filter:none}
+.big{width:100%;font-size:18px;padding:14px;background:#8b35ff}
+.row{display:flex;flex-wrap:wrap;gap:6px}
+.card{display:inline-block;padding:10px 12px;margin:5px;border:1px solid rgba(255,255,255,.18);border-radius:14px;background:rgba(255,255,255,.07);cursor:pointer}
+.card.sel{background:#2b6cff;border-color:#bfe8ff}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:10px}
+.buy{width:100%;text-align:left;background:#263c6b}
+.stat{color:#bfe8ff}.warn{color:#ffd16a}.tiny{opacity:.85;font-size:13px}
+h1,h2{margin:.1em 0 .35em}
+</style>
+</head>
+<body>
+<div id="ui">
+  <div id="hud"></div>
+  <div id="help">Click to lock camera • WASD move • Space jump • B shop • Stay on road • Touch glowing exit to win</div>
+  <div id="start"><div class="panel">
+    <h1>Reverse Tower Defense RPG</h1>
+    <p>You are the <b>only invader</b>. Defenders build towers while you run the track. Later campaign maps are longer, twistier, and worse for you — which means they would be easier for the normal tower-defense player.</p>
+    <h2>Game Mode</h2><div id="modeRow" class="row"></div>
+    <h2>Difficulty</h2><p class="tiny">This is <b>invader difficulty</b>. Hard makes the route longer and towers nastier.</p><div id="diffRow" class="row"></div>
+    <h2>Campaign Map</h2><div id="mapRow" class="row"></div>
+    <p id="startInfo" class="stat"></p>
+    <button class="big" id="startBtn">Start invasion</button>
+  </div></div>
+  <div id="shop"><div class="panel">
+    <h1 id="shopTitle">Upgrade Den</h1>
+    <p id="shopText"></p>
+    <div class="grid" id="buyBtns"></div>
+    <button class="big" id="nextBtn">Invade again</button>
+  </div></div>
+</div>
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+
+const MAPS=[
+["Green Meadows",.75,10,0x3d9b56,"Short beginner road"],
+["Forest Trail",.90,14,0x266b38,"Trees and archer lanes"],
+["River Crossing",1.02,17,0x2d7d59,"Bridge chokepoints"],
+["Hill Fort",1.15,21,0x5f8d43,"Raised cannon nests"],
+["King's Road",1.30,26,0x6b9042,"First true kill zone"],
+["Desert Kingdom",1.45,31,0xb89045,"Long sand route"],
+["Frozen Pass",1.60,36,0xaed7e8,"Slow open frost valley"],
+["Volcano Ridge",1.75,42,0x573022,"Lava-side death road"],
+["Industrial Zone",1.95,48,0x555b61,"Gatling factory lanes"],
+["Crystal Valley",2.15,55,0x5450a8,"Laser crystal corridor"],
+["Sky Citadel",2.35,62,0x7fb8df,"Floating fortress path"],
+["Abyssal Harbor",2.58,70,0x274d72,"Naval cannon gauntlet"],
+["Titan Graveyard",2.85,80,0x5b5146,"Ancient long battlefield"],
+["Machine Empire",3.15,92,0x434a57,"Plasma/mechanical city"],
+["Celestial Capital",3.55,108,0x23264f,"Final absurd defender map"]
+];
+const MODES={
+ Campaign:"Beat maps 1-15 in order.",
+ Endless:"Randomized maps forever, scaling payout and tower count.",
+ "Boss Rush":"Shorter maps, stronger exit fortress and faster tower build.",
+ Survival:"No instant victory. Reach the exit and survive a final 40 second tower panic."
+};
+const DIFF={
+ Easy:{name:"Easy", route:.82,towers:.72,dmg:.55,pay:1.35},
+ Normal:{name:"Normal", route:1,towers:1,dmg:1,pay:1},
+ Hard:{name:"Hard", route:1.18,towers:1.25,dmg:1.5,pay:1.25}
+};
+
+const MAP_THEMES=[
+ {sky:0x8bd7ff,fog:0x8bd7ff,road:0xb99054,accent:0x2dff83,style:'meadow',pattern:'straight',scenery:'trees'},
+ {sky:0x6fb6e6,fog:0x6fb6e6,road:0x7b5b35,accent:0x39ff71,style:'forest',pattern:'snakes',scenery:'denseTrees'},
+ {sky:0x86d5ff,fog:0x86d5ff,road:0x9a7a42,accent:0x4ae7ff,style:'river',pattern:'bridges',scenery:'water'},
+ {sky:0xb7e2ff,fog:0xb7e2ff,road:0x8a7445,accent:0xffe28a,style:'hills',pattern:'zigzag',scenery:'hills'},
+ {sky:0xffd58e,fog:0xffd58e,road:0xb88b4a,accent:0xff3b38,style:'kingroad',pattern:'longS',scenery:'banners'},
+ {sky:0xffd38a,fog:0xffd38a,road:0xc89a50,accent:0xffe47a,style:'desert',pattern:'wideWaves',scenery:'pyramids'},
+ {sky:0xd9f8ff,fog:0xd9f8ff,road:0xc4d1d6,accent:0x73eaff,style:'frozen',pattern:'iceSnake',scenery:'ice'},
+ {sky:0x8a4b38,fog:0x8a4b38,road:0x3a2520,accent:0xff4b17,style:'volcano',pattern:'cliffSwitch',scenery:'lava'},
+ {sky:0xa8b1b9,fog:0xa8b1b9,road:0x4a5054,accent:0xffb02e,style:'industrial',pattern:'boxy',scenery:'factories'},
+ {sky:0x8f8cff,fog:0x8f8cff,road:0x5548a5,accent:0x73ffff,style:'crystal',pattern:'crystalMaze',scenery:'crystals'},
+ {sky:0x7fc8ff,fog:0x7fc8ff,road:0xd1c083,accent:0xffffff,style:'sky',pattern:'islands',scenery:'clouds'},
+ {sky:0x4479a8,fog:0x4479a8,road:0x384f64,accent:0x00d4ff,style:'harbor',pattern:'dockZig',scenery:'ships'},
+ {sky:0xb39b7f,fog:0xb39b7f,road:0x62584b,accent:0xffead0,style:'titan',pattern:'giantCurve',scenery:'bones'},
+ {sky:0x77818f,fog:0x77818f,road:0x242931,accent:0xff4ee8,style:'machine',pattern:'circuit',scenery:'machines'},
+ {sky:0x25264f,fog:0x25264f,road:0x1f2042,accent:0xffee6a,style:'celestial',pattern:'star',scenery:'planets'}
+];
+let mapSeed=1,currentMapIndex=0;
+function seedForMap(i){mapSeed=(i+1)*9973 + selectedDiff.length*123 + selectedMode.length*31 + round*17;}
+function rnd(){mapSeed=(mapSeed*1664525+1013904223)>>>0;return mapSeed/4294967296;}
+function themedMat(c,e=0){return new THREE.MeshStandardMaterial({color:c,roughness:.65,metalness:.08,emissive:c,emissiveIntensity:e});}
+function addDecoMesh(mesh,x,y,z){mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;world.add(mesh);return mesh;}
+
+
+let selectedMode="Campaign",selectedDiff="Normal",selectedMap=0;
+const modeRow=document.getElementById('modeRow'),diffRow=document.getElementById('diffRow'),mapRow=document.getElementById('mapRow');
+function buildMenus(){
+ modeRow.innerHTML=Object.keys(MODES).map(m=>`<div class="card ${m===selectedMode?'sel':''}" onclick="selMode('${m}')"><b>${m}</b><br><span class=tiny>${MODES[m]}</span></div>`).join('');
+ diffRow.innerHTML=Object.keys(DIFF).map(d=>`<div class="card ${d===selectedDiff?'sel':''}" onclick="selDiff('${d}')"><b>${d}</b><br><span class=tiny>${d==='Easy'?'Forgiving for the invader.':d==='Normal'?'Balanced.':'Brutal for the invader.'}</span></div>`).join('');
+ mapRow.innerHTML=MAPS.map((m,i)=>`<div class="card ${i===selectedMap?'sel':''}" onclick="selMap(${i})"><b>${i+1}. ${m[0]}</b><br><span class=tiny>${m[4]}</span></div>`).join('');
+ const m=MAPS[selectedMap],d=DIFF[selectedDiff];
+ document.getElementById('startInfo').innerHTML=`Selected: <b>${selectedMode}</b> • <b>${selectedDiff}</b> • Map ${selectedMap+1}: <b>${m[0]}</b><br>For you, later maps become harder because route length and tower density increase.`;
+}
+window.selMode=m=>{selectedMode=m;buildMenus()}; window.selDiff=d=>{selectedDiff=d;buildMenus()}; window.selMap=i=>{selectedMap=i;buildMenus()}; buildMenus();
+
+const scene=new THREE.Scene(); const camera=new THREE.PerspectiveCamera(78,innerWidth/innerHeight,.1,850);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;document.body.appendChild(renderer.domElement);
+const sun=new THREE.DirectionalLight(0xffefbf,2.35);sun.position.set(45,80,25);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);scene.add(sun);scene.add(new THREE.HemisphereLight(0xc9edff,0x223315,1.25));
+function mat(c,e=0){return new THREE.MeshStandardMaterial({color:c,roughness:.68,metalness:.05,emissive:c,emissiveIntensity:e});}
+
+let world=new THREE.Group();scene.add(world);
+let path=null, pathPts=[], roadPieces=[], playerModel=null, exitGate=null, safeZone=null, safeRing=null, castle=null, core=null;
+let player,towers=[],bolts=[],sparks=[],round=1,time=0,towerTimer=0,locked=false,playing=false,ended=false,survivalTimer=0;
+let keys={},yaw=0,pitch=0;
+const base={hp:185,speed:8.8,jump:17,regen:0};
+let perm={money:350,lives:15,hpLv:0,spdLv:0,regenLv:0,airLv:0};
+
+function clearWorld(){scene.remove(world);world=new THREE.Group();scene.add(world);towers=[];bolts=[];sparks=[];playerModel=null}
+function addPart(g,mesh,x=0,y=0,z=0){mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;g.add(mesh);return mesh}
+function makeScenery(color,scale){
+ const th=MAP_THEMES[currentMapIndex];
+ const ground=new THREE.Mesh(new THREE.PlaneGeometry(560*scale,300*scale),themedMat(color));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;world.add(ground);
+ // special floor patches that instantly make maps feel different
+ if(th.scenery==='water'||th.scenery==='ships'){for(let i=0;i<8;i++){let p=path.getPoint((i+.5)/8);let water=new THREE.Mesh(new THREE.CircleGeometry(22+rnd()*18,40),new THREE.MeshBasicMaterial({color:0x1b86d1,transparent:true,opacity:.45}));water.rotation.x=-Math.PI/2;water.position.set(p.x,.03,p.z+(i%2?36:-36));world.add(water)}}
+ if(th.scenery==='lava'){for(let i=0;i<16;i++){let p=path.getPoint((i+.3)/16);let lava=new THREE.Mesh(new THREE.CircleGeometry(10+rnd()*16,32),new THREE.MeshBasicMaterial({color:0xff3b12,transparent:true,opacity:.65}));lava.rotation.x=-Math.PI/2;lava.position.set(p.x,.035,p.z+(i%2?31:-31));world.add(lava)}}
+ if(th.scenery==='clouds'||th.scenery==='planets'){for(let i=0;i<20;i++){let cloud=new THREE.Mesh(new THREE.SphereGeometry(5+rnd()*7,16,8),new THREE.MeshBasicMaterial({color:th.scenery==='planets'?(i%3?0x9b8cff:0xffdd7a):0xffffff,transparent:true,opacity:th.scenery==='planets'?.9:.55}));cloud.position.set((-260+rnd()*520)*scale,30+rnd()*65,(-135+rnd()*270)*scale);world.add(cloud)}}
+ const count=Math.floor((90+currentMapIndex*8)*Math.min(scale,2.7));
+ for(let i=0;i<count;i++){
+  let x=(-250+rnd()*500)*scale,z=(-130+rnd()*260)*scale; if(distanceToPath(new THREE.Vector3(x,0,z))<18) continue;
+  if(th.scenery==='denseTrees'||th.scenery==='trees'){
+   let h=3+rnd()*8;let trunk=new THREE.Mesh(new THREE.CylinderGeometry(.45,.7,h,7),themedMat(0x6a3f22));addDecoMesh(trunk,x,h/2,z);let top=new THREE.Mesh(new THREE.ConeGeometry(2.5+rnd()*1.8,6+rnd()*5,9),themedMat(th.scenery==='denseTrees'?0x0f4d26:0x1f6b35));addDecoMesh(top,x,h+3,z);
+  } else if(th.scenery==='pyramids'){
+   let py=new THREE.Mesh(new THREE.ConeGeometry(3+rnd()*5,4+rnd()*9,4),themedMat(0xcaa15b));py.rotation.y=Math.PI/4;addDecoMesh(py,x,py.geometry.parameters.height/2,z);
+  } else if(th.scenery==='ice'){
+   let ice=new THREE.Mesh(new THREE.ConeGeometry(1.2+rnd()*2,5+rnd()*9,6),themedMat(0xcfffff,.12));addDecoMesh(ice,x,ice.geometry.parameters.height/2,z);
+  } else if(th.scenery==='hills'){
+   let hill=new THREE.Mesh(new THREE.ConeGeometry(8+rnd()*12,5+rnd()*9,12),themedMat(0x4f803b));addDecoMesh(hill,x,hill.geometry.parameters.height/2-1,z);
+  } else if(th.scenery==='banners'){
+   let pole=new THREE.Mesh(new THREE.CylinderGeometry(.18,.18,7,8),themedMat(0x5a3422));addDecoMesh(pole,x,3.5,z);let flag=new THREE.Mesh(new THREE.BoxGeometry(.18,2.2,3),themedMat(i%2?0xff3333:0xffd65a,.08));addDecoMesh(flag,x,6.3,z+1.4);
+  } else if(th.scenery==='factories'||th.scenery==='machines'){
+   let b=new THREE.Mesh(new THREE.BoxGeometry(4+rnd()*9,5+rnd()*16,4+rnd()*9),themedMat(th.scenery==='machines'?0x262c38:0x555b61));addDecoMesh(b,x,b.geometry.parameters.height/2,z);if(rnd()<.35){let pipe=new THREE.Mesh(new THREE.CylinderGeometry(.7,.9,9+rnd()*8,10),themedMat(0x20242b));addDecoMesh(pipe,x+4,pipe.geometry.parameters.height/2,z+3)}}
+  else if(th.scenery==='crystals'){
+   let cr=new THREE.Mesh(new THREE.ConeGeometry(1.2+rnd()*2.4,6+rnd()*13,6),themedMat(i%2?0x73ffff:0xa44dff,.25));addDecoMesh(cr,x,cr.geometry.parameters.height/2,z);
+  } else if(th.scenery==='bones'){
+   let bone=new THREE.Mesh(new THREE.CylinderGeometry(.45,.45,8+rnd()*16,10),themedMat(0xe8d6bd));bone.rotation.z=rnd()*Math.PI;addDecoMesh(bone,x,1.5,z);
+  } else {
+   let rock=new THREE.Mesh(new THREE.DodecahedronGeometry(1+rnd()*2.5,0),themedMat(0x6b6970));addDecoMesh(rock,x,1,z);
+  }
+ }
+}
+function distanceToPath(v){ if(!path)return 999; let best=999999; for(let i=0;i<=90;i++){let p=path.getPoint(i/90);let d=(v.x-p.x)**2+(v.z-p.z)**2;if(d<best)best=d} return Math.sqrt(best)}
+function buildPath(mapIndex){
+ const m=MAPS[mapIndex], d=DIFF[selectedDiff], th=MAP_THEMES[mapIndex]; const scale=m[1]*d.route; const length=250*scale; const amp=22+mapIndex*3.2;
+ pathPts=[]; const pattern=th.pattern;
+ const push=(x,z)=>pathPts.push(new THREE.Vector3(x,0,z));
+ if(pattern==='straight'){for(let i=0;i<6;i++){let t=i/5;push(-length/2+t*length, Math.sin(t*Math.PI*1.2)*10)}}
+ else if(pattern==='snakes'){for(let i=0;i<10;i++){let t=i/9;push(-length/2+t*length, Math.sin(t*Math.PI*4.4)*amp + Math.cos(t*Math.PI*2)*10)}}
+ else if(pattern==='bridges'){for(let i=0;i<11;i++){let t=i/10;push(-length/2+t*length, (i%2?1:-1)*(18+mapIndex*2) + Math.sin(t*Math.PI*3)*10); if(i==0||i==10)pathPts[pathPts.length-1].z=0}}
+ else if(pattern==='zigzag'){for(let i=0;i<10;i++){let t=i/9;push(-length/2+t*length, (i%2?1:-1)*(amp*.9))}}
+ else if(pattern==='longS'){for(let i=0;i<12;i++){let t=i/11;push(-length/2+t*length, Math.sin(t*Math.PI*2.7)*amp*1.15)}}
+ else if(pattern==='wideWaves'){for(let i=0;i<13;i++){let t=i/12;push(-length/2+t*length, Math.sin(t*Math.PI*3.2)*amp*1.25 + Math.sin(t*Math.PI*8)*9)}}
+ else if(pattern==='iceSnake'){for(let i=0;i<15;i++){let t=i/14;push(-length/2+t*length, Math.sin(t*Math.PI*5.8)*amp*.95)}}
+ else if(pattern==='cliffSwitch'){for(let i=0;i<14;i++){let t=i/13;push(-length/2+t*length, (Math.floor(i/2)%2?1:-1)*amp*1.15 + Math.sin(t*Math.PI*4)*8)}}
+ else if(pattern==='boxy'){for(let i=0;i<16;i++){let t=i/15;let step=((i%4)-1.5)*amp*.7;push(-length/2+t*length, step + Math.sin(t*Math.PI*2)*7)}}
+ else if(pattern==='crystalMaze'){for(let i=0;i<17;i++){let t=i/16;push(-length/2+t*length, Math.sin(t*Math.PI*7)*amp*.8 + (i%3-1)*12)}}
+ else if(pattern==='islands'){for(let i=0;i<18;i++){let t=i/17;push(-length/2+t*length, Math.sin(t*Math.PI*4)*amp*1.05 + Math.cos(t*Math.PI*9)*8)}}
+ else if(pattern==='dockZig'){for(let i=0;i<18;i++){let t=i/17;push(-length/2+t*length, (i%3-1)*amp*.85 + Math.sin(t*Math.PI*5)*10)}}
+ else if(pattern==='giantCurve'){for(let i=0;i<20;i++){let t=i/19;push(-length/2+t*length, Math.sin(t*Math.PI*2.2)*amp*1.45 + Math.sin(t*Math.PI*9)*7)}}
+ else if(pattern==='circuit'){for(let i=0;i<22;i++){let t=i/21;push(-length/2+t*length, Math.round(Math.sin(t*Math.PI*5))*amp + ((i%2)*2-1)*7)}}
+ else {for(let i=0;i<24;i++){let t=i/23;push(-length/2+t*length, Math.sin(t*Math.PI*6)*amp + Math.sin(t*Math.PI*13)*12)}}
+ pathPts[0].z=0; pathPts[pathPts.length-1].z=0; path=new THREE.CatmullRomCurve3(pathPts);
+ const roadMat=themedMat(th.road, mapIndex>=9?.04:0);
+ const pieces=Math.max(150,Math.floor(170*scale));
+ for(let i=0;i<pieces;i++){let u=i/(pieces-1),p=path.getPoint(u),t=path.getTangent(u);let piece=new THREE.Mesh(new THREE.BoxGeometry(5.8,.14,12.5),roadMat);piece.position.set(p.x,.04,p.z);piece.rotation.y=-Math.atan2(t.z,t.x);piece.receiveShadow=true;world.add(piece);roadPieces.push(piece)}
+ // visual side rails make map silhouettes different and help show the track boundaries
+ if(mapIndex>=3){for(let i=0;i<pieces;i+=6){let u=i/(pieces-1),p=path.getPoint(u),t=path.getTangent(u),n=new THREE.Vector3(-t.z,0,t.x).normalize();for(const side of [-1,1]){let rail=new THREE.Mesh(new THREE.BoxGeometry(.35,.8,2.2),themedMat(th.accent,.12));rail.position.copy(p.clone().add(n.clone().multiplyScalar(side*7.2)));rail.position.y=.45;rail.castShadow=true;world.add(rail)}}}
+}
+function buildStructures(mapIndex){
+ const th=MAP_THEMES[mapIndex], start=path.getPoint(0), end=path.getPoint(1);
+ safeZone=new THREE.Mesh(new THREE.CylinderGeometry(27,27,.18,64),new THREE.MeshBasicMaterial({color:0x4dff9c,transparent:true,opacity:.22}));safeZone.position.set(start.x,.12,start.z);world.add(safeZone);
+ safeRing=new THREE.Mesh(new THREE.TorusGeometry(27,.35,8,80),new THREE.MeshBasicMaterial({color:0x2cff8a}));safeRing.rotation.x=Math.PI/2;safeRing.position.set(start.x,.22,start.z);world.add(safeRing);
+ // map-specific start shrine
+ let shrine=new THREE.Mesh(new THREE.CylinderGeometry(3.5,4.5,2.5,8),themedMat(th.accent,.15));shrine.position.set(start.x,1.25,start.z-12);shrine.castShadow=true;world.add(shrine);
+ exitGate=new THREE.Group(); let color=selectedMode==='Boss Rush'?0xffcc33:th.accent;
+ let eg1=new THREE.Mesh(new THREE.CylinderGeometry(.9,.9,11,12),themedMat(0x15151c));eg1.position.set(0,5.5,-4.2);exitGate.add(eg1);let eg2=eg1.clone();eg2.position.z=4.2;exitGate.add(eg2);
+ let beam=new THREE.Mesh(new THREE.TorusGeometry(3.4,.3,12,48),new THREE.MeshBasicMaterial({color}));beam.rotation.y=Math.PI/2;beam.position.set(0,5.5,0);exitGate.add(beam);
+ let top=new THREE.Mesh(new THREE.BoxGeometry(1.5,1.5,10),themedMat(color,.45));top.position.set(0,10.8,0);exitGate.add(top); exitGate.position.copy(end); world.add(exitGate);
+ castle=new THREE.Group(); const castleColor=[0x8797a6,0x304b31,0x3b6f89,0x7a6545,0xb57b43,0xbc8d4b,0xd2f4ff,0x3a2020,0x2c3035,0x4337a8,0xe9e0a2,0x284f73,0x7b6b58,0x222834,0x302c63][mapIndex];
+ for(const z of [-7,7]){let tw=new THREE.Mesh(new THREE.CylinderGeometry(3,3.5,14+mapIndex*.45,12),themedMat(castleColor));tw.position.set(0,7+mapIndex*.2,z);tw.castShadow=true;castle.add(tw)}
+ let keep=new THREE.Mesh(new THREE.BoxGeometry(12+mapIndex*.4,12+mapIndex*.5,14+mapIndex*.25),themedMat(castleColor));keep.position.set(-6,6+mapIndex*.25,0);keep.castShadow=true;castle.add(keep);
+ core=new THREE.Mesh(new THREE.IcosahedronGeometry(3.7+mapIndex*.08,1),new THREE.MeshStandardMaterial({color:color,emissive:color,emissiveIntensity:2.1}));core.position.set(-6,16+mapIndex*.5,0);castle.add(core); castle.position.copy(end).add(new THREE.Vector3(13,0,0));world.add(castle);
+}
+function makePlayerModel(form){
+ if(playerModel){world.remove(playerModel);playerModel.traverse(o=>{o.geometry?.dispose?.()})}
+ const g=new THREE.Group();
+ if(form==='Normal'){
+  addPart(g,new THREE.Mesh(new THREE.CapsuleGeometry(.75,1.65,8,14),mat(0x7028ff,.18)),0,1.45,0);addPart(g,new THREE.Mesh(new THREE.SphereGeometry(.55,16,12),mat(0xc665ff,.15)),0,2.8,0);
+  addPart(g,new THREE.Mesh(new THREE.BoxGeometry(.38,1,.32),mat(0x441399)),-.65,1.65,0).rotation.z=.25;addPart(g,new THREE.Mesh(new THREE.BoxGeometry(.38,1,.32),mat(0x441399)),.65,1.65,0).rotation.z=-.25;
+  addPart(g,new THREE.Mesh(new THREE.BoxGeometry(.32,.9,.34),mat(0x2c0b74)),-.3,.55,0);addPart(g,new THREE.Mesh(new THREE.BoxGeometry(.32,.9,.34),mat(0x2c0b74)),.3,.55,0);
+  addPart(g,new THREE.Mesh(new THREE.ConeGeometry(.18,.8,8),mat(0xff3b3b,.35)),-.35,3.45,.02).rotation.z=.32;addPart(g,new THREE.Mesh(new THREE.ConeGeometry(.18,.8,8),mat(0xff3b3b,.35)),.35,3.45,.02).rotation.z=-.32;
+ } else if(form==='Airship'){
+  let hull=addPart(g,new THREE.Mesh(new THREE.CapsuleGeometry(1.05,4.8,10,22),mat(0x56b8ff,.12)),0,2.65,0);hull.rotation.z=Math.PI/2;addPart(g,new THREE.Mesh(new THREE.BoxGeometry(3.8,.22,3.2),mat(0x2e78d6,.05)),0,2.38,0);addPart(g,new THREE.Mesh(new THREE.SphereGeometry(.42,16,10),mat(0x111a2d,.02)),1.15,3.05,0);let prop=addPart(g,new THREE.Mesh(new THREE.TorusGeometry(.58,.075,8,30),new THREE.MeshBasicMaterial({color:0xe8fbff})),-2.8,2.65,0);prop.rotation.y=Math.PI/2;
+ } else if(form==='Heavy Airship'){
+  let hull=addPart(g,new THREE.Mesh(new THREE.CapsuleGeometry(1.45,6.1,10,24),mat(0x596777,.1)),0,3,0);hull.rotation.z=Math.PI/2;addPart(g,new THREE.Mesh(new THREE.BoxGeometry(5.4,.36,4.6),mat(0x243040,.05)),0,2.62,0);addPart(g,new THREE.Mesh(new THREE.BoxGeometry(3.9,.35,1.45),mat(0x111821,.1)),.45,4.15,0);for(const z of [-2.55,2.55])for(const x of [-1.8,1.8]){let e=addPart(g,new THREE.Mesh(new THREE.CylinderGeometry(.42,.55,1.25,14),mat(0xff9a22,.35)),x,2.25,z);e.rotation.x=Math.PI/2}
+ } else if(form==='DoomShip'){
+  let hull=addPart(g,new THREE.Mesh(new THREE.CapsuleGeometry(1.85,7.2,10,26),mat(0x2a0c22,.25)),0,3.35,0);hull.rotation.z=Math.PI/2;addPart(g,new THREE.Mesh(new THREE.BoxGeometry(6.6,.28,5.7),mat(0x7b1024,.12)),0,3,0);addPart(g,new THREE.Mesh(new THREE.SphereGeometry(.72,18,12),new THREE.MeshBasicMaterial({color:0xff1d2d})),4,3.52,0);let ring=new THREE.Mesh(new THREE.TorusGeometry(2.75,.09,8,50),new THREE.MeshBasicMaterial({color:0xff3355,transparent:true,opacity:.9}));ring.position.set(.2,3.38,0);ring.rotation.y=Math.PI/2;g.add(ring);
+ } else {
+  addPart(g,new THREE.Mesh(new THREE.CylinderGeometry(5.7,6.9,1.05,36),mat(0x5b4d9f,.16)),0,3.6,0);addPart(g,new THREE.Mesh(new THREE.SphereGeometry(2.55,24,14,0,Math.PI*2,0,Math.PI/2),mat(0xbffaff,.24)),0,4.05,0);for(let i=0;i<10;i++){const a=i*Math.PI*2/10;addPart(g,new THREE.Mesh(new THREE.SphereGeometry(.36,12,8),new THREE.MeshBasicMaterial({color:i%2?0xffe86a:0xff4bc8})),Math.cos(a)*5.65,3.45,Math.sin(a)*5.65)}
+ }
+ if(player){g.position.copy(player.pos);g.rotation.y=yaw} world.add(g);playerModel=g;
+}
+function airFormName(hp){if(hp>=5000)return'Mothership';if(hp>=3400)return'DoomShip';if(hp>=1200)return'Heavy Airship';if(hp>=200)return'Airship';return'Normal'}
+function updateAirForm(){let f=airFormName(player.airHP);if(player.form!==f){player.form=f;makePlayerModel(f)}}
+function airSpeedMult(){if(!player||player.airHP<=0)return 1;if(player.airHP>=5000)return .42;if(player.airHP>=3400)return .50;if(player.airHP>=1200)return .60;return .70}
+
+function setupMap(){
+ clearWorld(); roadPieces=[]; let mapIndex=selectedMode==='Endless'?(round-1)%15:selectedMap; if(selectedMode==='Campaign') mapIndex=Math.min(selectedMap,14); currentMapIndex=mapIndex; seedForMap(mapIndex);
+ const m=MAPS[mapIndex],th=MAP_THEMES[mapIndex]; scene.background=new THREE.Color(th.sky);scene.fog=new THREE.Fog(th.fog,80+mapIndex*4,230+mapIndex*35);
+ sun.color.setHex(mapIndex>=7?0xffd6a0:0xffefbf); sun.intensity=mapIndex>=10?1.7:2.35;
+ buildPath(mapIndex); makeScenery(m[3],m[1]); buildStructures(mapIndex);
+}
+function resetRun(){
+ setupMap(); bolts=[];sparks=[];towers=[];time=0;ended=false;playing=true;survivalTimer=0; yaw=-Math.PI/2;
+ const start=path.getPoint(0); player={pos:new THREE.Vector3(start.x,1.7,start.z),vel:new THREE.Vector3(),hp:base.hp+perm.hpLv*40,maxHp:base.hp+perm.hpLv*40,speed:base.speed+perm.spdLv*.85,regen:base.regen+perm.regenLv*.45,jumpPower:base.jump,airHP:perm.airLv*200,airMax:perm.airLv*200,form:"",onGround:true};
+ updateAirForm(); makePlayerModel(player.form);
+ const m=MAPS[selectedMode==="Endless"?(round-1)%15:selectedMap],d=DIFF[selectedDiff]; let count=Math.floor((m[2]+round*.6)*d.towers*(selectedMode==="Boss Rush"?1.35:1));
+ for(let i=0;i<count;i++) makeTower();
+ towerTimer=selectedMode==="Boss Rush"?2.5:5.8; document.getElementById('shop').style.display='none';
+}
+function makeTower(){
+ const d=DIFF[selectedDiff], th=MAP_THEMES[currentMapIndex]; const u=.10+rnd()*.82,p=path.getPoint(u),tan=path.getTangent(u),normal=new THREE.Vector3(-tan.z,0,tan.x).normalize(),side=rnd()<.5?-1:1;
+ const pos=p.clone().add(normal.multiplyScalar(side*(12+rnd()*22))); const rr=rnd(),type=rr<.38?'bolt':rr<.69?'cannon':rr<.88?'laser':'elite';
+ const g=new THREE.Group();let baseM=new THREE.Mesh(new THREE.CylinderGeometry(2.2,2.8,2.2,8),themedMat(type==='elite'?th.accent:0x59636f,type==='elite'?.18:0));baseM.position.y=1.1;baseM.castShadow=true;g.add(baseM);
+ let geo=type==='cannon'?new THREE.BoxGeometry(4.6,2.4,3.2):type==='laser'?new THREE.CylinderGeometry(1.3,2,4.2,8):type==='elite'?new THREE.OctahedronGeometry(2.7):new THREE.ConeGeometry(2.2,4.2,8);
+ let top=new THREE.Mesh(geo,themedMat(type==='laser'?0x76eaff:type==='cannon'?0x30343b:type==='elite'?th.accent:0xa7adb5,type==='elite'?.25:0));top.position.y=4;top.castShadow=true;g.add(top);
+ if(currentMapIndex>=8){let ring=new THREE.Mesh(new THREE.TorusGeometry(2.8,.12,8,30),new THREE.MeshBasicMaterial({color:th.accent}));ring.rotation.x=Math.PI/2;ring.position.y=5.4;g.add(ring)}
+ g.position.copy(pos);world.add(g);towers.push({g,pos,type,range:type==='cannon'?38:type==='laser'?43:type==='elite'?47:36,cd:rnd()*1.5,rate:(type==='cannon'?2.3:type==='laser'?1.15:type==='elite'?.9:1.55)*(selectedDiff==='Easy'?1.25:selectedDiff==='Hard'?.82:1),dmg:((type==='cannon'?12:type==='laser'?5:type==='elite'?9:8)+round*.55+currentMapIndex*.28)*d.dmg});
+}
+function shoot(from,dir,dmg,color,speed){let b=new THREE.Mesh(new THREE.SphereGeometry(.28,10,10),new THREE.MeshBasicMaterial({color}));b.position.copy(from);world.add(b);bolts.push({mesh:b,vel:dir.normalize().multiplyScalar(speed),dmg,life:2.7})}
+function burst(pos,color,n=14){for(let i=0;i<n;i++){let s=new THREE.Mesh(new THREE.SphereGeometry(.13+Math.random()*.08,6,6),new THREE.MeshBasicMaterial({color}));s.position.copy(pos);world.add(s);sparks.push({mesh:s,vel:new THREE.Vector3((Math.random()-.5)*18,Math.random()*16,(Math.random()-.5)*18),life:.6+Math.random()*.35})}}
+function lowerAirshipTier(prev){if(prev>=5000)player.airHP=5000;else if(prev>=3400)player.airHP=3400;else if(prev>=1200)player.airHP=1200;else player.airHP=0;updateAirForm();burst(player.pos,player.airHP>0?0x99ddff:0xff3333,45)}
+function clampToTrack(){let closest=null,best=Infinity;for(let i=0;i<=160;i++){let p=path.getPoint(i/160),d=(player.pos.x-p.x)**2+(player.pos.z-p.z)**2;if(d<best){best=d;closest=p}}let start=path.getPoint(0),safeDist=Math.hypot(player.pos.x-start.x,player.pos.z-start.z),radius=safeDist<27?27:7.5;let dx=player.pos.x-closest.x,dz=player.pos.z-closest.z,dist=Math.hypot(dx,dz);if(dist>radius){player.pos.x=closest.x+dx/dist*radius;player.pos.z=closest.z+dz/dist*radius}}
+function finish(win){if(ended)return;ended=true;playing=false;document.exitPointerLock?.();let d=DIFF[selectedDiff],mapNum=(selectedMode==="Endless"?(round-1)%15:selectedMap)+1;let pay=Math.floor((win?1400+mapNum*260:550+Math.max(0,player.pos.x-path.getPoint(0).x)*2.2)*d.pay); if(selectedMode==="Boss Rush")pay=Math.floor(pay*1.4); if(selectedMode==="Survival")pay=Math.floor(pay*1.25); perm.money+=pay;if(!win)perm.lives--;else{ if(selectedMode==="Campaign")selectedMap=Math.min(14,selectedMap+1); round++; } showShop(win,pay)}
+function cost(k){return {hp:120+perm.hpLv*90,spd:140+perm.spdLv*110,regen:230+perm.regenLv*190,air:2000+perm.airLv*700}[k]}
+function buy(k){let c=cost(k);if(perm.money<c)return;perm.money-=c;perm[k+'Lv']++; if(player){player.maxHp=base.hp+perm.hpLv*40;player.speed=base.speed+perm.spdLv*.85;player.regen=base.regen+perm.regenLv*.45;if(k==='hp')player.hp=Math.min(player.maxHp,player.hp+40);if(k==='air'){player.airMax=perm.airLv*200;player.airHP=player.airMax;updateAirForm()}} showShop(false,0,true)}
+window.buy=buy;
+function showShop(win,pay,stay=false){let shop=document.getElementById('shop');shop.style.display='grid';document.getElementById('shopTitle').textContent=perm.lives<=0?'Game Over':(ended?(win?'Exit reached!':'You died!'):'Upgrade Shop');document.getElementById('shopText').innerHTML=`${stay?'':`Payout: <b>$${pay}</b><br>`}Money: <b>$${perm.money}</b> • Lives: <b>${perm.lives}/15</b> • Mode: <b>${selectedMode}</b> • Difficulty: <b>${selectedDiff}</b><br><span class=tiny>Only upgrades: HP, Speed, Regen, Airship HP. No damage upgrades.</span>`;
+ let items=[['hp','HP Upgrade','+40 normal HP',perm.hpLv],['spd','Speed Upgrade','+0.85 move speed',perm.spdLv],['regen','Regen Upgrade','Very slow HP regen',perm.regenLv],['air','Airship HP','Costs 2k+; +200 airship HP; tiers split down when defeated',perm.airLv]];
+ document.getElementById('buyBtns').innerHTML=items.map(([k,n,d,lv])=>`<button class=buy onclick="buy('${k}')" ${perm.money<cost(k)?'disabled':''}>${n} Lv.${lv}<br><span class=tiny>${d} — Cost $${cost(k)}</span></button>`).join('');
+ document.getElementById('nextBtn').disabled=perm.lives<=0;document.getElementById('nextBtn').textContent=perm.lives<=0?'No lives left':(ended?'Invade again':'Close shop')}
+function toggleShop(){let shop=document.getElementById('shop');if(shop.style.display==='grid'){shop.style.display='none';renderer.domElement.requestPointerLock()}else{showShop(false,0,true);document.exitPointerLock?.()}}
+
+function startGame(){
+ try{
+  document.getElementById('start').style.display='none';
+  document.getElementById('shop').style.display='none';
+  round=1; perm.lives=15; ended=false; playing=false;
+  resetRun();
+  setTimeout(()=>renderer.domElement.requestPointerLock?.(),50);
+ }catch(err){
+  console.error(err);
+  alert('Start failed: '+err.message);
+ }
+}
+document.getElementById('startBtn').onclick=startGame;
+document.getElementById('startBtn').addEventListener('click',startGame);
+document.getElementById('nextBtn').onclick=()=>{if(ended&&perm.lives>0){resetRun();renderer.domElement.requestPointerLock()}else if(playing){document.getElementById('shop').style.display='none';renderer.domElement.requestPointerLock()}};
+addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='KeyB'&&playing&&!ended)toggleShop()});addEventListener('keyup',e=>keys[e.code]=false);
+addEventListener('mousedown',()=>{if(playing)renderer.domElement.requestPointerLock()});document.addEventListener('pointerlockchange',()=>locked=document.pointerLockElement===renderer.domElement);
+addEventListener('mousemove',e=>{if(!locked||!playing)return;yaw-=e.movementX*.0024;pitch-=e.movementY*.0024;pitch=Math.max(-1.2,Math.min(1.2,pitch))});
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+
+let last=performance.now();function loop(now){requestAnimationFrame(loop);let dt=Math.min(.033,(now-last)/1000);last=now;if(playing&&!ended)update(dt);renderer.render(scene,camera)}requestAnimationFrame(loop);
+function update(dt){
+ time+=dt;if(core)core.rotation.y+=dt*1.7;towerTimer-=dt;
+ let start=path.getPoint(0),end=path.getPoint(1),inSafe=Math.hypot(player.pos.x-start.x,player.pos.z-start.z)<27;
+ let f=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)),r=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw)),move=new THREE.Vector3(); if(keys.KeyW)move.add(f); if(keys.KeyS)move.sub(f); if(keys.KeyD)move.add(r); if(keys.KeyA)move.sub(r);
+ if(keys.Space&&player.onGround){player.vel.y=player.jumpPower;player.onGround=false;burst(player.pos,0xbd5cff,10)}
+ if(move.lengthSq()>0)player.pos.add(move.normalize().multiplyScalar(player.speed*airSpeedMult()*dt)); clampToTrack();
+ if(player.regen>0&&player.hp<player.maxHp)player.hp=Math.min(player.maxHp,player.hp+player.regen*dt);
+ player.vel.y-=38*dt;player.pos.y+=player.vel.y*dt;if(player.pos.y<=1.7){player.pos.y=1.7;player.vel.y=0;player.onGround=true}
+ clampToTrack(); if(playerModel){playerModel.position.copy(player.pos);playerModel.rotation.y=yaw;playerModel.rotation.z=(player.airHP>0?0:Math.sin(time*6)*.025)}
+ const lookAt=player.pos.clone().add(new THREE.Vector3(0,2.5,0)),camBack=new THREE.Vector3(Math.sin(yaw)*10,4.8,Math.cos(yaw)*10); camera.position.lerp(lookAt.clone().add(camBack),Math.min(1,dt*8)); camera.lookAt(lookAt);
+ if(towerTimer<=0){makeTower();towerTimer=Math.max(selectedMode==="Boss Rush"?2.2:4.4,8.8-round*.15-time*.006)}
+ for(const t of towers){t.cd-=dt;t.g.lookAt(player.pos.x,2,player.pos.z);let dist=t.pos.distanceTo(player.pos);if(!inSafe&&dist<t.range&&t.cd<=0){t.cd=t.rate;let from=t.pos.clone().add(new THREE.Vector3(0,4,0));shoot(from,player.pos.clone().sub(from),t.dmg,t.type==='laser'?0x76eaff:t.type==='cannon'?0xff6a28:0xffff88,t.type==='cannon'?52:78)}}
+ for(const b of bolts){b.life-=dt;b.mesh.position.add(b.vel.clone().multiplyScalar(dt)); if(!inSafe&&b.mesh.position.distanceTo(player.pos)<1.9){if(player.airHP>0){let before=player.airHP;player.airHP-=b.dmg;if(player.airHP<=0)lowerAirshipTier(before);else updateAirForm()}else player.hp-=b.dmg;b.life=0;burst(b.mesh.position,0xff3333,8)}}
+ bolts=bolts.filter(b=>{if(b.life<=0){world.remove(b.mesh);return false}return true}); for(const s of sparks){s.life-=dt;s.vel.y-=22*dt;s.mesh.position.add(s.vel.clone().multiplyScalar(dt))} sparks=sparks.filter(s=>{if(s.life<=0){world.remove(s.mesh);return false}return true});
+ let atExit=player.pos.distanceTo(end)<7.0; if(atExit){ if(selectedMode==="Survival"){survivalTimer+=dt;if(survivalTimer>=40)finish(true)} else finish(true)} else survivalTimer=0;
+ if(player.hp<=0)finish(false);
+ let mapIndex=selectedMode==="Endless"?(round-1)%15:selectedMap, map=MAPS[mapIndex]; document.getElementById('hud').innerHTML=`<b>Reverse TD RPG</b><br>Mode: ${selectedMode} • ${selectedDiff}<br>Map: ${mapIndex+1}/15 ${map[0]}<br>Form: <b>${player.form}</b>${player.airMax>0?` — Airship ${Math.max(0,Math.ceil(player.airHP))}/${player.airMax}`:''}<br>Normal HP: ${Math.max(0,Math.ceil(player.hp))}/${player.maxHp} ${player.regen>0?`(+${player.regen.toFixed(2)}/s)`:''}<br>Lives: ${perm.lives}/15 • Money: $${perm.money}<br>Track rule: you cannot leave the road<br>${selectedMode==="Survival"?`Final hold: ${survivalTimer?survivalTimer.toFixed(1):'reach exit first'}/40s<br>`:''}Defense build: ${Math.max(0,towerTimer).toFixed(1)}s`;
+}
+</script>
+</body>
+</html>

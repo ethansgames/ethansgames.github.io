@@ -1,0 +1,2911 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Tank City: Chaos Mode</title>
+<style>
+body{margin:0;overflow:hidden;background:#222;font-family:Arial}
+#ui{position:fixed;top:10px;left:10px;color:white;background:#000b;padding:10px;border-radius:10px;z-index:5;line-height:1.35}
+#msg{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);color:white;background:#000b;padding:10px 14px;border-radius:10px;z-index:5}
+#menu{position:fixed;inset:0;background:linear-gradient(#1b2638,#07101c);color:white;z-index:20;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px}
+#menuBox{width:min(760px,92vw);background:#0008;border:2px solid #9cc8ff;border-radius:20px;padding:22px;text-align:center;box-shadow:0 0 60px #000}
+.tankCard{display:inline-block;width:205px;vertical-align:top;background:#101d31;border:2px solid #496fa8;border-radius:16px;margin:8px;padding:12px}
+button{border:2px solid #fff0a8;background:linear-gradient(#fff184,#d77716);color:#321400;font-weight:900;border-radius:12px;padding:8px 10px;margin:3px;cursor:pointer}
+button.blue{background:linear-gradient(#7bd3ff,#2769d9);color:white;border-color:#d9f4ff}
+button.red{background:linear-gradient(#ff7d7d,#b92332);color:white;border-color:#ffd1d1}
+canvas{display:block}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="menu">
+ <div id="menuBox">
+  <h1>💥 Tank City: Chaos Mode</h1>
+  <p>GTA-style arcade chaos: all tanks are unlocked. Every new game resets the city and run stats, but your selected tank stays selected. Smash buildings, cars, police, and civilians for points. Higher wanted level = bigger score multiplier. Each next wanted star costs 35% more chaos.</p>
+  <div id="garage"></div>
+  <br>
+  <button class="blue" onclick="startGame()">Start New Game</button><button class="red" id="versusModeBtnTop" onclick="startVersusMode()">Versus Mode: 5 Min Score Race</button><button class="red" onclick="hardResetSave()">Reset High Score Save</button>
+ </div>
+</div>
+
+<div id="ui">
+<h3>Tank City</h3>
+Tank: <span id="tankName">Original</span><br>
+Score: <span id="score">0</span><br>
+High Score: <span id="highScore">0</span><br>
+Multiplier: x<span id="mult">1.0</span><br>
+Money: $<span id="money">0</span><br>
+XP: <span id="xp">0</span><br>
+Reputation: <span id="rep">0</span><br>
+Tank HP: <span id="hp">100</span><br>
+Wanted: <span id="wanted">0</span> <span id="stars" style="color:#ffd84a"></span><br>
+<div id="wantedProgressWrap" style="width:210px;height:10px;background:#1b1b1b;border:1px solid #555;border-radius:999px;overflow:hidden;margin:4px 0 2px 0">
+  <div id="wantedProgressFill" style="height:100%;width:0%;background:linear-gradient(90deg,#ffd84a,#ff3b3b)"></div>
+</div>
+Next Star: <span id="wantedProgressText">0/3</span><br>
+Weapon: <span id="weapon">Cannon</span><br>
+<br>
+WASD = Drive<br>
+Mouse = Aim<br>
+Click / Space = Fire<br>
+F = Switch weapon<br>
+E = Help civilians / mission<br>Goal = Maximum chaos score<br>
+M = Garage Menu<br>City = infinite chunks
+</div>
+<div id="msg">Chaos Mode: destroy buildings, cars, police, and civilians for points. Wanted level boosts your multiplier.</div>
+
+<script>
+if(!CanvasRenderingContext2D.prototype.roundRect){CanvasRenderingContext2D.prototype.roundRect=function(x,y,w,h,r){this.moveTo(x+r,y);this.lineTo(x+w-r,y);this.quadraticCurveTo(x+w,y,x+w,y+r);this.lineTo(x+w,y+h-r);this.quadraticCurveTo(x+w,y+h,x+w-r,y+h);this.lineTo(x+r,y+h);this.quadraticCurveTo(x,y+h,x,y+h-r);this.lineTo(x,y+r);this.quadraticCurveTo(x,y,x+r,y);return this;}};
+const c=document.getElementById("c"), x=c.getContext("2d");
+function rs(){c.width=innerWidth;c.height=innerHeight}
+rs();onresize=rs;
+
+function rnd(a,b){return a+Math.random()*(b-a)}
+function rects(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
+function pointRect(px,py,r){return px>r.x&&px<r.x+r.w&&py>r.y&&py<r.y+r.h}
+function msg(t){document.getElementById("msg").textContent=t}
+
+const tankDefs={
+ original:{name:"Original",unlock:0,maxHp:100,speed:3.2,color:"#2d6428",weapons:["cannon","mg"],desc:"Balanced starter tank. Cannon + fast MG.",model:"original"},
+ tiger:{name:"Tiger I",unlock:350,maxHp:170,speed:2.35,color:"#8b7a3a",weapons:["heavy","pierce"],desc:"Heavy German-style tank. Heavy cannon + armor-piercing shot.",model:"tiger"},
+ mark1:{name:"Mark I",unlock:700,maxHp:230,speed:1.85,color:"#5c5a4c",weapons:["dual","flame"],desc:"Ancient landship. Dual cannons + flamethrower.",model:"mark1"},
+ sherman:{name:"Sherman",unlock:950,maxHp:135,speed:3.65,color:"#526b3d",weapons:["rapid","shotgun"],desc:"Fast medium tank. Quick cannon + close-range canister shot.",model:"sherman"},
+ t34:{name:"T-34",unlock:1250,maxHp:150,speed:3.8,color:"#3f5f42",weapons:["pierce","mine"],desc:"Sloped armor and punchy gun. Can drop mines.",model:"t34"},
+ panzer:{name:"Panzer IV",unlock:1650,maxHp:145,speed:3.25,color:"#5d6368",weapons:["burst","mortar"],desc:"Tactical tank with burst cannon + arcing mortar.",model:"panzer"},
+ abrams:{name:"M1 Abrams",unlock:2400,maxHp:260,speed:4.15,color:"#b19762",weapons:["sabot","autocannon"],desc:"Modern monster. Sabot rounds + autocannon.",model:"abrams"},
+ maus:{name:"Maus",unlock:3500,maxHp:520,speed:1.25,color:"#4b4d4f",weapons:["superheavy","rocket"],desc:"Absurd super-heavy tank. Super shell + rocket pod.",model:"maus"},
+ bt7:{name:"BT-7",unlock:4300,maxHp:90,speed:5.35,color:"#355f38",weapons:["rapid","mine"],desc:"Extremely fast light tank. Speed over armor.",model:"bt7"},
+ kv2:{name:"KV-2",unlock:5200,maxHp:310,speed:1.7,color:"#4c6744",weapons:["mortar","superheavy"],desc:"Huge box turret. Lobs devastating HE shells.",model:"kv2"},
+ leopard:{name:"Leopard 2",unlock:6500,maxHp:240,speed:4.65,color:"#70805b",weapons:["railgun","sabot"],desc:"High tech MBT. Railgun + sabot cannon.",model:"leopard"},
+ merkava:{name:"Merkava",unlock:7800,maxHp:340,speed:3.25,color:"#8b8067",weapons:["rocket","drone"],desc:"Survivable support tank. Rockets + attack drone.",model:"merkava"},
+ rhino:{name:"Rhino Siege Tank",unlock:9200,maxHp:420,speed:2.1,color:"#6b5745",weapons:["mortar","mine"],desc:"Siege tank made for city destruction. Mortars + mines.",model:"rhino"},
+ plasma:{name:"Plasma Tank",unlock:11000,maxHp:220,speed:3.7,color:"#553a8e",weapons:["laser","emp"],desc:"Experimental energy tank. Laser beam + EMP.",model:"plasma"},
+ ghostrider:{name:"Ghost Rider",unlock:18000,maxHp:360,speed:4.25,color:"#161616",weapons:["skull","saw"],desc:"Cursed chaos tank. Homing skulls hunt targets, saw blades shred streets.",model:"ghostrider"},
+ maximus:{name:"Maximus",unlock:23000,maxHp:480,speed:3.55,color:"#b78d33",weapons:["tripleburst","laserbarrage"],desc:"Golden war machine. Triple burst shots and sweeping laser barrages.",model:"maximus"},
+ doomsday:{name:"Doomsday MissileDestroyer",unlock:0,maxHp:850,speed:1.9,color:"#3a1111",weapons:["doomnuke","hellflame"],desc:"City-ending super tank. Bigger nukes and brutal flamethrowers.",model:"doomsday"},
+ voidreaper:{name:"Void Reaper",unlock:0,maxHp:390,speed:4.05,color:"#220044",weapons:["voidorb","blackhole"],desc:"Dark matter tank. Fires void orbs and short black-hole blasts.",model:"voidreaper"},
+ meteorlord:{name:"Meteor Lord",unlock:0,maxHp:560,speed:2.85,color:"#7a2d10",weapons:["meteorstorm","lavawave"],desc:"Drops meteors across the street and burns whole blocks.",model:"meteorlord"},
+ teslahydra:{name:"Tesla Hydra",unlock:0,maxHp:410,speed:3.95,color:"#0a4f73",weapons:["chainlightning","empstorm"],desc:"Electric hydra tank. Chain lightning jumps through cars, cops, and crowds.",model:"teslahydra"},
+ bladecyclone:{name:"Blade Cyclone",unlock:0,maxHp:320,speed:5.1,color:"#8f8f8f",weapons:["megasaw","shredderstorm"],desc:"Insane saw tank. Launches giant blades and a spinning shredder storm.",model:"bladecyclone"},
+ angeljudgement:{name:"Angel Judgement",unlock:0,maxHp:450,speed:3.7,color:"#f7e7a1",weapons:["heavenbeam","holyburst"],desc:"Golden sky tank. Fires huge judgement beams and radial holy blasts.",model:"angeljudgement"},
+ chronocrusher:{name:"Chrono Crusher",unlock:0,maxHp:380,speed:4.4,color:"#2b6f88",weapons:["timestop","rewindblast"],desc:"Time-control tank. Freezes traffic and detonates rewind shockwaves.",model:"chronocrusher"},
+ toxicwastelord:{name:"Toxic Wastelord",unlock:0,maxHp:520,speed:2.95,color:"#4b8a18",weapons:["acidspit","toxiccloud"],desc:"Melts the city with acid shells and spreading toxic clouds.",model:"toxicwastelord"},
+ spidermech:{name:"Spider Mech Tank",unlock:0,maxHp:470,speed:4.0,color:"#3b243f",weapons:["spiderdrones","webmissile"],desc:"Deploys crawling spider drones and sticky web missiles.",model:"spidermech"},
+ galaxydestroyer:{name:"Galaxy Destroyer",unlock:0,maxHp:760,speed:2.6,color:"#111a55",weapons:["starcannon","singularity"],desc:"Cosmic super tank. Shoots star cannons and singularity blasts.",model:"galaxydestroyer"},
+ infernoreaper:{name:"Inferno Reaper",unlock:0,maxHp:540,speed:3.35,color:"#4a0900",weapons:["firestorm","chainsawburst"],desc:"Burns entire blocks and launches buzz-saw barrages.",model:"infernoreaper"},
+ frostbite:{name:"Frostbite Mammoth",unlock:0,maxHp:610,speed:2.75,color:"#8fd9ff",weapons:["icebeam","shardburst"],desc:"Freezes traffic and shatters it with crystal shotgun bursts.",model:"frostbite"},
+ orbitalcrusher:{name:"Orbital Crusher",unlock:0,maxHp:500,speed:3.1,color:"#222a44",weapons:["orbitalstrike","railburst"],desc:"Calls sky lasers and fires a triple railgun burst.",model:"orbitalcrusher"},
+ sandworm:{name:"Sandworm Tank",unlock:0,maxHp:470,speed:4.0,color:"#b58b45",weapons:["burrowmissile","quake"],desc:"Burrowing missiles pop up under targets; quake wave wrecks streets.",model:"sandworm"},
+ necroking:{name:"Necro King",unlock:0,maxHp:430,speed:3.9,color:"#242424",weapons:["bonecannon","skullstorm"],desc:"Bone shells and swarms of cursed homing skulls.",model:"necroking"},
+ magnetar:{name:"Magnetar",unlock:0,maxHp:520,speed:3.45,color:"#454a74",weapons:["magnetpull","metalstorm"],desc:"Pulls cars/cops into a crush zone and sprays metal shards.",model:"magnetar"},
+ kaijutank:{name:"Kaiju Tank",unlock:0,maxHp:900,speed:2.05,color:"#204b29",weapons:["stompwave","atomicbreath"],desc:"Monster-sized tank with stomps and atomic breath.",model:"kaijutank"},
+ glitchtank:{name:"Glitch Tank",unlock:0,maxHp:360,speed:5.2,color:"#101010",weapons:["glitchshot","lagbomb"],desc:"Reality-bug tank. Glitch shots teleport-hit targets and lag bombs freeze cops.",model:"glitchtank"},
+ abysskraken:{name:"Abyss Kraken",unlock:0,maxHp:640,speed:3.15,color:"#082a3a",weapons:["blackhole","spiderdrones"],desc:"Deep-sea nightmare tank. Opens gravity holes and releases crawling drones.",model:"abysskraken"},
+ sunsplitter:{name:"Sun Splitter",unlock:0,maxHp:590,speed:3.3,color:"#ffb300",weapons:["heavenbeam","firestorm"],desc:"Solar god tank. Burns roads with firestorms and judgement beams.",model:"sunsplitter"},
+ stormeater:{name:"Storm Eater",unlock:0,maxHp:510,speed:4.2,color:"#083d77",weapons:["chainlightning","railburst"],desc:"Lightning-powered beast. Chains electricity and fires rail bursts.",model:"stormeater"},
+ tombwalker:{name:"Tomb Walker",unlock:0,maxHp:460,speed:4.0,color:"#3d3326",weapons:["bonecannon","skullstorm"],desc:"Undead siege tank. Bone cannons and skull storms everywhere.",model:"tombwalker"},
+ quakebringer:{name:"Quake Bringer",unlock:0,maxHp:820,speed:2.35,color:"#6b4d2e",weapons:["quake","stompwave"],desc:"Massive earthquake tank. Smashes blocks with ground waves.",model:"quakebringer"},
+ cybermantis:{name:"Cyber Mantis",unlock:0,maxHp:430,speed:5.55,color:"#22ff88",weapons:["megasaw","glitchshot"],desc:"Fast cyber shredder. Giant saws plus teleporting glitch shots.",model:"cybermantis"},
+ frostnova:{name:"Frost Nova",unlock:0,maxHp:540,speed:3.6,color:"#d7fbff",weapons:["icebeam","holyburst"],desc:"Freezing divine tank. Ice beams and nova blasts.",model:"frostnova"},
+ toxicserpent:{name:"Toxic Serpent",unlock:0,maxHp:500,speed:4.45,color:"#66aa22",weapons:["toxiccloud","acidspit"],desc:"Poison tank that melts traffic and leaves toxic streets.",model:"toxicserpent"},
+ orbitalgod:{name:"Orbital God",unlock:0,maxHp:700,speed:2.9,color:"#1d2255",weapons:["orbitalstrike","starcannon"],desc:"Satellite-command tank. Calls orbital strikes and star cannon blasts.",model:"orbitalgod"},
+ omegaapex:{name:"Omega Apex",unlock:0,maxHp:1000,speed:2.25,color:"#111111",weapons:["doomnuke","singularity"],desc:"Final chaos tank. Doomsday nukes and singularity blasts.",model:"omegaapex"},
+ apocalypse:{name:"Apocalypse Tank",unlock:0,maxHp:700,speed:1.65,color:"#2b2b2b",weapons:["nuke","railgun"],desc:"Endgame doom machine. Mini-nuke + railgun.",model:"apocalypse"}
+};
+
+let tank={x:520,y:520,a:0,hp:100,maxHp:100,money:0,xp:0,rep:0,wanted:0,cool:0,mg:0,weapon:"cannon",type:"original",score:0,highScore:0};
+let cam={x:0,y:0}, keys={}, bullets=[], shells=[], flames=[], mines=[], drones=[], beams=[], particles=[], shockwaves=[], smoke=[], fires=[], blades=[];
+let buildings=[], npcs=[], missions=[], cars=[], police=[];
+let generatedChunks=new Set();
+const CHUNK=1110;
+let infiniteCityEnabled=true;
+let gameStarted=false;
+
+function save(){
+ // All tanks unlocked build: only high score + selected tank persist between runs.
+ localStorage.setItem("TANK_CITY_GARAGE",JSON.stringify({highScore:tank.highScore||0,type:tank.type||"original"}));
+}
+function load(){
+ try{
+  let s=JSON.parse(localStorage.getItem("TANK_CITY_GARAGE")||"{}");
+  tank.highScore=s.highScore||0;
+  if(s.type && tankDefs[s.type]) applyTank(s.type);
+ }catch(e){}
+}
+function applyTank(type){
+ let d=tankDefs[type]; if(!d)return;
+ tank.type=type;tank.maxHp=d.maxHp;tank.hp=tank.maxHp;tank.weapon=d.weapons[0];
+}
+function startGame(){
+ resetRunStats();
+ generateCity();
+ newMission();
+ save();
+ document.getElementById("menu").style.display="none";
+ gameStarted=true;
+ renderGarage();
+ updateUI();
+ msg("New chaos run started: city and run stats reset. Your selected tank stayed selected.");
+}
+function openMenu(){document.getElementById("menu").style.display="flex";gameStarted=false;renderGarage()}
+function buyOrSelect(type){
+ let d=tankDefs[type];
+ if(!d)return;
+ applyTank(type);
+ save();
+ renderGarage();
+ updateUI();
+ msg("Selected "+d.name+". It will stay selected for new runs.");
+}
+function renderGarage(){
+ let g=document.getElementById("garage"); g.innerHTML="";
+ for(let id of Object.keys(tankDefs)){
+  let d=tankDefs[id], unlocked=true;
+  g.innerHTML+=`<div class="tankCard">
+   <h2>${d.name}</h2>
+   <p>${d.desc}</p>
+   <p><b>Unlock:</b> FREE / ALL TANKS UNLOCKED</p>
+   <p><b>HP:</b> ${d.maxHp}<br><b>Speed:</b> ${d.speed}<br><b>Weapons:</b> ${d.weapons.join(", ")}</p>
+   <button onclick="buyOrSelect('${id}')">${tank.type==id?"Selected":"Select"}</button>
+  </div>`;
+ }
+}
+
+function generateCity(){
+ buildings.length=0;
+ npcs.length=0;
+ missions.length=0;
+ cars.length=0;
+ police.length=0;
+ bullets.length=0;
+ shells.length=0;
+ flames.length=0;
+ mines.length=0;
+ drones.length=0;
+ beams.length=0;
+ particles.length=0;
+ shockwaves.length=0;
+ smoke.length=0;
+ fires.length=0;
+ blades.length=0;
+ generatedChunks.clear();
+ ensureInfiniteCity(true);
+}
+
+function chunkKey(cx,cy){return cx+","+cy;}
+function generateChunk(cx,cy){
+ const key=chunkKey(cx,cy);
+ if(generatedChunks.has(key))return;
+ generatedChunks.add(key);
+ const ox=cx*CHUNK, oy=cy*CHUNK;
+ const grid=185;
+ for(let gx=0;gx<6;gx++){
+  for(let gy=0;gy<6;gy++){
+   if(Math.random()<0.64){
+    let bx=ox+gx*grid+rnd(18,56), by=oy+gy*grid+rnd(18,56);
+    if(Math.hypot(bx-tank.x,by-tank.y)<280)continue;
+    let w=78+rnd(0,52), h=78+rnd(0,52);
+    buildings.push({x:bx,y:by,w,h,hp:170,maxHp:170,dead:false,
+      color:`hsl(${rnd(200,230)},${rnd(5,18)}%,${rnd(42,62)}%)`,chips:[],cracks:[],rubble:[]});
+   }
+  }
+ }
+ for(let i=0;i<10;i++){
+  let nx=ox+rnd(40,CHUNK-40), ny=oy+rnd(40,CHUNK-40);
+  if(Math.hypot(nx-tank.x,ny-tank.y)>240)npcs.push({x:nx,y:ny,vx:0,vy:0,hp:12,dead:false,helped:false});
+ }
+ for(let i=0;i<5;i++){
+  let cx2=ox+rnd(40,CHUNK-40), cy2=oy+rnd(40,CHUNK-40);
+  if(Math.hypot(cx2-tank.x,cy2-tank.y)>240)cars.push({x:cx2,y:cy2,a:rnd(0,6.28),hp:42,w:30,h:18,panic:0,dead:false,color:Math.random()<.5?"#3aa0ff":"#ffcf33"});
+ }
+}
+function ensureInfiniteCity(force=false){
+ if(!infiniteCityEnabled)return;
+ const tcx=Math.floor(tank.x/CHUNK), tcy=Math.floor(tank.y/CHUNK);
+ for(let dx=-2;dx<=2;dx++)for(let dy=-2;dy<=2;dy++)generateChunk(tcx+dx,tcy+dy);
+ // Soft cleanup far away active objects so infinite city does not lag forever.
+ if(force)return;
+ const far=CHUNK*3.2;
+ buildings=buildings.filter(b=>!b.dead || Math.hypot((b.x+b.w/2)-tank.x,(b.y+b.h/2)-tank.y)<far);
+ npcs=npcs.filter(n=>Math.hypot(n.x-tank.x,n.y-tank.y)<far && (!n.dead || Math.random()<0.98));
+ cars=cars.filter(car=>Math.hypot(car.x-tank.x,car.y-tank.y)<far && !car.dead);
+}
+
+function resetRunStats(){
+ const savedHigh = tank.highScore || 0;
+ const selectedTank = tank.type || "original";
+ tank.x=520; tank.y=520; tank.a=0;
+ tank.money=0; tank.xp=0; tank.rep=0; tank.wanted=0; tank.score=0;
+ tank.cool=0; tank.mg=0;
+ tank.highScore=savedHigh;
+ applyTank(selectedTank);
+}
+
+function hardResetSave(){
+ localStorage.removeItem("TANK_CITY_GARAGE");
+ tank.highScore=0;
+ applyTank("original");
+ resetRunStats();
+ generateCity();
+ newMission();
+ save();
+ renderGarage();
+ updateUI();
+ msg("Full save reset: high score cleared. All tanks are still unlocked.");
+}
+
+generateCity();
+
+function newMission(){
+ missions=[];
+ let alive=npcs.filter(n=>!n.dead&&!n.helped);
+ if(Math.random()<0.55 && alive.length){
+   let n=alive[Math.floor(Math.random()*alive.length)];
+   missions.push({type:"help",npc:n,x:n.x,y:n.y});
+   msg("Help a stranded citizen: drive near them and press E.");
+ }else{
+   let aliveB=buildings.filter(b=>!b.dead);
+   let b=aliveB[Math.floor(Math.random()*aliveB.length)];
+   missions.push({type:"destroy",target:b});
+   msg("Destroy marked criminal hideout.");
+ }
+}
+newMission();
+
+onkeydown=e=>{
+ let k=e.key.toLowerCase();
+ keys[k]=1;
+ if(k==="f")switchWeapon();
+ if(k==="e")helpAction();
+ if(k==="m")openMenu();
+};
+onkeyup=e=>keys[e.key.toLowerCase()]=0;
+c.onmousemove=e=>tank.a=Math.atan2(e.clientY-c.height/2,e.clientX-c.width/2);
+c.onclick=()=>{if(gameStarted)fire()};
+
+function addXP(v){tank.xp+=v;save();renderGarage()}
+function switchWeapon(){
+ let ws=tankDefs[tank.type].weapons;
+ let i=ws.indexOf(tank.weapon);
+ tank.weapon=ws[(i+1)%ws.length];
+ msg("Weapon switched to "+weaponLabel(tank.weapon));
+}
+function weaponLabel(w){return {
+ cannon:"Cannon",
+ mg:"Super-fast MG",
+ heavy:"Heavy Cannon",
+ dual:"Dual Cannons",
+ flame:"Flamethrower",
+ rapid:"Rapid Cannon",
+ pierce:"Armor Piercer",
+ burst:"Burst Cannon",
+ sabot:"Sabot Cannon",
+ superheavy:"Super Heavy Shell",
+ rocket:"Rocket Pod",
+ mine:"Mine Layer",
+ railgun:"Railgun",
+ autocannon:"Autocannon",
+ mortar:"Mortar",
+ shotgun:"Canister Shot",
+ laser:"Laser Beam",
+ emp:"EMP Blast",
+ drone:"Attack Drone",
+ nuke:"Mini Nuke",
+ skull:"Homing Skulls",
+ saw:"Saw Blades",
+ tripleburst:"Maximus Triple Burst",
+ laserbarrage:"Maximus Laser Barrage",
+ doomnuke:"Doomsday Nuke",
+ hellflame:"Doomsday Flamethrower",
+ voidorb:"Void Orb",
+ blackhole:"Black Hole Blast",
+ meteorstorm:"Meteor Storm",
+ lavawave:"Lava Wave",
+ chainlightning:"Chain Lightning",
+ empstorm:"EMP Storm",
+ megasaw:"Mega Saw",
+ shredderstorm:"Shredder Storm",
+ heavenbeam:"Heaven Beam",
+ holyburst:"Holy Burst",
+ timestop:"Time Stop",
+ rewindblast:"Rewind Blast",
+ acidspit:"Acid Spit",
+ toxiccloud:"Toxic Cloud",
+ spiderdrones:"Spider Drones",
+ webmissile:"Web Missile",
+ starcannon:"Star Cannon",
+ singularity:"Singularity",
+ firestorm:"Firestorm Barrage",
+ chainsawburst:"Chainsaw Burst",
+ icebeam:"Ice Beam",
+ shardburst:"Shard Burst",
+ orbitalstrike:"Orbital Strike",
+ railburst:"Railgun Burst",
+ burrowmissile:"Burrow Missile",
+ quake:"Quake Wave",
+ bonecannon:"Bone Cannon",
+ skullstorm:"Skull Storm",
+ magnetpull:"Magnet Pull",
+ metalstorm:"Metal Storm",
+ stompwave:"Stomp Wave",
+ atomicbreath:"Atomic Breath",
+ glitchshot:"Glitch Shot",
+ lagbomb:"Lag Bomb",
+}[w]||w}
+
+function chaosMult(){return Math.max(1,1+tank.wanted*0.25)}
+function addScore(base,label,px=tank.x,py=tank.y){
+ let gain=Math.floor(base*chaosMult());
+ tank.score+=gain;
+ if(tank.score>tank.highScore)tank.highScore=tank.score;
+ particles.push({x:px,y:py,vx:0,vy:-1.2,life:70,size:0,color:"#ffd84a",txt:"+"+gain+" "+label});
+ save();
+ updateUI();
+}
+function addWanted(v=1){tank.wanted+=v; if(tank.wanted>25)tank.wanted=25;}
+
+function helpAction(){
+ let candidates=npcs.filter(n=>!n.dead&&!n.helped&&Math.hypot(n.x-tank.x,n.y-tank.y)<55);
+ if(candidates.length){
+  let n=candidates[0]; n.helped=true;
+  tank.rep+=4;tank.money+=180;addXP(35);addScore(60,"HELP",n.x,n.y);
+  particles.push({x:n.x,y:n.y,vx:0,vy:-1,life:55,size:0,color:"#7cff7c",txt:"+HELP"});
+  msg("Civilian helped! +rep, +money, +XP");
+  if(missions.some(m=>m.type==="help"&&m.npc===n))newMission();
+ }else msg("No civilian close enough to help.");
+}
+function fire(){
+ if(tank.weapon==="cannon")fireShell(1,13,48,30);
+ else if(tank.weapon==="heavy")fireShell(1.45,10,80,55);
+ else if(tank.weapon==="dual"){fireShell(.85,12,42,20,-0.13);fireShell(.85,12,42,20,0.13)}
+ else if(tank.weapon==="rapid")fireShell(.75,15,34,15);
+ else if(tank.weapon==="pierce")firePierce();
+ else if(tank.weapon==="burst")fireBurst();
+ else if(tank.weapon==="sabot")fireShell(1.25,22,70,18);
+ else if(tank.weapon==="superheavy")fireShell(2.4,7,160,95);
+ else if(tank.weapon==="rocket")fireRocketPod();
+ else if(tank.weapon==="mine")dropMine();
+ else if(tank.weapon==="railgun")fireRailgun();
+ else if(tank.weapon==="autocannon")fireAutoCannon();
+ else if(tank.weapon==="mortar")fireMortar();
+ else if(tank.weapon==="shotgun")fireCanister();
+ else if(tank.weapon==="laser")fireLaser();
+ else if(tank.weapon==="emp")fireEMP();
+ else if(tank.weapon==="drone")launchDrone();
+ else if(tank.weapon==="nuke")fireMiniNuke();
+ else if(tank.weapon==="skull")fireHomingSkulls();
+ else if(tank.weapon==="saw")fireSawBlades();
+ else if(tank.weapon==="tripleburst")fireMaximusTripleBurst();
+ else if(tank.weapon==="laserbarrage")fireMaximusLaserBarrage();
+ else if(tank.weapon==="doomnuke")fireDoomsdayNuke();
+ else if(tank.weapon==="hellflame")fireHellFlame();
+ else if(tank.weapon==="voidorb")fireVoidOrb();
+ else if(tank.weapon==="blackhole")fireBlackHoleBlast();
+ else if(tank.weapon==="meteorstorm")fireMeteorStorm();
+ else if(tank.weapon==="lavawave")fireLavaWave();
+ else if(tank.weapon==="chainlightning")fireChainLightning();
+ else if(tank.weapon==="empstorm")fireEMPStorm();
+ else if(tank.weapon==="megasaw")fireMegaSaw();
+ else if(tank.weapon==="shredderstorm")fireShredderStorm();
+ else if(tank.weapon==="heavenbeam")fireHeavenBeam();
+ else if(tank.weapon==="holyburst")fireHolyBurst();
+ else if(tank.weapon==="timestop")fireTimeStop();
+ else if(tank.weapon==="rewindblast")fireRewindBlast();
+ else if(tank.weapon==="acidspit")fireAcidSpit();
+ else if(tank.weapon==="toxiccloud")fireToxicCloud();
+ else if(tank.weapon==="spiderdrones")fireSpiderDrones();
+ else if(tank.weapon==="webmissile")fireWebMissile();
+ else if(tank.weapon==="starcannon")fireStarCannon();
+ else if(tank.weapon==="singularity")fireSingularity();
+ else if(tank.weapon==="firestorm")fireFirestorm();
+ else if(tank.weapon==="chainsawburst")fireChainsawBurst();
+ else if(tank.weapon==="icebeam")fireIceBeam();
+ else if(tank.weapon==="shardburst")fireShardBurst();
+ else if(tank.weapon==="orbitalstrike")fireOrbitalStrike();
+ else if(tank.weapon==="railburst")fireRailBurst();
+ else if(tank.weapon==="burrowmissile")fireBurrowMissile();
+ else if(tank.weapon==="quake")fireQuake();
+ else if(tank.weapon==="bonecannon")fireBoneCannon();
+ else if(tank.weapon==="skullstorm")fireSkullStorm();
+ else if(tank.weapon==="magnetpull")fireMagnetPull();
+ else if(tank.weapon==="metalstorm")fireMetalStorm();
+ else if(tank.weapon==="stompwave")fireStompWave();
+ else if(tank.weapon==="atomicbreath")fireAtomicBreath();
+ else if(tank.weapon==="glitchshot")fireGlitchShot();
+ else if(tank.weapon==="lagbomb")fireLagBomb();
+ else if(tank.weapon==="mg")fireMG();
+ else if(tank.weapon==="flame")fireFlame();
+}
+function fireShell(power,speed,damage,cool,off=0){
+ if(tank.cool>0)return;
+ if(off===0)tank.cool=cool;
+ let a=tank.a+off;
+ shells.push({x:tank.x+Math.cos(a)*36,y:tank.y+Math.sin(a)*36,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,life:100,damage,power});
+ muzzle(tank.x+Math.cos(a)*35,tank.y+Math.sin(a)*35,a,power);
+}
+function firePierce(){
+ if(tank.cool>0)return;
+ tank.cool=24;
+ let a=tank.a;
+ shells.push({x:tank.x+Math.cos(a)*38,y:tank.y+Math.sin(a)*38,vx:Math.cos(a)*18,vy:Math.sin(a)*18,life:120,damage:62,power:.55,pierce:3});
+ muzzle(tank.x+Math.cos(a)*36,tank.y+Math.sin(a)*36,a,.65);
+}
+function fireBurst(){
+ if(tank.cool>0)return;
+ tank.cool=38;
+ for(let i=0;i<3;i++){
+  setTimeout(()=>{
+   let a=tank.a+rnd(-.035,.035);
+   shells.push({x:tank.x+Math.cos(a)*36,y:tank.y+Math.sin(a)*36,vx:Math.cos(a)*14,vy:Math.sin(a)*14,life:85,damage:30,power:.45});
+   muzzle(tank.x+Math.cos(a)*35,tank.y+Math.sin(a)*35,a,.45);
+  },i*90);
+ }
+}
+
+function fireRocketPod(){
+ if(tank.cool>0)return;
+ tank.cool=65;
+ for(let i=0;i<6;i++){
+  setTimeout(()=>{
+   let a=tank.a+rnd(-.22,.22);
+   shells.push({x:tank.x+Math.cos(a)*34,y:tank.y+Math.sin(a)*34,vx:Math.cos(a)*rnd(9,12),vy:Math.sin(a)*rnd(9,12),life:90,damage:38,power:.75});
+   muzzle(tank.x+Math.cos(a)*35,tank.y+Math.sin(a)*35,a,.35);
+  },i*70);
+ }
+}
+function dropMine(){
+ if(tank.cool>0)return;
+ tank.cool=35;
+ mines.push({x:tank.x-Math.cos(tank.a)*32,y:tank.y-Math.sin(tank.a)*32,life:900,r:18});
+ msg("Mine dropped.");
+}
+function fireRailgun(){
+ if(tank.cool>0)return;
+ tank.cool=70;
+ let a=tank.a, sx=tank.x+Math.cos(a)*36, sy=tank.y+Math.sin(a)*36;
+ beams.push({x:sx,y:sy,a,life:8,len:900,color:"#9dffff"});
+ muzzle(sx,sy,a,.8);
+ // line damage
+ for(let bl of buildings){
+  if(bl.dead)continue;
+  let cx=bl.x+bl.w/2, cy=bl.y+bl.h/2;
+  let along=(cx-sx)*Math.cos(a)+(cy-sy)*Math.sin(a);
+  let side=Math.abs(-(cx-sx)*Math.sin(a)+(cy-sy)*Math.cos(a));
+  if(along>0&&along<900&&side<Math.max(bl.w,bl.h)/2){chipBuilding(bl,cx,cy,120,a);}
+ }
+ for(let p of police){if(!p.dead&&lineHit(sx,sy,a,p.x,p.y,900,20)){p.hp-=120;if(p.hp<=0)destroyPolice(p)}}
+ for(let car of cars){if(!car.dead&&lineHit(sx,sy,a,car.x,car.y,900,18)){car.hp-=120;if(car.hp<=0)destroyCar(car)}}
+ for(let n of npcs){if(!n.dead&&lineHit(sx,sy,a,n.x,n.y,900,12)){n.hp-=120;if(n.hp<=0){n.dead=true;tank.rep-=2;addWanted(1);addScore(250,"CIVILIAN",n.x,n.y)}}}
+}
+function lineHit(sx,sy,a,px,py,len,width){
+ let along=(px-sx)*Math.cos(a)+(py-sy)*Math.sin(a);
+ let side=Math.abs(-(px-sx)*Math.sin(a)+(py-sy)*Math.cos(a));
+ return along>0&&along<len&&side<width;
+}
+function fireAutoCannon(){
+ if(tank.mg>0)return;
+ tank.mg=3;
+ let a=tank.a+rnd(-.05,.05);
+ bullets.push({x:tank.x+Math.cos(a)*34,y:tank.y+Math.sin(a)*34,vx:Math.cos(a)*24,vy:Math.sin(a)*24,life:75,damage:12});
+ muzzle(tank.x+Math.cos(a)*32,tank.y+Math.sin(a)*32,a,.32);
+}
+function fireMortar(){
+ if(tank.cool>0)return;
+ tank.cool=80;
+ let a=tank.a, targetX=tank.x+Math.cos(a)*430, targetY=tank.y+Math.sin(a)*430;
+ shells.push({x:tank.x,y:tank.y,vx:Math.cos(a)*4,vy:Math.sin(a)*4,life:55,damage:95,power:1.35,mortar:true,targetX,targetY});
+ msg("Mortar fired.");
+}
+function fireCanister(){
+ if(tank.cool>0)return;
+ tank.cool=28;
+ for(let i=0;i<16;i++){
+  let a=tank.a+rnd(-.32,.32);
+  bullets.push({x:tank.x+Math.cos(a)*32,y:tank.y+Math.sin(a)*32,vx:Math.cos(a)*rnd(15,22),vy:Math.sin(a)*rnd(15,22),life:35,damage:9});
+ }
+ muzzle(tank.x+Math.cos(tank.a)*32,tank.y+Math.sin(tank.a)*32,tank.a,.9);
+}
+function fireLaser(){
+ if(tank.cool>0)return;
+ tank.cool=12;
+ let a=tank.a, sx=tank.x+Math.cos(a)*35, sy=tank.y+Math.sin(a)*35;
+ beams.push({x:sx,y:sy,a,life:5,len:520,color:"#ff55ff"});
+ for(let bl of buildings){
+  if(bl.dead)continue;
+  let cx=bl.x+bl.w/2, cy=bl.y+bl.h/2;
+  if(lineHit(sx,sy,a,cx,cy,520,Math.max(bl.w,bl.h)/2))chipBuilding(bl,cx,cy,18,a);
+ }
+ for(let p of police){if(!p.dead&&lineHit(sx,sy,a,p.x,p.y,520,18)){p.hp-=18;if(p.hp<=0)destroyPolice(p)}}
+ for(let car of cars){if(!car.dead&&lineHit(sx,sy,a,car.x,car.y,520,16)){car.hp-=18;if(car.hp<=0)destroyCar(car)}}
+}
+function fireEMP(){
+ if(tank.cool>0)return;
+ tank.cool=90;
+ shockwaves.push({x:tank.x,y:tank.y,r:10,max:210,life:35,color:"#66aaff"});
+ for(let p of police){if(!p.dead&&Math.hypot(p.x-tank.x,p.y-tank.y)<210){p.hp-=35;p.cool=180;if(p.hp<=0)destroyPolice(p)}}
+ for(let car of cars){if(!car.dead&&Math.hypot(car.x-tank.x,car.y-tank.y)<210){car.panic=0;car.a+=Math.PI}}
+ msg("EMP blast disabled nearby vehicles.");
+}
+function launchDrone(){
+ if(tank.cool>0)return;
+ tank.cool=120;
+ drones.push({x:tank.x,y:tank.y,life:520,cool:0});
+ msg("Attack drone launched.");
+}
+function fireMiniNuke(){
+ if(tank.cool>0)return;
+ tank.cool=180;
+ let a=tank.a;
+ shells.push({x:tank.x+Math.cos(a)*38,y:tank.y+Math.sin(a)*38,vx:Math.cos(a)*6,vy:Math.sin(a)*6,life:120,damage:300,power:3.2});
+ msg("Mini nuke launched.");
+}
+function fireMG(){
+ if(tank.mg>0)return;
+ tank.mg=1.6;
+ let a=tank.a+rnd(-0.1,0.1);
+ bullets.push({x:tank.x+Math.cos(a)*34,y:tank.y+Math.sin(a)*34,vx:Math.cos(a)*20,vy:Math.sin(a)*20,life:55,damage:4});
+ muzzle(tank.x+Math.cos(a)*32,tank.y+Math.sin(a)*32,a,.28);
+}
+function fireFlame(){
+ if(tank.mg>0)return;
+ tank.mg=2;
+ for(let i=0;i<5;i++){
+  let a=tank.a+rnd(-.25,.25);
+  flames.push({x:tank.x+Math.cos(a)*30,y:tank.y+Math.sin(a)*30,vx:Math.cos(a)*rnd(5,8),vy:Math.sin(a)*rnd(5,8),life:25,damage:2});
+ }
+}
+
+function nearestChaosTarget(px,py){
+ let targets=[];
+ for(let p of police)if(!p.dead)targets.push(p);
+ for(let car of cars)if(!car.dead)targets.push(car);
+ for(let n of npcs)if(!n.dead&&!n.helped)targets.push(n);
+ for(let b of buildings)if(!b.dead)targets.push({x:b.x+b.w/2,y:b.y+b.h/2,building:b});
+ if(!targets.length)return null;
+ targets.sort((a,b)=>Math.hypot(a.x-px,a.y-py)-Math.hypot(b.x-px,b.y-py));
+ return targets[0];
+}
+function fireHomingSkulls(){
+ if(tank.cool>0)return;
+ tank.cool=36;
+ for(let i=0;i<3;i++){
+  let a=tank.a+rnd(-.35,.35);
+  shells.push({x:tank.x+Math.cos(a)*38,y:tank.y+Math.sin(a)*38,vx:Math.cos(a)*9,vy:Math.sin(a)*9,life:150,damage:68,power:.9,homing:true,skull:true,turn:.11});
+ }
+ muzzle(tank.x+Math.cos(tank.a)*35,tank.y+Math.sin(tank.a)*35,tank.a,1.1);
+ msg("Homing skulls released.");
+}
+function fireSawBlades(){
+ if(tank.cool>0)return;
+ tank.cool=28;
+ for(let i=-1;i<=1;i++){
+  let a=tank.a+i*.18;
+  blades.push({x:tank.x+Math.cos(a)*38,y:tank.y+Math.sin(a)*38,vx:Math.cos(a)*15,vy:Math.sin(a)*15,life:140,damage:34,r:13,spin:0,pierce:12});
+ }
+ muzzle(tank.x+Math.cos(tank.a)*35,tank.y+Math.sin(tank.a)*35,tank.a,.9);
+}
+function fireMaximusTripleBurst(){
+ if(tank.cool>0)return;
+ tank.cool=42;
+ for(let i=0;i<3;i++){
+  setTimeout(()=>{
+   for(let j=-1;j<=1;j++){
+    let a=tank.a+j*.08+rnd(-.025,.025);
+    shells.push({x:tank.x+Math.cos(a)*42,y:tank.y+Math.sin(a)*42,vx:Math.cos(a)*17,vy:Math.sin(a)*17,life:95,damage:48,power:.65});
+   }
+   muzzle(tank.x+Math.cos(tank.a)*38,tank.y+Math.sin(tank.a)*38,tank.a,.65);
+  },i*120);
+ }
+ msg("Maximus triple burst!");
+}
+function fireMaximusLaserBarrage(){
+ if(tank.cool>0)return;
+ tank.cool=72;
+ for(let i=-2;i<=2;i++){
+  let a=tank.a+i*.13;
+  let sx=tank.x+Math.cos(a)*38, sy=tank.y+Math.sin(a)*38;
+  beams.push({x:sx,y:sy,a,life:12,len:720,color:"#ffe66d"});
+  for(let bl of buildings){if(bl.dead)continue;let cx=bl.x+bl.w/2,cy=bl.y+bl.h/2;if(lineHit(sx,sy,a,cx,cy,720,Math.max(bl.w,bl.h)/2))chipBuilding(bl,cx,cy,42,a)}
+  for(let p of police){if(!p.dead&&lineHit(sx,sy,a,p.x,p.y,720,18)){p.hp-=75;if(p.hp<=0)destroyPolice(p)}}
+  for(let car of cars){if(!car.dead&&lineHit(sx,sy,a,car.x,car.y,720,16)){car.hp-=75;if(car.hp<=0)destroyCar(car)}}
+  for(let n of npcs){if(!n.dead&&lineHit(sx,sy,a,n.x,n.y,720,11)){n.hp-=75;if(n.hp<=0){n.dead=true;tank.rep-=2;addWanted(1);addScore(250,"CIVILIAN",n.x,n.y)}}}
+ }
+ muzzle(tank.x+Math.cos(tank.a)*38,tank.y+Math.sin(tank.a)*38,tank.a,1.2);
+ msg("LASER BARRAGE!");
+}
+function fireDoomsdayNuke(){
+ if(tank.cool>0)return;
+ tank.cool=260;
+ let a=tank.a;
+ shells.push({x:tank.x+Math.cos(a)*42,y:tank.y+Math.sin(a)*42,vx:Math.cos(a)*5.2,vy:Math.sin(a)*5.2,life:145,damage:650,power:5.2,doom:true});
+ muzzle(tank.x+Math.cos(a)*40,tank.y+Math.sin(a)*40,a,2.8);
+ msg("DOOMSDAY NUKE LAUNCHED.");
+}
+function fireHellFlame(){
+ if(tank.mg>0)return;
+ tank.mg=1.2;
+ for(let i=0;i<12;i++){
+  let a=tank.a+rnd(-.35,.35);
+  flames.push({x:tank.x+Math.cos(a)*40,y:tank.y+Math.sin(a)*40,vx:Math.cos(a)*rnd(7,11),vy:Math.sin(a)*rnd(7,11),life:38,damage:6,hell:true});
+ }
+ if(Math.random()<.25)muzzle(tank.x+Math.cos(tank.a)*35,tank.y+Math.sin(tank.a)*35,tank.a,.75);
+}
+
+
+function fireVoidOrb(){
+ if(tank.cool>0)return; tank.cool=24;
+ let a=tank.a;
+ shells.push({x:tank.x+Math.cos(a)*42,y:tank.y+Math.sin(a)*42,vx:Math.cos(a)*11,vy:Math.sin(a)*11,life:120,damage:95,power:1.25,homing:true,turn:.06,skull:true});
+ muzzle(tank.x+Math.cos(a)*35,tank.y+Math.sin(a)*35,a,1.2); msg("Void orb launched.");
+}
+function fireBlackHoleBlast(){
+ if(tank.cool>0)return; tank.cool=95;
+ let a=tank.a, px=tank.x+Math.cos(a)*250, py=tank.y+Math.sin(a)*250;
+ shockwaves.push({x:px,y:py,r:20,max:260,life:45,color:"#aa55ff"});
+ for(let i=0;i<5;i++) setTimeout(()=>explosion(px+rnd(-60,60),py+rnd(-60,60),1.2),i*100);
+ for(let b of buildings) if(!b.dead&&Math.hypot(b.x+b.w/2-px,b.y+b.h/2-py)<300) chipBuilding(b,b.x+b.w/2,b.y+b.h/2,210,a);
+ damageRadius(px,py,300,130); addWanted(2); msg("BLACK HOLE BLAST.");
+}
+function fireMeteorStorm(){
+ if(tank.cool>0)return; tank.cool=125;
+ let a=tank.a, tx=tank.x+Math.cos(a)*430, ty=tank.y+Math.sin(a)*430;
+ for(let i=0;i<10;i++) setTimeout(()=>{let px=tx+rnd(-230,230),py=ty+rnd(-230,230); explosion(px,py,rnd(.9,1.8));},i*120);
+ msg("Meteor storm incoming!");
+}
+function fireLavaWave(){
+ if(tank.cool>0)return; tank.cool=55;
+ for(let i=0;i<18;i++){
+  let a=tank.a+rnd(-.25,.25), sp=rnd(7,13);
+  flames.push({x:tank.x+Math.cos(a)*45,y:tank.y+Math.sin(a)*45,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:55,damage:8,hell:true});
+ }
+ muzzle(tank.x+Math.cos(tank.a)*35,tank.y+Math.sin(tank.a)*35,tank.a,1.5);
+}
+function fireChainLightning(){
+ if(tank.cool>0)return; tank.cool=28;
+ let a=tank.a, sx=tank.x+Math.cos(a)*35, sy=tank.y+Math.sin(a)*35;
+ let targets=[];
+ for(let p of police) if(!p.dead&&lineHit(sx,sy,a,p.x,p.y,650,40)) targets.push(p);
+ for(let car of cars) if(!car.dead&&lineHit(sx,sy,a,car.x,car.y,650,40)) targets.push(car);
+ for(let n of npcs) if(!n.dead&&lineHit(sx,sy,a,n.x,n.y,650,28)) targets.push(n);
+ beams.push({x:sx,y:sy,a,life:8,len:650,color:"#55ddff"});
+ for(let t of targets.slice(0,9)){ t.hp-=80; shockwaves.push({x:t.x,y:t.y,r:5,max:45,life:14,color:"#55ddff"}); if(t.hp<=0){ if(police.includes(t))destroyPolice(t); else if(cars.includes(t))destroyCar(t); else {t.dead=true;addWanted(1);addScore(250,"ZAP",t.x,t.y);} } }
+}
+function fireEMPStorm(){
+ if(tank.cool>0)return; tank.cool=100;
+ shockwaves.push({x:tank.x,y:tank.y,r:20,max:360,life:45,color:"#66ccff"});
+ for(let p of police){if(!p.dead&&Math.hypot(p.x-tank.x,p.y-tank.y)<360){p.hp-=120;p.cool=260;if(p.hp<=0)destroyPolice(p)}}
+ for(let car of cars){if(!car.dead&&Math.hypot(car.x-tank.x,car.y-tank.y)<360){car.hp-=80;car.panic=0;if(car.hp<=0)destroyCar(car)}}
+ msg("EMP storm!");
+}
+function fireMegaSaw(){
+ if(tank.cool>0)return; tank.cool=38;
+ let a=tank.a;
+ blades.push({x:tank.x+Math.cos(a)*45,y:tank.y+Math.sin(a)*45,vx:Math.cos(a)*18,vy:Math.sin(a)*18,life:190,damage:90,r:22,spin:0,pierce:30});
+ muzzle(tank.x+Math.cos(a)*35,tank.y+Math.sin(a)*35,a,1.2);
+}
+function fireShredderStorm(){
+ if(tank.cool>0)return; tank.cool=90;
+ for(let i=0;i<16;i++){let a=i*Math.PI*2/16;blades.push({x:tank.x,y:tank.y,vx:Math.cos(a)*11,vy:Math.sin(a)*11,life:110,damage:38,r:14,spin:0,pierce:9});}
+ msg("Shredder storm!");
+}
+function fireHeavenBeam(){
+ if(tank.cool>0)return; tank.cool=70;
+ let a=tank.a, sx=tank.x+Math.cos(a)*40, sy=tank.y+Math.sin(a)*40;
+ beams.push({x:sx,y:sy,a,life:18,len:1000,color:"#fff3a0"});
+ for(let bl of buildings){if(bl.dead)continue;let cx=bl.x+bl.w/2,cy=bl.y+bl.h/2;if(lineHit(sx,sy,a,cx,cy,1000,Math.max(bl.w,bl.h)/2))chipBuilding(bl,cx,cy,155,a)}
+ for(let p of police){if(!p.dead&&lineHit(sx,sy,a,p.x,p.y,1000,30)){p.hp-=180;if(p.hp<=0)destroyPolice(p)}}
+ for(let car of cars){if(!car.dead&&lineHit(sx,sy,a,car.x,car.y,1000,25)){car.hp-=180;if(car.hp<=0)destroyCar(car)}}
+ damageRadius(sx+Math.cos(a)*500,sy+Math.sin(a)*500,95,80);
+}
+function fireHolyBurst(){
+ if(tank.cool>0)return; tank.cool=80;
+ for(let i=0;i<8;i++){let a=i*Math.PI*2/8;beams.push({x:tank.x,y:tank.y,a,life:10,len:420,color:"#ffe680"});}
+ damageRadius(tank.x,tank.y,290,95); shockwaves.push({x:tank.x,y:tank.y,r:10,max:290,life:32,color:"#ffe680"});
+}
+function fireTimeStop(){
+ if(tank.cool>0)return; tank.cool=130;
+ for(let car of cars)if(!car.dead&&Math.hypot(car.x-tank.x,car.y-tank.y)<430){car.panic=0;car.a+=Math.PI;car.hp-=25;}
+ for(let p of police)if(!p.dead&&Math.hypot(p.x-tank.x,p.y-tank.y)<430){p.cool=320;p.hp-=55;if(p.hp<=0)destroyPolice(p)}
+ shockwaves.push({x:tank.x,y:tank.y,r:10,max:430,life:50,color:"#9df6ff"}); msg("TIME STOP.");
+}
+function fireRewindBlast(){
+ if(tank.cool>0)return; tank.cool=48;
+ let a=tank.a, px=tank.x+Math.cos(a)*260, py=tank.y+Math.sin(a)*260;
+ explosion(px,py,1.7); setTimeout(()=>explosion(px,py,1.4),220); setTimeout(()=>explosion(px,py,1.1),420);
+}
+function fireAcidSpit(){
+ if(tank.cool>0)return; tank.cool=18;
+ let a=tank.a+rnd(-.08,.08);
+ shells.push({x:tank.x+Math.cos(a)*38,y:tank.y+Math.sin(a)*38,vx:Math.cos(a)*13,vy:Math.sin(a)*13,life:95,damage:55,power:.8,skull:true});
+ muzzle(tank.x+Math.cos(a)*35,tank.y+Math.sin(a)*35,a,.55);
+}
+function fireToxicCloud(){
+ if(tank.cool>0)return; tank.cool=75;
+ let a=tank.a, px=tank.x+Math.cos(a)*220, py=tank.y+Math.sin(a)*220;
+ for(let i=0;i<12;i++){fires.push({x:px+rnd(-130,130),y:py+rnd(-130,130),life:260,size:rnd(18,38)});}
+ for(let b of buildings) if(!b.dead&&Math.hypot(b.x+b.w/2-px,b.y+b.h/2-py)<210) chipBuilding(b,b.x+b.w/2,b.y+b.h/2,115,a);
+ damageRadius(px,py,220,70); msg("Toxic cloud deployed.");
+}
+function fireSpiderDrones(){
+ if(tank.cool>0)return; tank.cool=95;
+ for(let i=0;i<4;i++)drones.push({x:tank.x+rnd(-30,30),y:tank.y+rnd(-30,30),life:750,cool:0});
+ msg("Spider drones released.");
+}
+function fireWebMissile(){
+ if(tank.cool>0)return; tank.cool=44;
+ let a=tank.a;
+ shells.push({x:tank.x+Math.cos(a)*42,y:tank.y+Math.sin(a)*42,vx:Math.cos(a)*10,vy:Math.sin(a)*10,life:135,damage:40,power:1.05,homing:true,turn:.09,skull:true});
+ setTimeout(()=>fireEMPStorm(),80);
+}
+function fireStarCannon(){
+ if(tank.cool>0)return; tank.cool=58;
+ let a=tank.a;
+ shells.push({x:tank.x+Math.cos(a)*45,y:tank.y+Math.sin(a)*45,vx:Math.cos(a)*20,vy:Math.sin(a)*20,life:120,damage:210,power:2.2,skull:true});
+ beams.push({x:tank.x,y:tank.y,a,life:7,len:850,color:"#b9c6ff"});
+}
+function fireSingularity(){
+ if(tank.cool>0)return; tank.cool=160;
+ let a=tank.a, px=tank.x+Math.cos(a)*360, py=tank.y+Math.sin(a)*360;
+ for(let i=0;i<8;i++)setTimeout(()=>{shockwaves.push({x:px,y:py,r:15,max:260,life:25,color:"#aa88ff"});damageRadius(px,py,260,75);},i*150);
+ for(let b of buildings)if(!b.dead&&Math.hypot(b.x+b.w/2-px,b.y+b.h/2-py)<320)chipBuilding(b,b.x+b.w/2,b.y+b.h/2,260,a);
+ msg("SINGULARITY OPENED.");
+}
+
+
+function fireFirestorm(){
+ if(tank.cool>0)return; tank.cool=95;
+ let a=tank.a, cx=tank.x+Math.cos(a)*360, cy=tank.y+Math.sin(a)*360;
+ for(let i=0;i<18;i++)setTimeout(()=>{let px=cx+rnd(-260,260),py=cy+rnd(-260,260);explosion(px,py,rnd(.6,1.25));fires.push({x:px,y:py,life:300,size:rnd(18,42)});},i*55);
+ msg("FIRESTORM BARRAGE!");
+}
+function fireChainsawBurst(){
+ if(tank.cool>0)return; tank.cool=42;
+ for(let i=-3;i<=3;i++){let a=tank.a+i*.11;blades.push({x:tank.x+Math.cos(a)*48,y:tank.y+Math.sin(a)*48,vx:Math.cos(a)*19,vy:Math.sin(a)*19,life:135,damage:58,r:16,spin:0,pierce:18});}
+ muzzle(tank.x+Math.cos(tank.a)*35,tank.y+Math.sin(tank.a)*35,tank.a,1.1);
+}
+function fireIceBeam(){
+ if(tank.cool>0)return; tank.cool=45;
+ let a=tank.a,sx=tank.x+Math.cos(a)*40,sy=tank.y+Math.sin(a)*40;
+ beams.push({x:sx,y:sy,a,life:14,len:780,color:"#aeefff"});
+ for(let bl of buildings){if(!bl.dead){let cx=bl.x+bl.w/2,cy=bl.y+bl.h/2;if(lineHit(sx,sy,a,cx,cy,780,Math.max(bl.w,bl.h)/2))chipBuilding(bl,cx,cy,70,a)}}
+ for(let p of police){if(!p.dead&&lineHit(sx,sy,a,p.x,p.y,780,28)){p.hp-=85;p.cool=220;if(p.hp<=0)destroyPolice(p)}}
+ for(let car of cars){if(!car.dead&&lineHit(sx,sy,a,car.x,car.y,780,26)){car.hp-=85;car.panic=0;if(car.hp<=0)destroyCar(car)}}
+}
+function fireShardBurst(){
+ if(tank.cool>0)return; tank.cool=30;
+ for(let i=0;i<24;i++){let a=tank.a+rnd(-.42,.42);bullets.push({x:tank.x+Math.cos(a)*38,y:tank.y+Math.sin(a)*38,vx:Math.cos(a)*rnd(14,24),vy:Math.sin(a)*rnd(14,24),life:44,damage:13});}
+ muzzle(tank.x+Math.cos(tank.a)*32,tank.y+Math.sin(tank.a)*32,tank.a,1);
+}
+function fireOrbitalStrike(){
+ if(tank.cool>0)return; tank.cool=110;
+ let a=tank.a,cx=tank.x+Math.cos(a)*420,cy=tank.y+Math.sin(a)*420;
+ for(let i=0;i<6;i++)setTimeout(()=>{let px=cx+rnd(-180,180),py=cy+rnd(-180,180);beams.push({x:px,y:py-800,a:Math.PI/2,life:18,len:900,color:"#ffffff"});explosion(px,py,1.9);},i*140);
+ msg("ORBITAL STRIKE LOCKED.");
+}
+function fireRailBurst(){
+ if(tank.cool>0)return; tank.cool=80;
+ for(let i=-1;i<=1;i++)setTimeout(()=>{let old=tank.cool;tank.cool=0;let saveA=tank.a;tank.a+=i*.06;fireRailgun();tank.a=saveA;tank.cool=old;},(i+1)*80);
+}
+function fireBurrowMissile(){
+ if(tank.cool>0)return; tank.cool=55;
+ let target=nearestTarget(tank.x,tank.y) || {x:tank.x+Math.cos(tank.a)*420,y:tank.y+Math.sin(tank.a)*420};
+ shockwaves.push({x:target.x,y:target.y,r:5,max:80,life:28,color:"#d9a64f"});
+ setTimeout(()=>explosion(target.x,target.y,1.8),420);
+ msg("Burrow missile underground...");
+}
+function fireQuake(){
+ if(tank.cool>0)return; tank.cool=90;
+ for(let i=1;i<=5;i++)setTimeout(()=>{shockwaves.push({x:tank.x,y:tank.y,r:20,max:110*i,life:26,color:"#d9a64f"});damageRadius(tank.x,tank.y,110*i,35);for(let b of buildings)if(!b.dead&&Math.hypot(b.x+b.w/2-tank.x,b.y+b.h/2-tank.y)<110*i)chipBuilding(b,b.x+b.w/2,b.y+b.h/2,35,tank.a);},i*120);
+}
+function fireBoneCannon(){
+ if(tank.cool>0)return; tank.cool=34;
+ let a=tank.a;
+ shells.push({x:tank.x+Math.cos(a)*42,y:tank.y+Math.sin(a)*42,vx:Math.cos(a)*16,vy:Math.sin(a)*16,life:115,damage:105,power:1.05,pierce:2,skull:true});
+ muzzle(tank.x+Math.cos(a)*35,tank.y+Math.sin(a)*35,a,.85);
+}
+function fireSkullStorm(){
+ if(tank.cool>0)return; tank.cool=100;
+ for(let i=0;i<12;i++)setTimeout(()=>{let a=rnd(0,Math.PI*2);shells.push({x:tank.x+Math.cos(a)*40,y:tank.y+Math.sin(a)*40,vx:Math.cos(a)*7,vy:Math.sin(a)*7,life:160,damage:55,power:.75,homing:true,skull:true,turn:.13});},i*55);
+ msg("SKULL STORM!");
+}
+function fireMagnetPull(){
+ if(tank.cool>0)return; tank.cool=105;
+ let a=tank.a,cx=tank.x+Math.cos(a)*280,cy=tank.y+Math.sin(a)*280;
+ shockwaves.push({x:cx,y:cy,r:20,max:300,life:55,color:"#8fa3ff"});
+ for(let car of cars)if(!car.dead&&Math.hypot(car.x-cx,car.y-cy)<430){car.x+=(cx-car.x)*.65;car.y+=(cy-car.y)*.65;car.hp-=55;if(car.hp<=0)destroyCar(car)}
+ for(let p of police)if(!p.dead&&Math.hypot(p.x-cx,p.y-cy)<430){p.x+=(cx-p.x)*.65;p.y+=(cy-p.y)*.65;p.hp-=70;if(p.hp<=0)destroyPolice(p)}
+ setTimeout(()=>explosion(cx,cy,1.6),250);
+}
+function fireMetalStorm(){
+ if(tank.cool>0)return; tank.cool=34;
+ for(let i=0;i<36;i++){let a=tank.a+rnd(-.7,.7);bullets.push({x:tank.x+Math.cos(a)*36,y:tank.y+Math.sin(a)*36,vx:Math.cos(a)*rnd(15,26),vy:Math.sin(a)*rnd(15,26),life:50,damage:10});}
+ muzzle(tank.x+Math.cos(tank.a)*35,tank.y+Math.sin(tank.a)*35,tank.a,1.2);
+}
+function fireStompWave(){
+ if(tank.cool>0)return; tank.cool=52;
+ shockwaves.push({x:tank.x,y:tank.y,r:20,max:250,life:24,color:"#7cff7c"});damageRadius(tank.x,tank.y,250,95);
+ for(let b of buildings)if(!b.dead&&Math.hypot(b.x+b.w/2-tank.x,b.y+b.h/2-tank.y)<280)chipBuilding(b,b.x+b.w/2,b.y+b.h/2,130,tank.a);
+}
+function fireAtomicBreath(){
+ if(tank.cool>0)return; tank.cool=28;
+ let a=tank.a,sx=tank.x+Math.cos(a)*50,sy=tank.y+Math.sin(a)*50;
+ beams.push({x:sx,y:sy,a,life:12,len:900,color:"#72ff8c"});
+ for(let bl of buildings){if(!bl.dead){let cx=bl.x+bl.w/2,cy=bl.y+bl.h/2;if(lineHit(sx,sy,a,cx,cy,900,Math.max(bl.w,bl.h)/2))chipBuilding(bl,cx,cy,48,a)}}
+ damageRadius(sx+Math.cos(a)*430,sy+Math.sin(a)*430,120,65);
+}
+function fireGlitchShot(){
+ if(tank.cool>0)return; tank.cool=18;
+ let t=nearestTarget(tank.x,tank.y);
+ if(t){particles.push({x:t.x,y:t.y,vx:0,vy:-1,life:45,size:0,color:"#00ffcc",txt:"GLITCH"});if(police.includes(t)){t.hp-=90;if(t.hp<=0)destroyPolice(t)}else if(cars.includes(t)){t.hp-=90;if(t.hp<=0)destroyCar(t)}else if(npcs.includes(t)){t.dead=true;addWanted(1);addScore(250,"GLITCH",t.x,t.y)}}
+ let a=tank.a;beams.push({x:tank.x,y:tank.y,a,life:5,len:300,color:"#00ffcc"});
+}
+function fireLagBomb(){
+ if(tank.cool>0)return; tank.cool=115;
+ shockwaves.push({x:tank.x,y:tank.y,r:20,max:480,life:70,color:"#00ffcc"});
+ for(let p of police)if(!p.dead&&Math.hypot(p.x-tank.x,p.y-tank.y)<480){p.cool=420;p.hp-=80;if(p.hp<=0)destroyPolice(p)}
+ for(let car of cars)if(!car.dead&&Math.hypot(car.x-tank.x,car.y-tank.y)<480){car.panic=0;car.a+=Math.PI;car.hp-=45;if(car.hp<=0)destroyCar(car)}
+ msg("LAG BOMB: cops frozen.");
+}
+
+function muzzle(px,py,a,scale){
+ for(let i=0;i<12*scale;i++)particles.push({x:px,y:py,vx:Math.cos(a+rnd(-.55,.55))*rnd(2,8)*scale,vy:Math.sin(a+rnd(-.55,.55))*rnd(2,8)*scale,life:rnd(8,20),size:rnd(2,7)*scale,color:Math.random()<.5?"#ffd35c":"#ff7a18"});
+ smoke.push({x:px,y:py,vx:Math.cos(a)*1.2,vy:Math.sin(a)*1.2,life:35,size:13*scale});
+}
+function explosion(px,py,power=1){shockwaves.push({x:px,y:py,r:6,max:75*power,life:22});for(let i=0;i<55*power;i++){let a=rnd(0,Math.PI*2),sp=rnd(1,9)*power;particles.push({x:px,y:py,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:rnd(18,55),size:rnd(2,9),color:Math.random()<.45?"#ffb02e":Math.random()<.7?"#ff4a1e":"#454545"})}for(let i=0;i<18*power;i++)smoke.push({x:px+rnd(-12,12),y:py+rnd(-12,12),vx:rnd(-1.8,1.8),vy:rnd(-1.8,1.8),life:rnd(60,130),size:rnd(18,42)*power});fires.push({x:px+rnd(-20,20),y:py+rnd(-20,20),life:220*power,size:18*power});damageRadius(px,py,58*power,42*power)}
+function damageRadius(px,py,r,dmg){for(let n of npcs)if(!n.dead&&Math.hypot(n.x-px,n.y-py)<r){n.hp-=dmg;if(n.hp<=0){n.dead=true;tank.rep-=2;addWanted(1);addXP(5);addScore(250,"CIVILIAN",n.x,n.y)}}for(let car of cars)if(!car.dead&&Math.hypot(car.x-px,car.y-py)<r+18){car.hp-=dmg;if(car.hp<=0)destroyCar(car,false)}for(let p of police)if(!p.dead&&Math.hypot(p.x-px,p.y-py)<r+18){p.hp-=dmg;if(p.hp<=0)destroyPolice(p)}}
+function chipBuilding(b,px,py,damage,impactA){b.hp-=damage;let lx=px-b.x,ly=py-b.y;for(let i=0;i<6;i++)b.chips.push({x:lx+rnd(-14,14),y:ly+rnd(-14,14),r:rnd(4,14)});for(let i=0;i<3;i++)b.cracks.push({x:lx,y:ly,a:impactA+rnd(-1.4,1.4),len:rnd(18,55)*(1-b.hp/b.maxHp+.4)});for(let i=0;i<14;i++){let a=impactA+rnd(-1.2,1.2),sp=rnd(1,6);particles.push({x:px,y:py,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:rnd(25,55),size:rnd(2,5),color:"#9b9b9b"})}smoke.push({x:px,y:py,vx:rnd(-.6,.6),vy:rnd(-.6,.6),life:60,size:18});if(b.hp<=0&&!b.dead)collapseBuilding(b)}
+function collapseBuilding(b){b.dead=true;tank.money+=120;addWanted(1);addXP(20);addScore(500,"BUILDING",b.x+b.w/2,b.y+b.h/2);explosion(b.x+b.w/2,b.y+b.h/2,1.2);for(let i=0;i<45;i++)b.rubble.push({x:rnd(0,b.w),y:rnd(0,b.h),w:rnd(5,18),h:rnd(4,14),a:rnd(0,6.28),color:Math.random()<.5?"#555":"#777"});msg("Building collapsed!")}
+function destroyCar(car){car.dead=true;explosion(car.x,car.y,.75);addWanted(1);tank.rep-=1;tank.money+=20;addXP(8);addScore(140,"CAR",car.x,car.y)}
+function destroyPolice(p){p.dead=true;explosion(p.x,p.y,.7);tank.money+=150;addWanted(1);tank.rep-=3;addXP(45);addScore(350,"POLICE",p.x,p.y);msg("Police car destroyed. +score, +XP, wanted increased.")}
+function hitBuilding(px,py){for(let b of buildings)if(!b.dead&&pointRect(px,py,b))return b;return null}
+function tankRect(nx=tank.x,ny=tank.y){return {x:nx-21,y:ny-15,w:42,h:30}}
+function blocked(nx,ny){
+ // Only solid buildings block the tank now. Cars and police get pushed/damaged instead of freezing you.
+ let r=tankRect(nx,ny);
+ for(let b of buildings)if(!b.dead&&rects(r,b))return true;
+ return false;
+}
+function ramVehicles(){
+ for(let car of cars){
+  if(car.dead)continue;
+  let d=Math.hypot(car.x-tank.x,car.y-tank.y);
+  if(d<34){let a=Math.atan2(car.y-tank.y,car.x-tank.x);car.x+=Math.cos(a)*12;car.y+=Math.sin(a)*12;car.hp-=1.8+Math.max(0,tank.maxHp-100)/180;if(car.hp<=0)destroyCar(car);}
+ }
+ for(let p of police){
+  if(p.dead)continue;
+  let d=Math.hypot(p.x-tank.x,p.y-tank.y);
+  if(d<36){let a=Math.atan2(p.y-tank.y,p.x-tank.x);p.x+=Math.cos(a)*15;p.y+=Math.sin(a)*15;p.hp-=3.5+Math.max(0,tank.maxHp-100)/120;if(p.hp<=0)destroyPolice(p);}
+ }
+}
+function moveTank(){
+ let sp=tankDefs[tank.type].speed;
+ let nx=tank.x,ny=tank.y;
+ if(keys.w)ny-=sp;if(keys.s)ny+=sp;
+ if(!blocked(tank.x,ny))tank.y=ny;
+ nx=tank.x;if(keys.a)nx-=sp;if(keys.d)nx+=sp;
+ if(!blocked(nx,tank.y))tank.x=nx;
+ ramVehicles();
+}
+
+function upd(){
+ if(!gameStarted)return;
+ ensureInfiniteCity();
+ moveTank();
+ if(keys[" "]||keys["enter"])fire();
+ if(tank.cool>0)tank.cool--; if(tank.mg>0)tank.mg--;
+
+ for(let b of bullets){b.x+=b.vx;b.y+=b.vy;b.life--;let bl=hitBuilding(b.x,b.y);if(bl){chipBuilding(bl,b.x,b.y,b.damage,Math.atan2(b.vy,b.vx));b.dead=true;continue}
+  for(let n of npcs)if(!n.dead&&Math.hypot(n.x-b.x,n.y-b.y)<8){n.hp-=b.damage;b.dead=true;if(n.hp<=0){n.dead=true;tank.rep-=2;addWanted(1);addXP(5);addScore(250,"CIVILIAN",n.x,n.y)}break}
+  for(let car of cars)if(!car.dead&&Math.abs(car.x-b.x)<17&&Math.abs(car.y-b.y)<12){car.hp-=b.damage;b.dead=true;if(car.hp<=0)destroyCar(car);break}
+  for(let p of police)if(!p.dead&&Math.abs(p.x-b.x)<18&&Math.abs(p.y-b.y)<13){p.hp-=b.damage;b.dead=true;if(p.hp<=0)destroyPolice(p);break}}
+ bullets=bullets.filter(b=>!b.dead&&b.life>0);
+
+ for(let s of shells){
+  if(s.homing){
+   let target=nearestChaosTarget(s.x,s.y);
+   if(target){let want=Math.atan2(target.y-s.y,target.x-s.x), cur=Math.atan2(s.vy,s.vx);let diff=Math.atan2(Math.sin(want-cur),Math.cos(want-cur));cur+=Math.max(-s.turn,Math.min(s.turn,diff));let sp=Math.hypot(s.vx,s.vy)*1.01;s.vx=Math.cos(cur)*Math.min(13,sp);s.vy=Math.sin(cur)*Math.min(13,sp);}
+  }
+  s.x+=s.vx;s.y+=s.vy;s.life--; if(s.mortar&&s.life<10){explosion(s.targetX,s.targetY,s.power);s.dead=true;continue}let bl=hitBuilding(s.x,s.y);if(bl){
+   chipBuilding(bl,s.x,s.y,s.damage,Math.atan2(s.vy,s.vx));
+   explosion(s.x,s.y,s.power);
+   if(s.pierce){s.pierce--; if(s.pierce<=0)s.dead=true;} else s.dead=true;
+   if(s.dead)continue;
+  }
+  let hit=false;for(let n of npcs)if(!n.dead&&Math.hypot(n.x-s.x,n.y-s.y)<10){explosion(s.x,s.y,s.power);s.dead=true;hit=true;break}if(hit)continue;
+  for(let car of cars)if(!car.dead&&Math.abs(car.x-s.x)<18&&Math.abs(car.y-s.y)<13){explosion(s.x,s.y,s.power);s.dead=true;hit=true;break}if(hit)continue;
+  for(let p of police)if(!p.dead&&Math.abs(p.x-s.x)<19&&Math.abs(p.y-s.y)<14){explosion(s.x,s.y,s.power);s.dead=true;break}}
+ shells=shells.filter(s=>!s.dead&&s.life>0);
+
+ for(let f of flames){f.x+=f.vx;f.y+=f.vy;f.life--;fires.push({x:f.x,y:f.y,life:22,size:8});let bl=hitBuilding(f.x,f.y);if(bl)chipBuilding(bl,f.x,f.y,f.damage,0);for(let n of npcs)if(!n.dead&&Math.hypot(n.x-f.x,n.y-f.y)<13){n.hp-=f.damage;if(n.hp<=0){n.dead=true;addWanted(1);tank.rep-=2;addScore(250,"CIVILIAN",n.x,n.y)}}for(let p of police)if(!p.dead&&Math.hypot(p.x-f.x,p.y-f.y)<15){p.hp-=f.damage;if(p.hp<=0)destroyPolice(p)}}
+ flames=flames.filter(f=>f.life>0);
+ for(let bl of blades){
+  bl.x+=bl.vx;bl.y+=bl.vy;bl.life--;bl.spin+=.7;
+  let bld=hitBuilding(bl.x,bl.y);
+  if(bld){chipBuilding(bld,bl.x,bl.y,bl.damage,Math.atan2(bl.vy,bl.vx));bl.pierce--;bl.vx*=.94;bl.vy*=.94;}
+  for(let car of cars)if(!car.dead&&Math.abs(car.x-bl.x)<22&&Math.abs(car.y-bl.y)<18){car.hp-=bl.damage;if(car.hp<=0)destroyCar(car);bl.pierce--;}
+  for(let p of police)if(!p.dead&&Math.abs(p.x-bl.x)<24&&Math.abs(p.y-bl.y)<20){p.hp-=bl.damage;if(p.hp<=0)destroyPolice(p);bl.pierce--;}
+  for(let n of npcs)if(!n.dead&&Math.hypot(n.x-bl.x,n.y-bl.y)<16){n.hp-=bl.damage;if(n.hp<=0){n.dead=true;tank.rep-=2;addWanted(1);addScore(250,"CIVILIAN",n.x,n.y)}bl.pierce--;}
+  if(bl.pierce<=0)bl.dead=true;
+ }
+ blades=blades.filter(bl=>!bl.dead&&bl.life>0);
+ for(let m of mines){
+  m.life--;
+  let triggered=false;
+  for(let p of police)if(!p.dead&&Math.hypot(p.x-m.x,p.y-m.y)<34)triggered=true;
+  for(let car of cars)if(!car.dead&&Math.hypot(car.x-m.x,car.y-m.y)<30)triggered=true;
+  if(Math.hypot(tank.x-m.x,tank.y-m.y)<22)triggered=true;
+  if(triggered){explosion(m.x,m.y,1.15);m.dead=true}
+ }
+ mines=mines.filter(m=>!m.dead&&m.life>0);
+ for(let d of drones){
+  d.life--; let target=police.find(p=>!p.dead)||cars.find(c=>!c.dead);
+  if(target){
+   let a=Math.atan2(target.y-d.y,target.x-d.x);
+   d.x+=Math.cos(a)*3.4; d.y+=Math.sin(a)*3.4;
+   if(d.cool<=0&&Math.hypot(target.x-d.x,target.y-d.y)<260){
+    d.cool=20;
+    bullets.push({x:d.x,y:d.y,vx:Math.cos(a)*16,vy:Math.sin(a)*16,life:45,damage:7});
+   }
+  } else {d.x+=Math.cos(tank.a)*2; d.y+=Math.sin(tank.a)*2}
+  d.cool--;
+ }
+ drones=drones.filter(d=>d.life>0);
+ beams.forEach(b=>b.life--); beams=beams.filter(b=>b.life>0);
+
+
+ for(let car of cars){if(car.dead)continue;let oldx=car.x,oldy=car.y;car.x+=Math.cos(car.a)*(1.2+car.panic);car.y+=Math.sin(car.a)*(1.2+car.panic);let cr={x:car.x-15,y:car.y-9,w:30,h:18};if(buildings.some(b=>!b.dead&&rects(cr,b))){car.x=oldx;car.y=oldy;car.a+=Math.PI+rnd(-.5,.5)}if(Math.random()<0.02)car.a+=rnd(-.8,.8);if(Math.abs(car.x-tank.x)>2400||Math.abs(car.y-tank.y)>2400)car.dead=true;if(Math.hypot(car.x-tank.x,car.y-tank.y)<160){car.panic=2.6;car.a=Math.atan2(car.y-tank.y,car.x-tank.x)}car.panic*=.985}
+ if(npcs.filter(n=>!n.dead&&!n.helped).length<30){for(let i=0;i<8;i++)npcs.push({x:rnd(tank.x-900,tank.x+900),y:rnd(tank.y-900,tank.y+900),vx:0,vy:0,hp:12,dead:false,helped:false});}
+ for(let n of npcs){if(n.dead||n.helped)continue;let d=Math.hypot(n.x-tank.x,n.y-tank.y);if(d<200){let a=Math.atan2(n.y-tank.y,n.x-tank.x);n.vx+=Math.cos(a)*.08;n.vy+=Math.sin(a)*.08}let nx=n.x+n.vx,ny=n.y+n.vy;if(!hitBuilding(nx,ny)){n.x=nx;n.y=ny}n.vx*=.94;n.vy*=.94}
+ for(let m of missions){if(m.type==="destroy"&&m.target.dead){tank.rep+=3;tank.money+=400;addXP(65);addScore(750,"MISSION",m.target.x+m.target.w/2,m.target.y+m.target.h/2);msg("Criminal hideout destroyed! +score +XP");newMission()}}
+ if(tank.wanted>1&&police.filter(p=>!p.dead).length<Math.min(24,3+tank.wanted*2))police.push({x:tank.x+rnd(-850,850),y:tank.y+rnd(-850,850),a:0,hp:55+tank.wanted*8,w:34,h:20,dead:false,cool:0,elite:tank.wanted>=6});
+ for(let p of police){if(p.dead)continue;let oldx=p.x,oldy=p.y;p.a=Math.atan2(tank.y-p.y,tank.x-p.x);let copSpeed=2.35+Math.min(2.2,tank.wanted*.12);p.x+=Math.cos(p.a)*copSpeed;p.y+=Math.sin(p.a)*copSpeed;let pr={x:p.x-17,y:p.y-10,w:34,h:20};if(buildings.some(b=>!b.dead&&rects(pr,b))){p.x=oldx;p.y=oldy;p.a+=rnd(-1.5,1.5)}let d=Math.hypot(p.x-tank.x,p.y-tank.y);if(d<260&&p.cool<=0){p.cool=Math.max(18,55-tank.wanted*2);let a=Math.atan2(tank.y-p.y,tank.x-p.x);bullets.push({x:p.x,y:p.y,vx:Math.cos(a)*13,vy:Math.sin(a)*13,life:60,damage:p.elite?7:4,cop:true})}if(d<34){tank.hp-=.04+p.elite*.04;let away=Math.atan2(p.y-tank.y,p.x-tank.x);p.x+=Math.cos(away)*5;p.y+=Math.sin(away)*5;}p.cool--}
+ for(let b of bullets)if(b.cop&&Math.hypot(b.x-tank.x,b.y-tank.y)<19){tank.hp-=b.damage;b.dead=true}
+ updateFX();
+ if(tank.hp<=0){tank.hp=tank.maxHp;tank.x=520;tank.y=520;tank.money=Math.max(0,tank.money-300);tank.wanted=Math.max(0,Math.floor(tank.wanted*0.5));if(window.__versusPlayerDeath)window.__versusPlayerDeath();else msg("Your tank was disabled. Repairs cost $300 and wanted was cut in half. Score stays!")}
+ updateUI();
+}
+function updateFX(){for(let p of particles){p.x+=p.vx;p.y+=p.vy;p.vy+=.08;p.life--;p.vx*=.98;p.vy*=.98}particles=particles.filter(p=>p.life>0);for(let s of smoke){s.x+=s.vx;s.y+=s.vy;s.life--;s.size+=.18;s.vx*=.99;s.vy*=.99}smoke=smoke.filter(s=>s.life>0);for(let w of shockwaves){w.r+=w.max/18;w.life--}shockwaves=shockwaves.filter(w=>w.life>0);for(let f of fires){f.life--;if(Math.random()<.2)smoke.push({x:f.x+rnd(-5,5),y:f.y+rnd(-5,5),vx:rnd(-.4,.4),vy:rnd(-.8,-.1),life:70,size:rnd(10,24)})}fires=fires.filter(f=>f.life>0)}
+function updateUI(){document.getElementById("score").textContent=Math.floor(tank.score).toLocaleString();document.getElementById("highScore").textContent=Math.floor(tank.highScore).toLocaleString();document.getElementById("mult").textContent=chaosMult().toFixed(1);document.getElementById("money").textContent=tank.money;document.getElementById("xp").textContent=tank.xp;document.getElementById("rep").textContent=tank.rep;document.getElementById("hp").textContent=Math.floor(tank.hp)+"/"+tank.maxHp;document.getElementById("wanted").textContent=tank.wanted;let st=document.getElementById("stars");if(st)st.textContent="★".repeat(Math.min(5,Math.ceil(tank.wanted/3)));document.getElementById("weapon").textContent=weaponLabel(tank.weapon);document.getElementById("tankName").textContent=tankDefs[tank.type].name}
+
+function drawBuilding(b){if(b.dead){for(let r of b.rubble){x.save();x.translate(b.x+r.x-cam.x,b.y+r.y-cam.y);x.rotate(r.a);x.fillStyle=r.color;x.fillRect(-r.w/2,-r.h/2,r.w,r.h);x.restore()}return}let sx=b.x-cam.x,sy=b.y-cam.y;x.fillStyle=b.color;x.fillRect(sx,sy,b.w,b.h);x.fillStyle="#0003";for(let wx=10;wx<b.w-10;wx+=22)for(let wy=12;wy<b.h-10;wy+=24)x.fillRect(sx+wx,sy+wy,9,10);x.strokeStyle="#333";x.lineWidth=2;x.strokeRect(sx,sy,b.w,b.h);x.save();x.beginPath();x.rect(sx,sy,b.w,b.h);x.clip();for(let ch of b.chips){x.fillStyle="#222a";x.beginPath();x.arc(sx+ch.x,sy+ch.y,ch.r,0,7);x.fill()}x.strokeStyle="#111";x.lineWidth=2;for(let cr of b.cracks){x.beginPath();x.moveTo(sx+cr.x,sy+cr.y);let cx=sx+cr.x,cy=sy+cr.y;for(let i=1;i<=4;i++){cx+=Math.cos(cr.a+rnd(-.25,.25))*cr.len/4;cy+=Math.sin(cr.a+rnd(-.25,.25))*cr.len/4;x.lineTo(cx,cy)}x.stroke()}x.restore();let hp=b.hp/b.maxHp;if(hp<.95){x.fillStyle="#0008";x.fillRect(sx,sy-8,b.w,5);x.fillStyle=hp>.5?"#ffd34e":"#ff3d2e";x.fillRect(sx,sy-8,b.w*hp,5)}}
+function drawCar(car,isPolice=false){if(car.dead)return;x.save();x.translate(car.x-cam.x,car.y-cam.y);x.rotate(car.a);x.fillStyle=isPolice?"#244cff":car.color;x.fillRect(-17,-10,34,20);x.fillStyle=isPolice?"#fff":"#111";x.fillRect(-8,-8,7,4);x.fillRect(3,-8,7,4);if(isPolice){x.fillStyle="#f00";x.fillRect(-4,-13,4,4);x.fillStyle="#00f";x.fillRect(1,-13,4,4)}x.restore()}
+
+function drawTankModel(px,py,a,type){
+ const d=tankDefs[type]||tankDefs.original;
+ x.save();x.translate(px,py);x.rotate(a);
+ let col=d.color;
+ x.lineWidth=2;
+ function tread(len,w,off){x.fillStyle="#151515";x.fillRect(-len/2,off-w/2,len,w);x.fillStyle="#444";for(let i=-len/2+6;i<len/2;i+=10)x.fillRect(i,off-w/2+2,5,w-4)}
+ function body(w,h){x.fillStyle=col;x.fillRect(-w/2,-h/2,w,h);x.strokeStyle="#111";x.strokeRect(-w/2,-h/2,w,h)}
+ function turret(w,h){x.fillStyle=shade(col,-25);x.fillRect(-w/2,-h/2,w,h);x.strokeStyle="#111";x.strokeRect(-w/2,-h/2,w,h)}
+ function barrel(len,thick,y=0){x.fillStyle=shade(col,-40);x.fillRect(0,y-thick/2,len,thick);x.fillStyle="#111";x.fillRect(len-4,y-thick/2,5,thick)}
+ function poly(points,color=col){x.fillStyle=color;x.beginPath();x.moveTo(points[0][0],points[0][1]);for(let i=1;i<points.length;i++)x.lineTo(points[i][0],points[i][1]);x.closePath();x.fill();x.strokeStyle="#111";x.stroke()}
+ if(type==="mark1"){
+  tread(78,9,-24);tread(78,9,24);body(72,36);x.fillStyle=shade(col,15);x.fillRect(-20,-11,24,22);barrel(50,8,-7);barrel(50,8,7);
+ }else if(type==="tiger"){
+  tread(68,8,-23);tread(68,8,23);body(62,38);turret(28,28);barrel(62,11);x.fillStyle="#111";x.fillRect(-20,-12,8,24);
+ }else if(type==="sherman"){
+  tread(58,7,-20);tread(58,7,20);body(54,32);x.fillStyle=shade(col,20);x.beginPath();x.roundRect(-18,-14,34,28,8);x.fill();x.stroke();barrel(48,8);x.fillStyle="#111";x.fillRect(-23,-10,8,20);
+ }else if(type==="t34"){
+  tread(62,7,-21);tread(62,7,21);poly([[-31,-17],[25,-21],[34,0],[25,21],[-31,17]]);x.fillStyle=shade(col,18);x.beginPath();x.ellipse(0,0,18,14,0,0,7);x.fill();x.stroke();barrel(55,8);
+ }else if(type==="panzer"){
+  tread(60,7,-20);tread(60,7,20);body(56,34);turret(30,24);barrel(50,8);x.fillStyle="#222";x.fillRect(-25,-13,9,26);x.fillStyle="#777";x.fillRect(8,-12,7,7);
+ }else if(type==="abrams"){
+  tread(72,8,-24);tread(72,8,24);poly([[-36,-18],[28,-21],[40,0],[28,21],[-36,18]]);poly([[-8,-14],[25,-11],[30,0],[25,11],[-8,14]],shade(col,-15));barrel(72,7);x.fillStyle="#2b2b2b";x.fillRect(-30,-12,10,24);
+ }else if(type==="maus"){
+  tread(86,10,-28);tread(86,10,28);body(82,48);x.fillStyle=shade(col,-10);x.fillRect(-16,-18,40,36);x.strokeStyle="#111";x.strokeRect(-16,-18,40,36);barrel(75,14);x.fillStyle="#222";x.fillRect(-34,-18,12,36);
+ }else if(type==="bt7"){
+  tread(54,6,-18);tread(54,6,18);poly([[-28,-13],[25,-16],[31,0],[25,16],[-28,13]]);x.fillStyle=shade(col,20);x.beginPath();x.ellipse(5,0,14,11,0,0,7);x.fill();barrel(42,6);
+ }else if(type==="kv2"){
+  tread(70,9,-24);tread(70,9,24);body(64,40);x.fillStyle=shade(col,-10);x.fillRect(-10,-24,38,48);x.strokeStyle="#111";x.strokeRect(-10,-24,38,48);barrel(58,14);
+ }else if(type==="leopard"){
+  tread(72,7,-23);tread(72,7,23);poly([[-36,-17],[30,-20],[39,0],[30,20],[-36,17]]);poly([[-10,-13],[28,-10],[34,0],[28,10],[-10,13]],shade(col,-10));barrel(78,6);x.fillStyle="#222";x.fillRect(-28,-10,8,20);
+ }else if(type==="merkava"){
+  tread(76,8,-24);tread(76,8,24);poly([[-38,-18],[22,-22],[42,0],[22,22],[-38,18]]);x.fillStyle=shade(col,-15);x.fillRect(-2,-15,34,30);x.strokeRect(-2,-15,34,30);barrel(58,8);x.fillStyle="#333";x.fillRect(-32,-12,12,24);
+ }else if(type==="rhino"){
+  tread(80,10,-26);tread(80,10,26);body(76,44);x.fillStyle=shade(col,-20);x.fillRect(-5,-19,42,38);x.strokeRect(-5,-19,42,38);barrel(46,16);x.fillStyle="#202020";x.fillRect(-34,-16,14,32);
+ }else if(type==="plasma"){
+  tread(62,7,-20);tread(62,7,20);poly([[-30,-16],[22,-18],[35,0],[22,18],[-30,16]]);x.fillStyle="#8e5cff";x.beginPath();x.ellipse(4,0,18,14,0,0,7);x.fill();barrel(56,7);x.fillStyle="#ff55ff";x.fillRect(-22,-4,12,8);
+ }else if(type==="ghostrider"){
+  tread(72,8,-24);tread(72,8,24);body(66,38);x.fillStyle="#262626";x.fillRect(-18,-18,36,36);x.strokeStyle="#9dfff2";x.strokeRect(-18,-18,36,36);barrel(54,9);x.fillStyle="#9dfff2";x.beginPath();x.arc(0,0,11,0,7);x.fill();
+ }else if(type==="maximus"){
+  tread(78,8,-25);tread(78,8,25);poly([[-38,-18],[30,-22],[42,0],[30,22],[-38,18]]);x.fillStyle="#f4d06f";x.fillRect(-12,-16,40,32);x.strokeStyle="#111";x.strokeRect(-12,-16,40,32);barrel(70,8);x.fillStyle="#fff0a8";x.fillRect(-30,-10,12,20);
+ }else if(type==="doomsday"){
+  tread(98,12,-32);tread(98,12,32);body(94,56);x.fillStyle="#631919";x.fillRect(-22,-24,50,48);x.strokeStyle="#111";x.strokeRect(-22,-24,50,48);barrel(88,18);x.fillStyle="#ff3b1f";x.fillRect(-40,-20,14,40);
+
+ }else if(type==="voidreaper"){
+  tread(78,8,-25);tread(78,8,25);body(74,42);x.fillStyle="#5b19aa";x.beginPath();x.ellipse(2,0,25,18,0,0,7);x.fill();x.stroke();barrel(64,10);x.fillStyle="#111";x.beginPath();x.arc(-20,0,9,0,7);x.fill();
+ }else if(type==="meteorlord"){
+  tread(86,10,-28);tread(86,10,28);body(82,48);x.fillStyle="#b64a1f";x.fillRect(-18,-20,44,40);x.strokeRect(-18,-20,44,40);barrel(62,15);x.fillStyle="#ffb02e";x.beginPath();x.arc(-31,0,8,0,7);x.fill();
+ }else if(type==="teslahydra"){
+  tread(74,7,-24);tread(74,7,24);body(68,38);x.fillStyle="#55ddff";for(let yy of [-10,0,10])x.fillRect(0,yy-2,58,4);x.fillStyle="#0d2a40";x.fillRect(-18,-17,35,34);x.strokeRect(-18,-17,35,34);
+ }else if(type==="bladecyclone"){
+  tread(70,7,-23);tread(70,7,23);body(64,36);x.fillStyle="#d9d9d9";x.beginPath();for(let i=0;i<14;i++){let aa=i*Math.PI/7,rr=i%2?12:23;x.lineTo(Math.cos(aa)*rr,Math.sin(aa)*rr)}x.closePath();x.fill();x.stroke();barrel(48,7);
+ }else if(type==="angeljudgement"){
+  tread(78,8,-25);tread(78,8,25);poly([[-38,-18],[30,-22],[42,0],[30,22],[-38,18]]);x.fillStyle="#fff3a0";x.beginPath();x.ellipse(4,0,24,16,0,0,7);x.fill();x.stroke();barrel(76,7);x.strokeStyle="#ffffff";x.beginPath();x.arc(-23,0,13,0,7);x.stroke();
+ }else if(type==="chronocrusher"){
+  tread(74,8,-24);tread(74,8,24);body(70,40);x.fillStyle="#9df6ff";x.beginPath();x.arc(0,0,18,0,7);x.fill();x.stroke();barrel(56,8);x.fillStyle="#123";x.fillRect(-30,-12,10,24);
+ }else if(type==="toxicwastelord"){
+  tread(84,9,-27);tread(84,9,27);body(80,46);x.fillStyle="#9cff3a";x.beginPath();x.arc(-10,0,15,0,7);x.fill();x.fillStyle="#285000";x.fillRect(0,-17,35,34);x.strokeRect(0,-17,35,34);barrel(55,10);
+ }else if(type==="spidermech"){
+  tread(72,7,-23);tread(72,7,23);body(62,34);for(let yy of [-18,-9,9,18]){x.strokeStyle="#111";x.beginPath();x.moveTo(-10,yy/2);x.lineTo(-35,yy);x.moveTo(10,yy/2);x.lineTo(35,yy);x.stroke()}x.fillStyle="#754c78";x.beginPath();x.arc(0,0,19,0,7);x.fill();barrel(50,8);
+ }else if(type==="galaxydestroyer"){
+  tread(96,11,-31);tread(96,11,31);body(90,54);x.fillStyle="#2737bb";x.beginPath();x.ellipse(2,0,34,22,0,0,7);x.fill();x.stroke();barrel(90,13);x.fillStyle="#ffffff";for(let i=0;i<10;i++)x.fillRect(rnd(-38,25),rnd(-22,22),2,2);
+ }else if(type==="apocalypse"){
+  tread(92,11,-30);tread(92,11,30);body(88,52);x.fillStyle=shade(col,15);x.fillRect(-20,-22,46,44);x.strokeStyle="#111";x.strokeRect(-20,-22,46,44);barrel(82,16);x.fillStyle="#880000";x.fillRect(-38,-18,12,36);
+ }else{
+  tread(50,6,-19);tread(50,6,19);body(48,30);turret(22,28);barrel(42,10);
+ }
+ x.restore();
+}
+function shade(hex, amt){
+ let c=hex.replace('#',''); if(c.length<6)return hex;
+ let n=parseInt(c,16),r=(n>>16)+amt,g=((n>>8)&255)+amt,b=(n&255)+amt;
+ r=Math.max(0,Math.min(255,r));g=Math.max(0,Math.min(255,g));b=Math.max(0,Math.min(255,b));
+ return '#'+(b|g<<8|r<<16).toString(16).padStart(6,'0');
+}
+
+function draw(){
+ cam.x=tank.x-c.width/2;cam.y=tank.y-c.height/2;x.fillStyle="#575757";x.fillRect(0,0,c.width,c.height);
+ x.fillStyle="rgba(255,216,74,0.08)";x.font="bold 42px Arial";x.fillText("CHAOS SCORE: "+Math.floor(tank.score).toLocaleString(), c.width/2-230, 55);
+ x.strokeStyle="#3e3e3e";x.lineWidth=42;let gStartX=Math.floor((cam.x-300)/185)*185,gEndX=cam.x+c.width+300,gStartY=Math.floor((cam.y-300)/185)*185,gEndY=cam.y+c.height+300;for(let gx=gStartX;gx<gEndX;gx+=185){x.beginPath();x.moveTo(gx-cam.x,0);x.lineTo(gx-cam.x,c.height);x.stroke()}for(let gy=gStartY;gy<gEndY;gy+=185){x.beginPath();x.moveTo(0,gy-cam.y);x.lineTo(c.width,gy-cam.y);x.stroke()}
+ x.strokeStyle="#777";x.lineWidth=2;for(let gx=gStartX;gx<gEndX;gx+=185){x.beginPath();x.moveTo(gx-cam.x,0);x.lineTo(gx-cam.x,c.height);x.stroke()}for(let gy=gStartY;gy<gEndY;gy+=185){x.beginPath();x.moveTo(0,gy-cam.y);x.lineTo(c.width,gy-cam.y);x.stroke()}
+ buildings.forEach(drawBuilding);cars.forEach(car=>drawCar(car,false));police.forEach(p=>drawCar(p,true));
+ npcs.forEach(n=>{if(n.dead)return;x.fillStyle=n.helped?"#77ff77":"white";x.beginPath();x.arc(n.x-cam.x,n.y-cam.y,4,0,7);x.fill()});
+ missions.forEach(m=>{if(m.type==="help"&&!m.npc.dead&&!m.npc.helped){x.fillStyle="lime";x.beginPath();x.arc(m.x-cam.x,m.y-cam.y,16+Math.sin(Date.now()/150)*3,0,7);x.fill()}else if(m.type==="destroy"&&!m.target.dead){x.fillStyle="red";x.beginPath();x.arc(m.target.x+m.target.w/2-cam.x,m.target.y+m.target.h/2-cam.y,20+Math.sin(Date.now()/150)*4,0,7);x.fill()}});
+ shells.forEach(b=>{x.fillStyle=b.skull?"#d7fff6":"#ffea66";x.beginPath();x.arc(b.x-cam.x,b.y-cam.y,b.skull?8:5,0,7);x.fill();if(b.skull){x.fillStyle="#111";x.fillRect(b.x-cam.x-4,b.y-cam.y-2,3,3);x.fillRect(b.x-cam.x+2,b.y-cam.y-2,3,3)}});blades.forEach(bl=>{x.save();x.translate(bl.x-cam.x,bl.y-cam.y);x.rotate(bl.spin);x.fillStyle="#cfd8dc";x.beginPath();for(let i=0;i<12;i++){let a=i*Math.PI/6;let r=i%2?8:15;x.lineTo(Math.cos(a)*r,Math.sin(a)*r)}x.closePath();x.fill();x.strokeStyle="#111";x.stroke();x.restore()});bullets.forEach(b=>{x.fillStyle=b.cop?"#ff6363":"#fff07a";x.beginPath();x.arc(b.x-cam.x,b.y-cam.y,2,0,7);x.fill()});flames.forEach(f=>{x.fillStyle=f.hell?"#ff1e00":"#ff8a00";x.beginPath();x.arc(f.x-cam.x,f.y-cam.y,f.hell?11:8,0,7);x.fill()});
+ 
+ mines.forEach(m=>{x.fillStyle="#222";x.beginPath();x.arc(m.x-cam.x,m.y-cam.y,9,0,7);x.fill();x.strokeStyle="#ff3333";x.stroke();});
+ drones.forEach(d=>{x.fillStyle="#cccccc";x.beginPath();x.arc(d.x-cam.x,d.y-cam.y,10,0,7);x.fill();x.fillStyle="#55ffff";x.fillRect(d.x-cam.x-13,d.y-cam.y-2,26,4);});
+ beams.forEach(b=>{x.strokeStyle=b.color;x.lineWidth=5;x.globalAlpha=Math.max(0,b.life/8);x.beginPath();x.moveTo(b.x-cam.x,b.y-cam.y);x.lineTo(b.x+Math.cos(b.a)*b.len-cam.x,b.y+Math.sin(b.a)*b.len-cam.y);x.stroke();x.globalAlpha=1;});
+shockwaves.forEach(w=>{x.strokeStyle=`rgba(255,230,160,${w.life/22})`;x.lineWidth=4;x.beginPath();x.arc(w.x-cam.x,w.y-cam.y,w.r,0,7);x.stroke()});fires.forEach(f=>{let sx=f.x-cam.x,sy=f.y-cam.y;x.fillStyle="#ff2e00";x.beginPath();x.arc(sx,sy,f.size*(.7+Math.random()*.3),0,7);x.fill();x.fillStyle="#ffd21f";x.beginPath();x.arc(sx,sy,f.size*.45,0,7);x.fill()});smoke.forEach(s=>{x.fillStyle=`rgba(35,35,35,${Math.min(.45,s.life/120)})`;x.beginPath();x.arc(s.x-cam.x,s.y-cam.y,s.size,0,7);x.fill()});particles.forEach(p=>{x.globalAlpha=Math.max(0,p.life/55);if(p.txt){x.fillStyle=p.color;x.font="bold 14px Arial";x.fillText(p.txt,p.x-cam.x,p.y-cam.y)}else{x.fillStyle=p.color;x.beginPath();x.arc(p.x-cam.x,p.y-cam.y,p.size,0,7);x.fill()}x.globalAlpha=1});
+ drawTankModel(c.width/2,c.height/2,tank.a,tank.type);
+ requestAnimationFrame(draw);
+}
+load();renderGarage();updateUI();setInterval(upd,16);setInterval(save,5000);draw();
+</script>
+
+<script id="HELI_GARAGE_UNIQUE_TANKS_ADDON">
+(function(){
+  if(window.__HELI_GARAGE_UNIQUE_TANKS_ADDON__) return;
+  window.__HELI_GARAGE_UNIQUE_TANKS_ADDON__ = true;
+
+  // More tanks with actually different weapon identities.
+  Object.assign(tankDefs, {
+    prism:{name:"Prism Breaker",unlock:0,maxHp:210,speed:4.25,color:"#69e7ff",weapons:["splitbeam","mirrorburst","crystaltrap"],desc:"Splits lasers into street-clearing beams, mirror bursts, and crystal traps.",model:"plasma"},
+    swarmqueen:{name:"Swarm Queen",unlock:0,maxHp:260,speed:3.4,color:"#6fff8d",weapons:["bugswarm","acidpool","nestbomb"],desc:"Spawns angry seeker drones, acid puddles, and explosive nests.",model:"t34"},
+    gravitylord:{name:"Gravity Lord",unlock:0,maxHp:390,speed:2.55,color:"#2f2268",weapons:["gravpulse","orbitalslam","repulsor"],desc:"Pulls vehicles together, drops orbital slams, and pushes police away.",model:"maus"},
+    stormreaper:{name:"Storm Reaper",unlock:0,maxHp:300,speed:3.95,color:"#92a8ff",weapons:["stormchain","thunderwall","iondash"],desc:"Chain lightning, electric walls, and a damaging dash burst.",model:"leopard"},
+    portalcrusher:{name:"Portal Crusher",unlock:0,maxHp:340,speed:3.2,color:"#b35cff",weapons:["portalshot","riftmines","telefrag"],desc:"Teleports shots, drops rift mines, and blinks forward in an explosion.",model:"voidlord"},
+    candydoom:{name:"Candy Doom Tank",unlock:0,maxHp:180,speed:4.9,color:"#ff77cc",weapons:["gumballstorm","sugarbeam","stickyfoam"],desc:"Chaotic joke tank: bouncing gumballs, sugar beam, and sticky foam traps.",model:"bt7"},
+    necrofortress:{name:"Necro Fortress",unlock:0,maxHp:620,speed:1.85,color:"#1f3128",weapons:["bonewall","soulsteal","gravecannon"],desc:"Raises bone walls, steals HP, and fires grave shells.",model:"rhino"},
+    orbitalbus:{name:"Orbital School Bus",unlock:0,maxHp:430,speed:2.9,color:"#ffcf22",weapons:["busram","detentionswarm","chalknuke"],desc:"Ridiculous heavy meme tank with bus ram, detention drones, and chalk nukes.",model:"apocalypse"}
+  });
+
+  const heliDefs={
+    sparrow:{name:"Sparrow Scout",maxHp:120,speed:6.3,color:"#7bd3ff",weapons:["minigun","rocketpair","spotlight"],desc:"Fast starter helicopter. Minigun, rocket pair, police spotlight."},
+    apache:{name:"Apache Punisher",maxHp:230,speed:5.1,color:"#6b7a54",weapons:["chaingun","hellfire","hydrarockets","flareblast"],desc:"Attack heli with chaingun, Hellfires, rocket pods, and flare blast."},
+    skycrane:{name:"Skycrane Wrecker",maxHp:310,speed:3.8,color:"#ff9d42",weapons:["wreckingmagnet","dropcrate","oilspill"],desc:"Utility chaos heli: magnetic car grab, falling crate, oil spill."},
+    phantom:{name:"Phantom Gunship",maxHp:260,speed:4.4,color:"#5f65ff",weapons:["ghostmissile","phasebeam","shadowbomb","cloakburst"],desc:"Ghost tech heli with phase attacks and cloak burst."},
+    thunderbird:{name:"Thunderbird",maxHp:290,speed:4.7,color:"#b5f7ff",weapons:["teslacoil","stormbomb","skyrail","windpush"],desc:"Electric helicopter: tesla coil, storm bomb, sky rail, wind push."},
+    doomheli:{name:"Doom Carrier",maxHp:430,speed:3.25,color:"#371313",weapons:["carpetnuke","napalmrain","doommine","deathray"],desc:"Endgame flying war crime machine: nukes, napalm, mines, death ray."}
+  };
+
+  let vehicleMode = localStorage.getItem("TANK_CITY_VEHICLE_MODE") || "tank";
+  let selectedHeli = localStorage.getItem("TANK_CITY_SELECTED_HELI") || "sparrow";
+  let heliAltitude = 70;
+  const foamZones=[];
+  const acidZones=[];
+  const electricWalls=[];
+  const riftMines=[];
+  const swarmers=[];
+  const oilZones=[];
+
+  function currentDef(){ return vehicleMode === "heli" ? heliDefs[selectedHeli] : tankDefs[tank.type]; }
+  function currentWeapons(){ return currentDef().weapons || []; }
+
+  const oldSave = save;
+  save = function(){
+    oldSave();
+    localStorage.setItem("TANK_CITY_VEHICLE_MODE", vehicleMode);
+    localStorage.setItem("TANK_CITY_SELECTED_HELI", selectedHeli);
+  };
+
+  const oldLoad = load;
+  load = function(){
+    oldLoad();
+    vehicleMode = localStorage.getItem("TANK_CITY_VEHICLE_MODE") || vehicleMode;
+    selectedHeli = localStorage.getItem("TANK_CITY_SELECTED_HELI") || selectedHeli;
+    if(vehicleMode === "heli") applyHeli(selectedHeli);
+  };
+
+  function applyHeli(id){
+    const h=heliDefs[id]; if(!h) return;
+    selectedHeli=id; vehicleMode="heli";
+    tank.maxHp=h.maxHp; tank.hp=tank.maxHp; tank.weapon=h.weapons[0];
+    save(); updateUI(); renderGarage();
+    msg("Selected helicopter: "+h.name+". It flies over buildings.");
+  }
+  window.applyHeli=applyHeli;
+
+  const oldApplyTank = applyTank;
+  applyTank = function(type){
+    vehicleMode="tank";
+    oldApplyTank(type);
+    localStorage.setItem("TANK_CITY_VEHICLE_MODE","tank");
+  };
+
+  const oldReset = resetRunStats;
+  resetRunStats = function(){
+    const keepMode=vehicleMode, keepHeli=selectedHeli, keepTank=tank.type;
+    oldReset();
+    vehicleMode=keepMode; selectedHeli=keepHeli;
+    if(vehicleMode==="heli") applyHeli(selectedHeli); else applyTank(keepTank);
+  };
+
+  // Menu tabs: separate garages.
+  const menuBox=document.getElementById("menuBox");
+  if(menuBox && !document.getElementById("heliGarage")){
+    const tabs=document.createElement("div");
+    tabs.innerHTML=`<button class="blue" id="tankGarageTab">Tank Garage</button><button class="blue" id="heliGarageTab">Helicopter Garage</button><div id="heliGarage" style="display:none"></div>`;
+    const g=document.getElementById("garage");
+    g.parentNode.insertBefore(tabs,g);
+    document.getElementById("tankGarageTab").onclick=function(){g.style.display="block";document.getElementById("heliGarage").style.display="none";};
+    document.getElementById("heliGarageTab").onclick=function(){g.style.display="none";document.getElementById("heliGarage").style.display="block";renderHeliGarage();};
+  }
+
+  function renderHeliGarage(){
+    const root=document.getElementById("heliGarage"); if(!root) return;
+    root.innerHTML="<h2>🚁 Helicopter Garage</h2><p>Helicopters fly over buildings and use 3–4 weapon modes each. F switches modes.</p>";
+    for(const id of Object.keys(heliDefs)){
+      const h=heliDefs[id];
+      root.innerHTML+=`<div class="tankCard" style="border-color:#8ee7ff;background:#102534">
+        <h2>🚁 ${h.name}</h2><p>${h.desc}</p>
+        <p><b>Unlock:</b> FREE / AIRCRAFT UNLOCKED</p>
+        <p><b>HP:</b> ${h.maxHp}<br><b>Speed:</b> ${h.speed}<br><b>Modes:</b> ${h.weapons.join(", ")}</p>
+        <button onclick="applyHeli('${id}')">${vehicleMode==='heli'&&selectedHeli===id?'Selected':'Select Heli'}</button>
+      </div>`;
+    }
+  }
+
+  const oldRenderGarage = renderGarage;
+  renderGarage = function(){
+    oldRenderGarage();
+    renderHeliGarage();
+  };
+
+  const oldSwitchWeapon = switchWeapon;
+  switchWeapon = function(){
+    if(vehicleMode === "heli"){
+      const ws=currentWeapons(); let i=ws.indexOf(tank.weapon); tank.weapon=ws[(i+1)%ws.length];
+      msg("Helicopter mode switched to "+weaponLabel(tank.weapon)); updateUI(); return;
+    }
+    oldSwitchWeapon();
+  };
+
+  const oldWeaponLabel = weaponLabel;
+  weaponLabel = function(w){
+    const labels={
+      splitbeam:"Prism Split Beam", mirrorburst:"Mirror Burst", crystaltrap:"Crystal Trap",
+      bugswarm:"Bug Swarm", acidpool:"Acid Pool", nestbomb:"Nest Bomb",
+      gravpulse:"Gravity Pulse", orbitalslam:"Orbital Slam", repulsor:"Repulsor Blast",
+      stormchain:"Storm Chain", thunderwall:"Thunder Wall", iondash:"Ion Dash",
+      portalshot:"Portal Shot", riftmines:"Rift Mines", telefrag:"Telefrag Blink",
+      gumballstorm:"Bouncing Gumballs", sugarbeam:"Sugar Beam", stickyfoam:"Sticky Foam",
+      bonewall:"Bone Wall", soulsteal:"Soul Steal", gravecannon:"Grave Cannon",
+      busram:"Bus Ram", detentionswarm:"Detention Swarm", chalknuke:"Chalk Nuke",
+      minigun:"Heli Minigun", rocketpair:"Rocket Pair", spotlight:"Wanted Spotlight",
+      chaingun:"Apache Chaingun", hellfire:"Hellfire Missile", hydrarockets:"Hydra Rockets", flareblast:"Flare Blast",
+      wreckingmagnet:"Wrecking Magnet", dropcrate:"Drop Crate", oilspill:"Oil Spill",
+      ghostmissile:"Ghost Missile", phasebeam:"Phase Beam", shadowbomb:"Shadow Bomb", cloakburst:"Cloak Burst",
+      teslacoil:"Tesla Coil", stormbomb:"Storm Bomb", skyrail:"Sky Rail", windpush:"Wind Push",
+      carpetnuke:"Carpet Nuke", napalmrain:"Napalm Rain", doommine:"Doom Mine", deathray:"Death Ray"
+    };
+    return labels[w] || oldWeaponLabel(w);
+  };
+
+  // Fly over buildings.
+  const oldBlocked = blocked;
+  blocked = function(nx,ny){ if(vehicleMode==="heli") return false; return oldBlocked(nx,ny); };
+  const oldMoveTank = moveTank;
+  moveTank = function(){
+    if(vehicleMode !== "heli") return oldMoveTank();
+    const h=heliDefs[selectedHeli]||heliDefs.sparrow;
+    let sp=h.speed, nx=tank.x, ny=tank.y;
+    if(keys.w)ny-=sp;if(keys.s)ny+=sp;if(keys.a)nx-=sp;if(keys.d)nx+=sp;
+    tank.x=nx; tank.y=ny;
+    heliAltitude = 62 + Math.sin(Date.now()/260)*7;
+  };
+
+  function nearestTarget(px=tank.x,py=tank.y){
+    const arr=[];
+    for(const p of police) if(!p.dead) arr.push({o:p,score:Math.hypot(p.x-px,p.y-py),kind:"police"});
+    for(const c of cars) if(!c.dead) arr.push({o:c,score:Math.hypot(c.x-px,c.y-py),kind:"car"});
+    for(const b of buildings) if(!b.dead) arr.push({o:{x:b.x+b.w/2,y:b.y+b.h/2,b},score:Math.hypot(b.x+b.w/2-px,b.y+b.h/2-py),kind:"building"});
+    arr.sort((a,b)=>a.score-b.score); return arr[0];
+  }
+  function directDamage(obj, dmg){
+    if(!obj) return;
+    obj.hp-=dmg;
+    if(obj.b){ chipBuilding(obj.b,obj.x,obj.y,dmg,0); return; }
+    if(police.includes(obj) && obj.hp<=0) destroyPolice(obj);
+    else if(cars.includes(obj) && obj.hp<=0) destroyCar(obj);
+  }
+  function zoneDamage(z, dmg, hitBuildings=true){
+    for(const p of police) if(!p.dead&&Math.hypot(p.x-z.x,p.y-z.y)<z.r){p.hp-=dmg;if(p.hp<=0)destroyPolice(p)}
+    for(const c of cars) if(!c.dead&&Math.hypot(c.x-z.x,c.y-z.y)<z.r){c.hp-=dmg;if(c.hp<=0)destroyCar(c)}
+    for(const n of npcs) if(!n.dead&&Math.hypot(n.x-z.x,n.y-z.y)<z.r){n.hp-=dmg;if(n.hp<=0){n.dead=true;addWanted(1);addScore(250,"CIVILIAN",n.x,n.y)}}
+    if(hitBuildings) for(const b of buildings) if(!b.dead&&Math.hypot(b.x+b.w/2-z.x,b.y+b.h/2-z.y)<z.r+Math.max(b.w,b.h)/2) chipBuilding(b,b.x+b.w/2,b.y+b.h/2,dmg,0);
+  }
+
+  // Override fire: only custom weapons handled here; fall back to original.
+  const oldFire = fire;
+  fire = function(){
+    const w=tank.weapon;
+    if(vehicleMode==="heli" || customWeapons.has(w)) return customFire(w);
+    oldFire();
+  };
+  const customWeapons=new Set(["splitbeam","mirrorburst","crystaltrap","bugswarm","acidpool","nestbomb","gravpulse","orbitalslam","repulsor","stormchain","thunderwall","iondash","portalshot","riftmines","telefrag","gumballstorm","sugarbeam","stickyfoam","bonewall","soulsteal","gravecannon","busram","detentionswarm","chalknuke"]);
+
+  function customFire(w){
+    if(tank.cool>0 || tank.mg>0) return;
+    const a=tank.a;
+    if(w==="splitbeam"){tank.cool=28; for(let off of [-.22,0,.22]){beams.push({x:tank.x,y:tank.y,a:a+off,life:7,len:650,color:"#78f6ff"}); lineSweep(a+off,650,26,34);} muzzle(tank.x,tank.y,a,.45);}
+    else if(w==="mirrorburst"){tank.cool=45; for(let i=0;i<10;i++){let aa=a+rnd(-1.1,1.1); bullets.push({x:tank.x,y:tank.y,vx:Math.cos(aa)*18,vy:Math.sin(aa)*18,life:55,damage:18});} shockwaves.push({x:tank.x,y:tank.y,r:8,max:95,life:20,color:"#78f6ff"});}
+    else if(w==="crystaltrap"){tank.cool=40; foamZones.push({x:tank.x+Math.cos(a)*160,y:tank.y+Math.sin(a)*160,r:105,life:360,color:"#8dffff",dmg:.35,slow:true}); msg("Crystal trap placed.");}
+    else if(w==="bugswarm"){tank.cool=55; for(let i=0;i<8;i++) swarmers.push({x:tank.x,y:tank.y,a:rnd(0,6.28),life:260,dmg:7,color:"#9cff72"});}
+    else if(w==="acidpool"){tank.cool=50; acidZones.push({x:tank.x+Math.cos(a)*180,y:tank.y+Math.sin(a)*180,r:130,life:300,color:"#8dff2f",dmg:1.25});}
+    else if(w==="nestbomb"){tank.cool=65; setTimeout(()=>{let px=tank.x+Math.cos(a)*280,py=tank.y+Math.sin(a)*280; explosion(px,py,1.15); for(let i=0;i<5;i++) swarmers.push({x:px,y:py,a:rnd(0,6.28),life:230,dmg:8,color:"#9cff72"});},280);}
+    else if(w==="gravpulse"){tank.cool=60; shockwaves.push({x:tank.x,y:tank.y,r:20,max:260,life:34,color:"#b388ff"}); for(const c of cars.concat(police)){if(!c.dead&&Math.hypot(c.x-tank.x,c.y-tank.y)<360){let aa=Math.atan2(tank.y-c.y,tank.x-c.x);c.x+=Math.cos(aa)*120;c.y+=Math.sin(aa)*120;c.hp-=26;if(c.hp<=0)(police.includes(c)?destroyPolice(c):destroyCar(c));}}}
+    else if(w==="orbitalslam"){tank.cool=75; let px=tank.x+Math.cos(a)*360,py=tank.y+Math.sin(a)*360; beams.push({x:px,y:py-700,a:Math.PI/2,life:14,len:1400,color:"#ffffff"}); setTimeout(()=>explosion(px,py,2.2),180);}
+    else if(w==="repulsor"){tank.cool=35; shockwaves.push({x:tank.x,y:tank.y,r:12,max:220,life:24,color:"#caa6ff"}); for(const c of cars.concat(police)){if(!c.dead&&Math.hypot(c.x-tank.x,c.y-tank.y)<240){let aa=Math.atan2(c.y-tank.y,c.x-tank.x);c.x+=Math.cos(aa)*150;c.y+=Math.sin(aa)*150;c.hp-=18;if(c.hp<=0)(police.includes(c)?destroyPolice(c):destroyCar(c));}}}
+    else if(w==="stormchain"){tank.cool=38; chainZap(tank.x,tank.y,6,140,"#87f7ff");}
+    else if(w==="thunderwall"){tank.cool=55; electricWalls.push({x:tank.x+Math.cos(a)*160,y:tank.y+Math.sin(a)*160,a:a+Math.PI/2,life:260,len:300});}
+    else if(w==="iondash"){tank.cool=65; tank.x+=Math.cos(a)*250; tank.y+=Math.sin(a)*250; shockwaves.push({x:tank.x,y:tank.y,r:8,max:170,life:22,color:"#87f7ff"}); zoneDamage({x:tank.x,y:tank.y,r:160},48,true);}
+    else if(w==="portalshot"){tank.cool=30; let px=tank.x+Math.cos(a)*520,py=tank.y+Math.sin(a)*520; beams.push({x:tank.x,y:tank.y,a,life:5,len:520,color:"#bf6cff"}); explosion(px,py,1.0);}
+    else if(w==="riftmines"){tank.cool=50; for(let i=0;i<3;i++) riftMines.push({x:tank.x+rnd(-80,80),y:tank.y+rnd(-80,80),r:22,life:520});}
+    else if(w==="telefrag"){tank.cool=70; tank.x+=Math.cos(a)*420; tank.y+=Math.sin(a)*420; explosion(tank.x,tank.y,1.55);}
+    else if(w==="gumballstorm"){tank.cool=20; for(let i=0;i<7;i++){let aa=a+rnd(-.55,.55); bullets.push({x:tank.x,y:tank.y,vx:Math.cos(aa)*rnd(10,18),vy:Math.sin(aa)*rnd(10,18),life:90,damage:11,bounce:2});}}
+    else if(w==="sugarbeam"){tank.cool=8; beams.push({x:tank.x,y:tank.y,a,life:4,len:450,color:"#ff8fde"}); lineSweep(a,450,18,16);}
+    else if(w==="stickyfoam"){tank.cool=35; foamZones.push({x:tank.x+Math.cos(a)*130,y:tank.y+Math.sin(a)*130,r:120,life:280,color:"#ffd0f2",dmg:.15,slow:true});}
+    else if(w==="bonewall"){tank.cool=55; createBoneWall(a);}
+    else if(w==="soulsteal"){tank.cool=42; chainZap(tank.x,tank.y,4,160,"#6aff9d",true); tank.hp=Math.min(tank.maxHp,tank.hp+35);}
+    else if(w==="gravecannon"){tank.cool=65; fireShell(1.7,9,95,1); setTimeout(()=>{for(let i=0;i<4;i++) swarmers.push({x:tank.x+rnd(-60,60),y:tank.y+rnd(-60,60),a:rnd(0,6.28),life:200,dmg:10,color:"#cfcfcf"});},250);}
+    else if(w==="busram"){tank.cool=50; tank.x+=Math.cos(a)*330;tank.y+=Math.sin(a)*330; zoneDamage({x:tank.x,y:tank.y,r:150},55,true); shockwaves.push({x:tank.x,y:tank.y,r:12,max:160,life:25,color:"#ffdf4f"});}
+    else if(w==="detentionswarm"){tank.cool=70; for(let i=0;i<10;i++) swarmers.push({x:tank.x,y:tank.y,a:rnd(0,6.28),life:240,dmg:6,color:"#ffe14a"});}
+    else if(w==="chalknuke"){tank.cool=130; let px=tank.x+Math.cos(a)*340,py=tank.y+Math.sin(a)*340; setTimeout(()=>explosion(px,py,2.5),450); msg("CHALK NUKE INCOMING");}
+    // Helicopters
+    else if(w==="minigun"||w==="chaingun"){tank.mg=w==="minigun"?1.2:.8; let aa=a+rnd(-.09,.09); bullets.push({x:tank.x,y:tank.y,vx:Math.cos(aa)*24,vy:Math.sin(aa)*24,life:58,damage:w==="minigun"?7:11});}
+    else if(w==="rocketpair"){tank.cool=28; fireShell(.8,13,38,1,-.08); fireShell(.8,13,38,1,.08); tank.cool=28;}
+    else if(w==="spotlight"){tank.cool=45; addWanted(2); chainZap(tank.x,tank.y,3,220,"#ffffff"); addScore(100,"SPOTLIGHT");}
+    else if(w==="hellfire"||w==="ghostmissile"){tank.cool=42; homingMissile(w==="ghostmissile"?90:65,w==="ghostmissile"?"#b388ff":"#ffdd66");}
+    else if(w==="hydrarockets"){tank.cool=65; for(let i=0;i<10;i++)setTimeout(()=>{let aa=tank.a+rnd(-.35,.35);shells.push({x:tank.x,y:tank.y,vx:Math.cos(aa)*12,vy:Math.sin(aa)*12,life:75,damage:30,power:.6});},i*45);}
+    else if(w==="flareblast"){tank.cool=80; shockwaves.push({x:tank.x,y:tank.y,r:12,max:260,life:28,color:"#ffdd88"}); for(const p of police){if(!p.dead&&Math.hypot(p.x-tank.x,p.y-tank.y)<290){p.cool=180;p.hp-=20;if(p.hp<=0)destroyPolice(p);}}}
+    else if(w==="wreckingmagnet"){tank.cool=35; for(const car of cars){if(!car.dead&&Math.hypot(car.x-tank.x,car.y-tank.y)<420){let aa=Math.atan2(tank.y-car.y,tank.x-car.x);car.x+=Math.cos(aa)*65;car.y+=Math.sin(aa)*65;car.hp-=8;}}}
+    else if(w==="dropcrate"){tank.cool=50; let px=tank.x+Math.cos(a)*180,py=tank.y+Math.sin(a)*180; setTimeout(()=>explosion(px,py,1.25),180);}
+    else if(w==="oilspill"){tank.cool=45; oilZones.push({x:tank.x-Math.cos(a)*30,y:tank.y-Math.sin(a)*30,r:150,life:400});}
+    else if(w==="phasebeam"){tank.cool=12; beams.push({x:tank.x,y:tank.y,a,life:6,len:620,color:"#c179ff"}); lineSweep(a,620,28,32);}
+    else if(w==="shadowbomb"){tank.cool=70; let px=tank.x+Math.cos(a)*260,py=tank.y+Math.sin(a)*260; setTimeout(()=>{explosion(px,py,1.6); addWanted(1);},220);}
+    else if(w==="cloakburst"){tank.cool=90; tank.wanted=Math.max(0,tank.wanted-2); shockwaves.push({x:tank.x,y:tank.y,r:10,max:190,life:22,color:"#b388ff"}); msg("Cloak burst lowered wanted level.");}
+    else if(w==="teslacoil"){tank.cool=25; chainZap(tank.x,tank.y,5,180,"#88f7ff");}
+    else if(w==="stormbomb"){tank.cool=70; let px=tank.x+Math.cos(a)*240,py=tank.y+Math.sin(a)*240; electricWalls.push({x:px,y:py,a:0,life:220,len:360,radial:true}); explosion(px,py,.85);}
+    else if(w==="skyrail"){tank.cool=55; beams.push({x:tank.x,y:tank.y,a,life:12,len:900,color:"#9dffff"}); lineSweep(a,900,36,80);}
+    else if(w==="windpush"){tank.cool=38; for(const c of cars.concat(police)){if(!c.dead&&Math.hypot(c.x-tank.x,c.y-tank.y)<310){let aa=Math.atan2(c.y-tank.y,c.x-tank.x);c.x+=Math.cos(aa)*180;c.y+=Math.sin(aa)*180;c.hp-=14;}}}
+    else if(w==="carpetnuke"){tank.cool=170; for(let i=0;i<6;i++){let px=tank.x+Math.cos(a)*(170+i*90)+rnd(-60,60),py=tank.y+Math.sin(a)*(170+i*90)+rnd(-60,60);setTimeout(()=>explosion(px,py,1.65),i*130);}}
+    else if(w==="napalmrain"){tank.cool=80; for(let i=0;i<14;i++){let px=tank.x+rnd(-300,300),py=tank.y+rnd(-300,300);setTimeout(()=>{fires.push({x:px,y:py,life:360,size:32});zoneDamage({x:px,y:py,r:80},32,true);},i*60);}}
+    else if(w==="doommine"){tank.cool=40; mines.push({x:tank.x,y:tank.y,life:1200,r:34});}
+    else if(w==="deathray"){tank.cool=95; beams.push({x:tank.x,y:tank.y,a,life:20,len:1000,color:"#ff2a2a"}); lineSweep(a,1000,55,150);}
+  }
+
+  function lineSweep(a,len,width,dmg){
+    const sx=tank.x, sy=tank.y;
+    for(const b of buildings){if(!b.dead){let cx=b.x+b.w/2,cy=b.y+b.h/2;if(lineHit(sx,sy,a,cx,cy,len,width+Math.max(b.w,b.h)/2))chipBuilding(b,cx,cy,dmg,a);}}
+    for(const p of police){if(!p.dead&&lineHit(sx,sy,a,p.x,p.y,len,width)){p.hp-=dmg;if(p.hp<=0)destroyPolice(p);}}
+    for(const c of cars){if(!c.dead&&lineHit(sx,sy,a,c.x,c.y,len,width)){c.hp-=dmg;if(c.hp<=0)destroyCar(c);}}
+    for(const n of npcs){if(!n.dead&&lineHit(sx,sy,a,n.x,n.y,len,width*.6)){n.hp-=dmg;if(n.hp<=0){n.dead=true;addWanted(1);addScore(250,"CIVILIAN",n.x,n.y);}}}
+  }
+  function chainZap(x0,y0,count,range,color,heal){
+    let px=x0,py=y0; let used=new Set();
+    for(let i=0;i<count;i++){
+      let choices=[]; for(const p of police)if(!p.dead&&!used.has(p))choices.push(p); for(const c of cars)if(!c.dead&&!used.has(c))choices.push(c);
+      let best=choices.map(o=>({o,d:Math.hypot(o.x-px,o.y-py)})).filter(q=>q.d<range).sort((a,b)=>a.d-b.d)[0];
+      if(!best)break; let o=best.o; used.add(o); beams.push({x:px,y:py,a:Math.atan2(o.y-py,o.x-px),life:7,len:best.d,color}); o.hp-=heal?38:46; if(o.hp<=0)(police.includes(o)?destroyPolice(o):destroyCar(o)); px=o.x;py=o.y;
+    }
+  }
+  function homingMissile(dmg,color){
+    const t=nearestTarget(); const a=t?Math.atan2(t.o.y-tank.y,t.o.x-tank.x):tank.a;
+    shells.push({x:tank.x,y:tank.y,vx:Math.cos(a)*11,vy:Math.sin(a)*11,life:110,damage:dmg,power:1.05,homing:true,color});
+  }
+  function createBoneWall(a){
+    for(let i=-2;i<=2;i++){let wx=tank.x+Math.cos(a)*140+Math.cos(a+Math.PI/2)*i*34, wy=tank.y+Math.sin(a)*140+Math.sin(a+Math.PI/2)*i*34; buildings.push({x:wx-14,y:wy-14,w:28,h:28,hp:90,maxHp:90,dead:false,color:"#d8d0b8",chips:[],cracks:[],rubble:[]});}
+  }
+
+  const oldUpd = upd;
+  upd = function(){ oldUpd(); if(gameStarted) updateAddon(); };
+  function updateAddon(){
+    for(const z of foamZones){z.life--; zoneDamage(z,z.dmg,false); if(z.slow){for(const p of police)if(!p.dead&&Math.hypot(p.x-z.x,p.y-z.y)<z.r)p.cool=Math.max(p.cool||0,10);}}
+    for(const z of acidZones){z.life--; zoneDamage(z,z.dmg,true);}
+    for(const z of oilZones){z.life--; for(const c of cars.concat(police)){if(!c.dead&&Math.hypot(c.x-z.x,c.y-z.y)<z.r){c.a+=.14;c.hp-=.04;}}}
+    for(const w of electricWalls){w.life--; if(w.radial){zoneDamage({x:w.x,y:w.y,r:180},.9,false)}else{for(const c of cars.concat(police)){if(!c.dead&&lineHit(w.x-Math.cos(w.a)*w.len/2,w.y-Math.sin(w.a)*w.len/2,w.a,c.x,c.y,w.len,35)){c.hp-=1.7;if(c.hp<=0)(police.includes(c)?destroyPolice(c):destroyCar(c));}}}}
+    for(const m of riftMines){m.life--; for(const c of cars.concat(police)){if(!c.dead&&Math.hypot(c.x-m.x,c.y-m.y)<m.r+18){explosion(m.x,m.y,1.2);m.dead=true;break;}}}
+    for(const s of swarmers){s.life--; const t=nearestTarget(s.x,s.y); if(t){let aa=Math.atan2(t.o.y-s.y,t.o.x-s.x);s.x+=Math.cos(aa)*5.2;s.y+=Math.sin(aa)*5.2;if(Math.hypot(t.o.x-s.x,t.o.y-s.y)<18){directDamage(t.o,s.dmg);s.life-=18;}}else{s.x+=Math.cos(s.a)*2;s.y+=Math.sin(s.a)*2;}}
+    // very light homing behavior for flagged shells
+    for(const sh of shells){if(sh.homing){const t=nearestTarget(sh.x,sh.y); if(t){let aa=Math.atan2(t.o.y-sh.y,t.o.x-sh.x); sh.vx=sh.vx*.88+Math.cos(aa)*2.0; sh.vy=sh.vy*.88+Math.sin(aa)*2.0;}}}
+    for(let arr of [foamZones,acidZones,oilZones,electricWalls,riftMines,swarmers]) for(let i=arr.length-1;i>=0;i--) if(arr[i].life<=0||arr[i].dead) arr.splice(i,1);
+  }
+
+  // Draw addon visuals by wrapping tank model and building draw loop visuals.
+  const oldDrawTankModel = drawTankModel;
+  drawTankModel = function(px,py,a,type){
+    if(vehicleMode!=="heli") return oldDrawTankModel(px,py,a,type);
+    drawHeli(px,py,a,selectedHeli);
+  };
+  function drawHeli(px,py,a,id){
+    const h=heliDefs[id]||heliDefs.sparrow;
+    x.save(); x.translate(px,py-heliAltitude*.12); x.rotate(a);
+    x.shadowColor=h.color; x.shadowBlur=18;
+    x.fillStyle=h.color; x.beginPath(); x.ellipse(0,0,34,16,0,0,7); x.fill(); x.strokeStyle="#111"; x.lineWidth=2; x.stroke();
+    x.fillStyle=shade(h.color,-35); x.fillRect(-12,-9,28,18); x.fillRect(-50,-4,28,8); x.fillRect(-62,-14,8,28);
+    x.strokeStyle="#eaffff"; x.lineWidth=3; x.beginPath(); x.moveTo(-58,0); x.lineTo(58,0); x.moveTo(0,-46); x.lineTo(0,46); x.stroke();
+    x.globalAlpha=.22; x.strokeStyle=h.color; x.lineWidth=4; x.beginPath(); x.arc(0,0,62,0,7); x.stroke(); x.globalAlpha=1;
+    x.shadowBlur=0; x.restore();
+  }
+
+  const oldDraw = draw;
+  draw = function(){
+    oldDraw();
+    // Old draw schedules next frame before this overlay; these effects are mostly visible through particles/beams,
+    // but draw persistent zones in screen space here too.
+    x.save();
+    for(const z of foamZones){x.fillStyle=(z.color||"#fff")+"55";x.beginPath();x.arc(z.x-cam.x,z.y-cam.y,z.r,0,7);x.fill();}
+    for(const z of acidZones){x.fillStyle="rgba(120,255,40,.22)";x.beginPath();x.arc(z.x-cam.x,z.y-cam.y,z.r,0,7);x.fill();}
+    for(const z of oilZones){x.fillStyle="rgba(10,10,10,.45)";x.beginPath();x.arc(z.x-cam.x,z.y-cam.y,z.r,0,7);x.fill();}
+    for(const w of electricWalls){x.strokeStyle="#88f7ff";x.lineWidth=7;x.beginPath(); if(w.radial){x.arc(w.x-cam.x,w.y-cam.y,180,0,7)}else{x.moveTo(w.x-Math.cos(w.a)*w.len/2-cam.x,w.y-Math.sin(w.a)*w.len/2-cam.y);x.lineTo(w.x+Math.cos(w.a)*w.len/2-cam.x,w.y+Math.sin(w.a)*w.len/2-cam.y);} x.stroke();}
+    for(const m of riftMines){x.strokeStyle="#bd6cff";x.lineWidth=4;x.beginPath();x.arc(m.x-cam.x,m.y-cam.y,22+Math.sin(Date.now()/90)*5,0,7);x.stroke();}
+    for(const s of swarmers){x.fillStyle=s.color||"#fff";x.beginPath();x.arc(s.x-cam.x,s.y-cam.y,5,0,7);x.fill();}
+    x.restore();
+  };
+
+  const oldUpdateUI=updateUI;
+  updateUI=function(){
+    oldUpdateUI();
+    const name=document.getElementById("tankName"); if(name) name.textContent = vehicleMode==="heli" ? "🚁 "+heliDefs[selectedHeli].name : tankDefs[tank.type].name;
+    const ui=document.getElementById("ui");
+    if(ui && !document.getElementById("vehicleModeLine")){
+      const div=document.createElement("div"); div.id="vehicleModeLine"; div.style.color="#9de7ff"; div.innerHTML="Vehicle: <span id='vehicleModeText'></span><br>"; ui.insertBefore(div, ui.children[1]);
+    }
+    const vm=document.getElementById("vehicleModeText"); if(vm) vm.textContent=vehicleMode==="heli"?"Helicopter (flies over buildings)":"Tank";
+  };
+
+  renderGarage(); updateUI(); msg("Update loaded: unique tanks + separate helicopter garage. Press M, then Helicopter Garage.");
+})();
+</script>
+
+
+
+<script id="SAOBAO_WEAPON_DAMAGE_CLEANUP_FIX_V2">
+(function(){
+  if(window.__SAOBAO_WEAPON_DAMAGE_CLEANUP_FIX_V2__) return;
+  window.__SAOBAO_WEAPON_DAMAGE_CLEANUP_FIX_V2__ = true;
+
+  // This patch replaces the buggy custom/heli weapon launcher with simple reliable projectiles.
+  // Every weapon below either uses bullets/shells/beams/explosions that already have collision,
+  // or applies direct radius/line damage immediately. All spawned objects get finite lifetimes.
+
+  function R(a,b){ return a + Math.random()*(b-a); }
+  function safeMsg(t){ try{ msg(t); }catch(e){} }
+  function safeScore(v,label,x,y){ try{ addScore(v,label,x,y); }catch(e){} }
+  function safeWanted(v){ try{ addWanted(v); }catch(e){ if(typeof tank!=="undefined") tank.wanted=(tank.wanted||0)+v; } }
+  function dist(a,b,c,d){ return Math.hypot(a-c,b-d); }
+
+  function targetList(px,py,includeBuildings=true){
+    const out=[];
+    for(const p of police){ if(!p.dead) out.push({kind:'police',obj:p,x:p.x,y:p.y,d:dist(px,py,p.x,p.y)}); }
+    for(const c of cars){ if(!c.dead) out.push({kind:'car',obj:c,x:c.x,y:c.y,d:dist(px,py,c.x,c.y)}); }
+    for(const n of npcs){ if(!n.dead && !n.helped) out.push({kind:'npc',obj:n,x:n.x,y:n.y,d:dist(px,py,n.x,n.y)}); }
+    if(includeBuildings){
+      for(const b of buildings){ if(!b.dead) out.push({kind:'building',obj:b,x:b.x+b.w/2,y:b.y+b.h/2,d:dist(px,py,b.x+b.w/2,b.y+b.h/2)}); }
+    }
+    out.sort((a,b)=>a.d-b.d);
+    return out;
+  }
+
+  function killObject(t, label){
+    if(!t || !t.obj) return;
+    if(t.kind==='police') destroyPolice(t.obj);
+    else if(t.kind==='car') destroyCar(t.obj);
+    else if(t.kind==='npc'){
+      t.obj.dead=true; tank.rep-=2; safeWanted(1); addXP(5); safeScore(250,label||'CIVILIAN',t.x,t.y);
+    }
+  }
+
+  function damageThing(t,dmg,label,impactA=0){
+    if(!t || !t.obj) return;
+    if(t.kind==='building'){
+      chipBuilding(t.obj,t.x,t.y,dmg,impactA);
+      return;
+    }
+    t.obj.hp -= dmg;
+    if(t.obj.hp<=0) killObject(t,label);
+  }
+
+  function radiusDamage(px,py,r,dmg,hitBuildings=true,label='CHAOS'){
+    for(const t of targetList(px,py,hitBuildings)){
+      const extra = t.kind==='building' ? Math.max(t.obj.w,t.obj.h)/2 : 16;
+      if(dist(px,py,t.x,t.y) <= r+extra){
+        const fall = Math.max(.35, 1 - dist(px,py,t.x,t.y)/(r+extra)*.55);
+        damageThing(t,dmg*fall,label,Math.atan2(t.y-py,t.x-px));
+      }
+    }
+  }
+
+  function lineDamage(sx,sy,a,len,width,dmg,label='BEAM'){
+    for(const t of targetList(sx,sy,true)){
+      const along=(t.x-sx)*Math.cos(a)+(t.y-sy)*Math.sin(a);
+      const side=Math.abs(-(t.x-sx)*Math.sin(a)+(t.y-sy)*Math.cos(a));
+      const extra=t.kind==='building'?Math.max(t.obj.w,t.obj.h)/2:10;
+      if(along>0 && along<len && side<width+extra){
+        damageThing(t,dmg,label,a);
+      }
+    }
+  }
+
+  function spawnBullet(a,dmg=10,speed=20,life=60,spread=0){
+    const aa=a+R(-spread,spread);
+    bullets.push({x:tank.x+Math.cos(aa)*34,y:tank.y+Math.sin(aa)*34,vx:Math.cos(aa)*speed,vy:Math.sin(aa)*speed,life,damage:dmg});
+    try{ muzzle(tank.x+Math.cos(aa)*32,tank.y+Math.sin(aa)*32,aa,.3); }catch(e){}
+  }
+
+  function spawnShell(a,dmg=60,power=1,speed=11,life=95,homing=false,turn=.08){
+    shells.push({x:tank.x+Math.cos(a)*38,y:tank.y+Math.sin(a)*38,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,life,damage:dmg,power,homing,turn,spawnX:tank.x,spawnY:tank.y,maxTravel:2400});
+    try{ muzzle(tank.x+Math.cos(a)*35,tank.y+Math.sin(a)*35,a,Math.max(.35,Math.min(1.4,power))); }catch(e){}
+  }
+
+  function spawnHoming(dmg=70,power=1,color='#ffdd66'){
+    const t=targetList(tank.x,tank.y,true)[0];
+    const a=t?Math.atan2(t.y-tank.y,t.x-tank.x):tank.a;
+    spawnShell(a,dmg,power,10,130,true,.105);
+    shells[shells.length-1].color=color;
+  }
+
+  function beam(a,len,dmg,width,color='#9dffff',life=8){
+    beams.push({x:tank.x+Math.cos(a)*28,y:tank.y+Math.sin(a)*28,a,life,len,color});
+    lineDamage(tank.x,tank.y,a,len,width,dmg,color);
+  }
+
+  function chainZap(count=5,range=190,dmg=55,color='#88f7ff',heal=false){
+    let px=tank.x, py=tank.y;
+    const used=new Set();
+    for(let i=0;i<count;i++){
+      const choices=targetList(px,py,false).filter(t=>!used.has(t.obj) && t.d<range);
+      if(!choices.length) break;
+      const t=choices[0]; used.add(t.obj);
+      beams.push({x:px,y:py,a:Math.atan2(t.y-py,t.x-px),life:7,len:dist(px,py,t.x,t.y),color});
+      damageThing(t,dmg,'ZAP');
+      if(heal) tank.hp=Math.min(tank.maxHp,tank.hp+18);
+      px=t.x; py=t.y;
+    }
+  }
+
+  function carpet(px,py,count,power,spread,delay=90){
+    for(let i=0;i<count;i++){
+      const ex=px+R(-spread,spread), ey=py+R(-spread,spread);
+      setTimeout(()=>{ explosion(ex,ey,power); radiusDamage(ex,ey,80*power,60*power,true,'BOMB'); }, i*delay);
+    }
+  }
+
+  const fixedWeaponNames = new Set([
+    'homingskull','sawblade','burst3','laserblast','doomsdaynuke','doomflame',
+    'splitbeam','mirrorburst','crystaltrap','bugswarm','acidpool','nestbomb','gravpulse','orbitalslam','repulsor','stormchain','thunderwall','iondash','portalshot','riftmines','telefrag','gumballstorm','sugarbeam','stickyfoam','bonewall','soulsteal','gravecannon','busram','detentionswarm','chalknuke',
+    'minigun','chaingun','rocketpair','spotlight','hellfire','ghostmissile','hydrarockets','flareblast','wreckingmagnet','dropcrate','oilspill','phasebeam','shadowbomb','cloakburst','teslacoil','stormbomb','skyrail','windpush','carpetnuke','napalmrain','doommine','deathray'
+  ]);
+
+  const oldFireFixed = fire;
+  fire = function(){
+    const w=tank.weapon;
+    const heli = (typeof vehicleMode!=='undefined' && vehicleMode==='heli');
+    if(!heli && !fixedWeaponNames.has(w)) return oldFireFixed();
+    if(tank.cool>0 || tank.mg>0) return;
+    const a=tank.a;
+
+    // Three requested crazy tanks and earlier custom names.
+    if(w==='homingskull'){ tank.cool=24; spawnHoming(58,1.0,'#d9d9ff'); safeMsg('Homing skull launched.'); }
+    else if(w==='sawblade'){ tank.cool=18; for(let off of [-.16,.16]){ if(typeof blades!=='undefined') blades.push({x:tank.x+Math.cos(a+off)*36,y:tank.y+Math.sin(a+off)*36,vx:Math.cos(a+off)*14,vy:Math.sin(a+off)*14,life:95,damage:22,pierce:9,spin:0}); else spawnShell(a+off,40,.45,14,80,false); } }
+    else if(w==='burst3' || w==='burst'){ tank.cool=32; for(let i=0;i<3;i++) setTimeout(()=>spawnShell(tank.a+R(-.03,.03),48,.75,14,80,false),i*75); }
+    else if(w==='laserblast' || w==='laser'){ tank.cool=10; beam(a,620,34,24,'#ff55ff',5); }
+    else if(w==='doomsdaynuke' || w==='nuke'){ tank.cool=150; spawnShell(a,260,3.2,7,125,false); safeMsg('Doomsday nuke launched.'); }
+    else if(w==='doomflame' || w==='flame'){ tank.mg=1.2; for(let i=0;i<7;i++){ const aa=a+R(-.32,.32); flames.push({x:tank.x+Math.cos(aa)*34,y:tank.y+Math.sin(aa)*34,vx:Math.cos(aa)*R(6,9),vy:Math.sin(aa)*R(6,9),life:28,damage:5}); } }
+
+    // Reliable replacements for unique tank weapons.
+    else if(w==='splitbeam'){ tank.cool=24; [-.24,0,.24].forEach(o=>beam(a+o,700,38,22,'#78f6ff',7)); }
+    else if(w==='mirrorburst'){ tank.cool=35; for(let i=0;i<14;i++) spawnBullet(a,18,20,65,.95); radiusDamage(tank.x,tank.y,90,22,false,'MIRROR'); }
+    else if(w==='crystaltrap'){ tank.cool=42; const px=tank.x+Math.cos(a)*170, py=tank.y+Math.sin(a)*170; shockwaves.push({x:px,y:py,r:8,max:135,life:36,color:'#8dffff'}); radiusDamage(px,py,140,34,true,'CRYSTAL'); setTimeout(()=>radiusDamage(px,py,150,42,true,'CRYSTAL'),350); }
+    else if(w==='bugswarm' || w==='detentionswarm'){ tank.cool=50; for(let i=0;i<10;i++){ const t=targetList(tank.x,tank.y,false)[i%Math.max(1,targetList(tank.x,tank.y,false).length)]; if(t){ const aa=Math.atan2(t.y-tank.y,t.x-tank.x)+R(-.28,.28); bullets.push({x:tank.x,y:tank.y,vx:Math.cos(aa)*13,vy:Math.sin(aa)*13,life:105,damage:w==='bugswarm'?12:9}); } } }
+    else if(w==='acidpool'){ tank.cool=45; const px=tank.x+Math.cos(a)*190, py=tank.y+Math.sin(a)*190; fires.push({x:px,y:py,life:180,size:46}); radiusDamage(px,py,145,52,true,'ACID'); setTimeout(()=>radiusDamage(px,py,145,42,true,'ACID'),450); }
+    else if(w==='nestbomb'){ tank.cool=65; const px=tank.x+Math.cos(a)*280, py=tank.y+Math.sin(a)*280; setTimeout(()=>{ explosion(px,py,1.35); radiusDamage(px,py,140,80,true,'NEST'); for(let i=0;i<8;i++) spawnBullet(Math.atan2(py-tank.y,px-tank.x)+R(-1.8,1.8),10,14,75,0); },220); }
+    else if(w==='gravpulse'){ tank.cool=55; shockwaves.push({x:tank.x,y:tank.y,r:12,max:300,life:34,color:'#b388ff'}); radiusDamage(tank.x,tank.y,320,48,true,'GRAVITY'); for(const t of targetList(tank.x,tank.y,false)){ if(t.d<360){ t.obj.x += (tank.x-t.x)*.28; t.obj.y += (tank.y-t.y)*.28; } } }
+    else if(w==='orbitalslam'){ tank.cool=70; const px=tank.x+Math.cos(a)*360, py=tank.y+Math.sin(a)*360; beams.push({x:px,y:py-850,a:Math.PI/2,life:14,len:1700,color:'#ffffff'}); setTimeout(()=>{ explosion(px,py,2.3); radiusDamage(px,py,210,150,true,'ORBITAL'); },160); }
+    else if(w==='repulsor'){ tank.cool=32; shockwaves.push({x:tank.x,y:tank.y,r:8,max:240,life:24,color:'#caa6ff'}); radiusDamage(tank.x,tank.y,240,34,false,'REPULSE'); for(const t of targetList(tank.x,tank.y,false)){ if(t.d<250){ const aa=Math.atan2(t.y-tank.y,t.x-tank.x); t.obj.x+=Math.cos(aa)*150; t.obj.y+=Math.sin(aa)*150; } } }
+    else if(w==='stormchain' || w==='teslacoil'){ tank.cool=26; chainZap(w==='teslacoil'?7:6,210,w==='teslacoil'?62:55,'#88f7ff'); }
+    else if(w==='thunderwall'){ tank.cool=48; for(let off of [-120,-60,0,60,120]){ const px=tank.x+Math.cos(a)*180+Math.cos(a+Math.PI/2)*off, py=tank.y+Math.sin(a)*180+Math.sin(a+Math.PI/2)*off; shockwaves.push({x:px,y:py,r:5,max:65,life:26,color:'#88f7ff'}); radiusDamage(px,py,70,35,false,'THUNDER'); } }
+    else if(w==='iondash'){ tank.cool=60; tank.x+=Math.cos(a)*260; tank.y+=Math.sin(a)*260; explosion(tank.x,tank.y,1.1); radiusDamage(tank.x,tank.y,170,65,true,'ION'); }
+    else if(w==='portalshot'){ tank.cool=28; beam(a,520,24,18,'#bf6cff',5); const px=tank.x+Math.cos(a)*520, py=tank.y+Math.sin(a)*520; explosion(px,py,1.1); radiusDamage(px,py,125,70,true,'PORTAL'); }
+    else if(w==='riftmines'){ tank.cool=45; for(let i=0;i<3;i++){ const px=tank.x+R(-95,95), py=tank.y+R(-95,95); mines.push({x:px,y:py,life:650,r:24,power:1.35}); shockwaves.push({x:px,y:py,r:5,max:35,life:16,color:'#bd6cff'}); } }
+    else if(w==='telefrag'){ tank.cool=65; tank.x+=Math.cos(a)*410; tank.y+=Math.sin(a)*410; explosion(tank.x,tank.y,1.65); radiusDamage(tank.x,tank.y,165,95,true,'TELEFRAG'); }
+    else if(w==='gumballstorm'){ tank.cool=18; for(let i=0;i<9;i++) spawnBullet(a,13,18,75,.6); }
+    else if(w==='sugarbeam'){ tank.cool=8; beam(a,470,18,18,'#ff8fde',4); }
+    else if(w==='stickyfoam'){ tank.cool=34; const px=tank.x+Math.cos(a)*135, py=tank.y+Math.sin(a)*135; shockwaves.push({x:px,y:py,r:6,max:120,life:28,color:'#ffd0f2'}); radiusDamage(px,py,125,24,false,'FOAM'); }
+    else if(w==='bonewall'){ tank.cool=48; for(let i=-2;i<=2;i++){ const px=tank.x+Math.cos(a)*145+Math.cos(a+Math.PI/2)*i*36, py=tank.y+Math.sin(a)*145+Math.sin(a+Math.PI/2)*i*36; buildings.push({x:px-14,y:py-14,w:28,h:28,hp:90,maxHp:90,dead:false,color:'#d8d0b8',chips:[],cracks:[],rubble:[]}); } }
+    else if(w==='soulsteal'){ tank.cool=36; chainZap(5,190,45,'#6aff9d',true); tank.hp=Math.min(tank.maxHp,tank.hp+55); }
+    else if(w==='gravecannon'){ tank.cool=58; spawnShell(a,105,1.7,9,100,false); }
+    else if(w==='busram'){ tank.cool=45; tank.x+=Math.cos(a)*340; tank.y+=Math.sin(a)*340; explosion(tank.x,tank.y,1.3); radiusDamage(tank.x,tank.y,165,75,true,'BUS RAM'); }
+    else if(w==='chalknuke'){ tank.cool=120; const px=tank.x+Math.cos(a)*360, py=tank.y+Math.sin(a)*360; safeMsg('CHALK NUKE INCOMING'); setTimeout(()=>{ explosion(px,py,2.7); radiusDamage(px,py,260,190,true,'CHALK NUKE'); },360); }
+
+    // Helicopter weapons.
+    else if(w==='minigun' || w==='chaingun'){ tank.mg=w==='minigun'?1.1:.8; spawnBullet(a,w==='minigun'?8:12,25,62,.1); }
+    else if(w==='rocketpair'){ tank.cool=26; spawnShell(a-.09,42,.85,13,85,false); spawnShell(a+.09,42,.85,13,85,false); }
+    else if(w==='spotlight'){ tank.cool=42; safeWanted(2); beam(a,360,16,34,'#ffffff',8); chainZap(3,230,30,'#ffffff'); }
+    else if(w==='hellfire' || w==='ghostmissile'){ tank.cool=40; spawnHoming(w==='ghostmissile'?100:78,w==='ghostmissile'?1.25:1.05,w==='ghostmissile'?'#b388ff':'#ffdd66'); }
+    else if(w==='hydrarockets'){ tank.cool=62; for(let i=0;i<10;i++) setTimeout(()=>spawnShell(tank.a+R(-.34,.34),34,.7,12,78,false),i*40); }
+    else if(w==='flareblast'){ tank.cool=72; shockwaves.push({x:tank.x,y:tank.y,r:10,max:275,life:28,color:'#ffdd88'}); radiusDamage(tank.x,tank.y,280,28,false,'FLARE'); for(const p of police){ if(!p.dead && dist(p.x,p.y,tank.x,tank.y)<300) p.cool=180; } }
+    else if(w==='wreckingmagnet'){ tank.cool=32; for(const t of targetList(tank.x,tank.y,false)){ if(t.d<430){ t.obj.x+=(tank.x-t.x)*.22; t.obj.y+=(tank.y-t.y)*.22; damageThing(t,14,'MAGNET'); } } }
+    else if(w==='dropcrate'){ tank.cool=46; const px=tank.x+Math.cos(a)*190, py=tank.y+Math.sin(a)*190; setTimeout(()=>{ explosion(px,py,1.3); radiusDamage(px,py,135,85,true,'CRATE'); },150); }
+    else if(w==='oilspill'){ tank.cool=40; const px=tank.x-Math.cos(a)*50, py=tank.y-Math.sin(a)*50; fires.push({x:px,y:py,life:160,size:44}); radiusDamage(px,py,150,20,false,'OIL'); for(const t of targetList(px,py,false)){ if(t.d<170 && t.obj.a!==undefined) t.obj.a+=Math.PI/2; } }
+    else if(w==='phasebeam'){ tank.cool=11; beam(a,650,36,30,'#c179ff',6); }
+    else if(w==='shadowbomb'){ tank.cool=64; const px=tank.x+Math.cos(a)*270, py=tank.y+Math.sin(a)*270; setTimeout(()=>{ explosion(px,py,1.75); radiusDamage(px,py,175,105,true,'SHADOW'); },190); }
+    else if(w==='cloakburst'){ tank.cool=84; tank.wanted=Math.max(0,(tank.wanted||0)-2); shockwaves.push({x:tank.x,y:tank.y,r:8,max:200,life:24,color:'#b388ff'}); safeMsg('Cloak burst lowered wanted level.'); }
+    else if(w==='stormbomb'){ tank.cool=64; const px=tank.x+Math.cos(a)*250, py=tank.y+Math.sin(a)*250; explosion(px,py,1.0); radiusDamage(px,py,210,72,false,'STORM'); chainZap(5,200,50,'#88f7ff'); }
+    else if(w==='skyrail'){ tank.cool=50; beam(a,950,90,42,'#9dffff',12); }
+    else if(w==='windpush'){ tank.cool=35; shockwaves.push({x:tank.x,y:tank.y,r:8,max:320,life:24,color:'#dff7ff'}); for(const t of targetList(tank.x,tank.y,false)){ if(t.d<330){ const aa=Math.atan2(t.y-tank.y,t.x-tank.x); t.obj.x+=Math.cos(aa)*180; t.obj.y+=Math.sin(aa)*180; damageThing(t,22,'WIND'); } } }
+    else if(w==='carpetnuke'){ tank.cool=155; carpet(tank.x+Math.cos(a)*420,tank.y+Math.sin(a)*420,7,1.75,280,110); }
+    else if(w==='napalmrain'){ tank.cool=75; for(let i=0;i<14;i++){ const px=tank.x+R(-320,320), py=tank.y+R(-320,320); setTimeout(()=>{ fires.push({x:px,y:py,life:250,size:34}); radiusDamage(px,py,90,48,true,'NAPALM'); },i*55); } }
+    else if(w==='doommine'){ tank.cool=36; mines.push({x:tank.x,y:tank.y,life:1000,r:34,power:1.8}); }
+    else if(w==='deathray'){ tank.cool=88; beam(a,1050,170,58,'#ff2a2a',20); }
+    else return oldFireFixed();
+    updateUI();
+  };
+
+  // Give all custom projectile types finite cleanup, even if an older version spawned bad objects.
+  const oldUpdFixedCleanup = upd;
+  upd = function(){
+    oldUpdFixedCleanup();
+    if(!gameStarted) return;
+
+    const maxObjects = 900;
+    if(bullets.length>maxObjects) bullets.splice(0,bullets.length-maxObjects);
+    if(shells.length>maxObjects) shells.splice(0,shells.length-maxObjects);
+    if(flames.length>400) flames.splice(0,flames.length-400);
+    if(mines.length>180) mines.splice(0,mines.length-180);
+    if(drones.length>60) drones.splice(0,drones.length-60);
+    if(beams.length>120) beams.splice(0,beams.length-120);
+    if(particles.length>900) particles.splice(0,particles.length-900);
+    if(smoke.length>550) smoke.splice(0,smoke.length-550);
+    if(fires.length>280) fires.splice(0,fires.length-280);
+    if(shockwaves.length>160) shockwaves.splice(0,shockwaves.length-160);
+    if(typeof blades!=='undefined' && blades.length>220) blades.splice(0,blades.length-220);
+
+    for(const sh of shells){
+      if(sh.homing){
+        const t=targetList(sh.x,sh.y,true)[0];
+        if(t){
+          const want=Math.atan2(t.y-sh.y,t.x-sh.x);
+          const cur=Math.atan2(sh.vy,sh.vx);
+          const diff=Math.atan2(Math.sin(want-cur),Math.cos(want-cur));
+          const turn=sh.turn || .08;
+          const next=cur+Math.max(-turn,Math.min(turn,diff));
+          const sp=Math.min(15,Math.hypot(sh.vx,sh.vy)*1.018);
+          sh.vx=Math.cos(next)*sp; sh.vy=Math.sin(next)*sp;
+        }
+      }
+      if(sh.spawnX!==undefined && dist(sh.x,sh.y,sh.spawnX,sh.spawnY) > (sh.maxTravel||2600)) sh.dead=true;
+    }
+
+    // Mines with custom power now explode using their power.
+    for(const m of mines){
+      if(m.dead || !m.power) continue;
+      let trig = dist(m.x,m.y,tank.x,tank.y)<(m.r||22);
+      for(const p of police) if(!p.dead && dist(p.x,p.y,m.x,m.y)<(m.r||22)+25) trig=true;
+      for(const c of cars) if(!c.dead && dist(c.x,c.y,m.x,m.y)<(m.r||22)+22) trig=true;
+      if(trig){ explosion(m.x,m.y,m.power); radiusDamage(m.x,m.y,90*m.power,75*m.power,true,'MINE'); m.dead=true; }
+    }
+
+    bullets = bullets.filter(o=>!o.dead && o.life>0 && isFinite(o.x) && isFinite(o.y));
+    shells = shells.filter(o=>!o.dead && o.life>0 && isFinite(o.x) && isFinite(o.y));
+    flames = flames.filter(o=>!o.dead && o.life>0 && isFinite(o.x) && isFinite(o.y));
+    mines = mines.filter(o=>!o.dead && o.life>0 && isFinite(o.x) && isFinite(o.y));
+    drones = drones.filter(o=>!o.dead && o.life>0 && isFinite(o.x) && isFinite(o.y));
+    beams = beams.filter(o=>!o.dead && o.life>0 && isFinite(o.x) && isFinite(o.y));
+    if(typeof blades!=='undefined') blades = blades.filter(o=>!o.dead && o.life>0 && isFinite(o.x) && isFinite(o.y));
+  };
+
+  // More readable labels for the three requested tanks if older labels were missing.
+  const oldLabelFix = weaponLabel;
+  weaponLabel = function(w){
+    const m={homingskull:'Homing Skulls',sawblade:'Saw Blades',burst3:'Triple Burst',laserblast:'Maximus Laser',doomsdaynuke:'Doomsday Nukes',doomflame:'Doom Flamethrower'};
+    return m[w] || oldLabelFix(w);
+  };
+
+  safeMsg('Weapon bugfix loaded: all custom/heli weapons now damage, expire, and clean up properly.');
+})();
+</script>
+
+
+<style id="citySystemsStyles">
+#cityPanel{position:fixed;right:10px;top:10px;background:rgba(0,0,0,.72);color:white;border:1px solid rgba(255,255,255,.25);border-radius:12px;padding:10px;z-index:6;font:13px Arial;min-width:215px;line-height:1.35;box-shadow:0 0 18px #0008}
+#cityPanel b{color:#ffd84a}#minimap{position:fixed;right:10px;bottom:10px;width:220px;height:220px;background:#000b;border:2px solid #fff5;border-radius:12px;z-index:6;box-shadow:0 0 20px #000;}
+.upgradeBtn{display:block;width:100%;box-sizing:border-box;margin-top:5px;font-size:12px;padding:6px 8px;border-radius:9px}
+</style>
+<div id="cityPanel">
+ <b>City Systems</b><br>
+ District: <span id="districtName">Downtown</span><br>
+ Building: <span id="nearBuildingType">---</span><br>
+ Chaos: <span id="chaosLevel">1</span><br>
+ Wanted Stars: <span id="wantedStarText" style="color:#ffd84a">★</span><br>
+ Threats: <span id="threatText">Police</span><br>
+ Target: <span id="hvtText">None</span><br>
+ <button class="upgradeBtn" onclick="buyVehicleUpgrade('damage')">Upgrade Damage</button>
+ <button class="upgradeBtn" onclick="buyVehicleUpgrade('armor')">Upgrade Armor</button>
+ <button class="upgradeBtn" onclick="buyVehicleUpgrade('speed')">Upgrade Speed</button>
+</div>
+<canvas id="minimap" width="220" height="220"></canvas>
+<script id="citySystemsPatch">
+(function(){
+ if(window.__CITY_SYSTEMS_PATCH__)return; window.__CITY_SYSTEMS_PATCH__=true;
+ const DISTRICTS=[
+  {name:'Downtown',color:'#34465c',road:'#30343d',types:['Skyscraper','Bank','Office Tower'],bonus:1.35},
+  {name:'Industrial',color:'#5a4a36',road:'#38342e',types:['Factory','Warehouse','Power Plant'],bonus:1.15},
+  {name:'Suburbs',color:'#3f5a3a',road:'#3b3b3b',types:['House','Store','Gas Station'],bonus:.85},
+  {name:'Military Zone',color:'#4d5643',road:'#343a34',types:['Barracks','Radar Station','Armory'],bonus:1.65},
+  {name:'Harbor',color:'#2a5362',road:'#32393e',types:['Dock House','Crane Yard','Cargo Depot'],bonus:1.25},
+  {name:'Airport',color:'#555b68',road:'#383e48',types:['Hangar','Terminal','Fuel Depot'],bonus:1.45}
+ ];
+ const buildingStats={
+  'House':{hp:95,score:300,color:'#7a8f69'},'Store':{hp:125,score:420,color:'#6c89a8'},'Gas Station':{hp:90,score:900,color:'#bb5a37',explode:2.2},
+  'Skyscraper':{hp:360,score:1300,color:'#4d607a'},'Bank':{hp:280,score:1900,color:'#8a7a45'},'Office Tower':{hp:240,score:900,color:'#5f6874'},
+  'Factory':{hp:310,score:1150,color:'#6c5a48'},'Warehouse':{hp:210,score:700,color:'#716455'},'Power Plant':{hp:340,score:1800,color:'#785c28',explode:1.8},
+  'Barracks':{hp:300,score:1350,color:'#596847'},'Radar Station':{hp:190,score:1200,color:'#60736b'},'Armory':{hp:320,score:2200,color:'#555544',explode:2.4},
+  'Dock House':{hp:180,score:650,color:'#397085'},'Crane Yard':{hp:220,score:1100,color:'#b68b35'},'Cargo Depot':{hp:260,score:950,color:'#536b72'},
+  'Hangar':{hp:300,score:1500,color:'#69738b'},'Terminal':{hp:260,score:1200,color:'#788095'},'Fuel Depot':{hp:210,score:2600,color:'#a86b28',explode:2.6}
+ };
+ window.vehicleUpgrades=JSON.parse(localStorage.getItem('TANK_CITY_UPGRADES')||'{"damage":0,"armor":0,"speed":0}');
+ window.buyVehicleUpgrade=function(kind){
+   const cost=350+((window.vehicleUpgrades[kind]||0)*550);
+   if(tank.money<cost){msg('Need $'+cost+' for '+kind+' upgrade');return;}
+   tank.money-=cost; window.vehicleUpgrades[kind]=(window.vehicleUpgrades[kind]||0)+1;
+   localStorage.setItem('TANK_CITY_UPGRADES',JSON.stringify(window.vehicleUpgrades));
+   applyUpgradeStats(); updateUI(); msg(kind.toUpperCase()+' upgrade bought!');
+ };
+ function hash2(a,b){let n=(a*73856093)^(b*19349663); n=(n<<13)^n; return Math.abs((n*(n*n*15731+789221)+1376312589)&0x7fffffff);}
+ function districtFor(x,y){let cx=Math.floor(x/CHUNK),cy=Math.floor(y/CHUNK);return DISTRICTS[hash2(cx,cy)%DISTRICTS.length];}
+ function typeForBuilding(b){let d=districtFor(b.x+b.w/2,b.y+b.h/2);return d.types[hash2(Math.floor(b.x/80),Math.floor(b.y/80))%d.types.length];}
+ function tagBuilding(b){
+   if(!b||b._districtTagged)return;
+   let type=typeForBuilding(b), st=buildingStats[type]||buildingStats.House, d=districtFor(b.x+b.w/2,b.y+b.h/2);
+   b.buildingType=type; b.district=d.name; b.scoreValue=st.score; b.color=st.color; b.maxHp=st.hp*d.bonus; b.hp=Math.min(b.hp||b.maxHp,b.maxHp); b.explodePower=st.explode||0; b._districtTagged=true;
+ }
+ function tagAll(){ for(const b of buildings)tagBuilding(b); }
+ const oldGenerateChunk=generateChunk; generateChunk=function(cx,cy){ oldGenerateChunk(cx,cy); tagAll(); };
+ const oldGenerateCity=generateCity; generateCity=function(){ oldGenerateCity(); tagAll(); };
+ const oldCollapse=collapseBuilding; collapseBuilding=function(b){
+   tagBuilding(b); const extra=Math.floor((b.scoreValue||500)-500); oldCollapse(b); if(extra>0&&typeof addScore==='function')addScore(extra,b.buildingType||'BUILDING',b.x+b.w/2,b.y+b.h/2); if(b.explodePower)explosion(b.x+b.w/2,b.y+b.h/2,b.explodePower);
+ };
+ function chaosLevel(){return Math.max(1,Math.min(50,Math.floor((tank.score||0)/3500)+Math.ceil((tank.wanted||0)/3)));}
+ function starLevel(){return Math.max(0,Math.min(6,Math.ceil((tank.wanted||0)/3)));}
+ function threatText(){let s=starLevel();return ['None','Police Cars','Roadblocks','SWAT Vans','Attack Helicopters','Military Tanks','Military Invasion'][s]||'Military Invasion';}
+ function applyUpgradeStats(){
+   let up=window.vehicleUpgrades||{}; if(!tank._upgradeBase){tank._upgradeBase={type:tank.type,maxHp:tank.maxHp};}
+   // Light-touch upgrades: do not permanently multiply repeatedly.
+   const armor=1+(up.armor||0)*0.12; tank.maxHp=Math.round((tankDefs[tank.type]?.maxHp||tank.maxHp)*armor); tank.hp=Math.min(tank.hp,tank.maxHp);
+ }
+ const oldApplyTank=applyTank; applyTank=function(type){oldApplyTank(type); tank._upgradeBase=null; applyUpgradeStats();};
+ const oldMoveTank=moveTank; moveTank=function(){
+   let beforeX=tank.x,beforeY=tank.y; oldMoveTank();
+   let bonus=1+(window.vehicleUpgrades.speed||0)*.035; if(bonus>1){tank.x=beforeX+(tank.x-beforeX)*bonus; tank.y=beforeY+(tank.y-beforeY)*bonus;}
+ };
+ function damageBoost(v){return v*(1+(window.vehicleUpgrades.damage||0)*.10);}
+ const oldFireShell=fireShell; fireShell=function(power,speed,damage,cool,off=0){return oldFireShell(power,speed,damageBoost(damage),cool,off)};
+ const oldDamageRadius=damageRadius; damageRadius=function(px,py,r,dmg){return oldDamageRadius(px,py,r,damageBoost(dmg));};
+ let hvt=null,hvtTimer=0;
+ function spawnHVT(){
+   const kinds=['Money Truck','Police Convoy','Military Convoy','Mayor Limo'];
+   const kind=kinds[Math.floor(Math.random()*kinds.length)];
+   const obj={x:tank.x+rnd(-850,850),y:tank.y+rnd(-850,850),a:rnd(0,6.28),hp:kind.includes('Military')?170:kind.includes('Police')?120:90,w:42,h:24,panic:0,dead:false,color:kind==='Money Truck'?'#20d070':kind==='Mayor Limo'?'#eeeeee':'#2020aa',hvt:true,hvtKind:kind};
+   cars.push(obj); hvt=obj; msg('High-value target spawned: '+kind+'!');
+ }
+ const oldDestroyCar=destroyCar; destroyCar=function(car){
+   const wasHVT=car&&car.hvt&&!car.dead; oldDestroyCar(car);
+   if(wasHVT){let reward=car.hvtKind==='Mayor Limo'?5500:car.hvtKind==='Military Convoy'?4500:car.hvtKind==='Police Convoy'?3200:2500; tank.money+=Math.floor(reward/10); addXP(Math.floor(reward/80)); addScore(reward,car.hvtKind,car.x,car.y); hvt=null; msg('HVT destroyed: '+car.hvtKind+' +'+reward+' score');}
+ };
+ const oldUpd=upd; upd=function(){
+   oldUpd(); if(!gameStarted)return; tagAll();
+   hvtTimer++; if(hvtTimer>1600&&!hvt){hvtTimer=0;spawnHVT();}
+   if(hvt&&hvt.dead)hvt=null;
+   // Escalation support: add tougher police-like units by star level.
+   let s=starLevel();
+   const alivePolice=police.filter(p=>!p.dead).length;
+   if(s>=2 && Math.random()<0.008 && alivePolice<8+s*3){ police.push({x:tank.x+rnd(-900,900),y:tank.y+rnd(-900,900),a:0,hp:70+s*20,w:40,h:24,dead:false,cool:0,elite:s>=3,heli:s>=4,tank:s>=5}); }
+   if(s>=2 && Math.random()<0.006){ // simple roadblock cars
+     for(let i=0;i<3;i++)cars.push({x:tank.x+rnd(-500,500)+i*42,y:tank.y+rnd(-500,500),a:0,hp:80,w:36,h:20,panic:0,dead:false,color:'#111',roadblock:true});
+   }
+   drawMiniMap(); updateCityPanel();
+ };
+ const oldDrawBuilding=drawBuilding; drawBuilding=function(b){ tagBuilding(b); oldDrawBuilding(b); if(!b.dead){let sx=b.x-cam.x,sy=b.y-cam.y;x.fillStyle='rgba(0,0,0,.55)';x.fillRect(sx+3,sy+3,Math.min(b.w-6,88),16);x.fillStyle='#fff';x.font='bold 10px Arial';x.fillText((b.buildingType||'Building').slice(0,13),sx+7,sy+15);} };
+ const oldDrawCar=drawCar; drawCar=function(car,isPolice=false){
+   if(car&&car.hvt&&!car.dead){x.save();x.translate(car.x-cam.x,car.y-cam.y);x.rotate(car.a);x.fillStyle=car.color;x.fillRect(-24,-13,48,26);x.fillStyle='#ffd84a';x.fillRect(-20,-17,40,5);x.restore();return;}
+   oldDrawCar(car,isPolice);
+ };
+ const oldDraw=draw; draw=function(){ oldDraw(); drawMiniMap(); };
+ function updateCityPanel(){
+   let d=districtFor(tank.x,tank.y); let nearest=null,bd=1e9; for(const b of buildings){if(!b.dead){let dist=Math.hypot((b.x+b.w/2)-tank.x,(b.y+b.h/2)-tank.y);if(dist<bd){bd=dist;nearest=b;}}}
+   const $=id=>document.getElementById(id); if($('districtName'))$('districtName').textContent=d.name; if($('chaosLevel'))$('chaosLevel').textContent=chaosLevel(); if($('wantedStarText'))$('wantedStarText').textContent='★'.repeat(starLevel())||'0'; if($('threatText'))$('threatText').textContent=threatText(); if($('nearBuildingType'))$('nearBuildingType').textContent=nearest?(nearest.buildingType||'Building'):'---'; if($('hvtText'))$('hvtText').textContent=hvt&&!hvt.dead?hvt.hvtKind:'None';
+ }
+ const oldUpdateUI=updateUI; updateUI=function(){oldUpdateUI();updateCityPanel();};
+ function drawMiniMap(){
+   const m=document.getElementById('minimap'); if(!m)return; const mx=m.getContext('2d'), W=m.width,H=m.height, scale=0.045; mx.clearRect(0,0,W,H); mx.fillStyle='rgba(0,0,0,.85)'; mx.fillRect(0,0,W,H);
+   let d=districtFor(tank.x,tank.y); mx.fillStyle=d.color; mx.globalAlpha=.35; mx.fillRect(0,0,W,H); mx.globalAlpha=1;
+   mx.strokeStyle='#ffffff33'; mx.strokeRect(1,1,W-2,H-2); mx.fillStyle='#ffd84a'; mx.font='bold 12px Arial'; mx.fillText(d.name,8,16);
+   function map(wx,wy){return {x:W/2+(wx-tank.x)*scale,y:H/2+(wy-tank.y)*scale};}
+   for(const b of buildings){let p=map(b.x+b.w/2,b.y+b.h/2); if(p.x<0||p.x>W||p.y<0||p.y>H)continue; mx.fillStyle=b.dead?'#555':'#aaa'; mx.fillRect(p.x-2,p.y-2,4,4);}
+   for(const car of cars){if(car.dead)continue;let p=map(car.x,car.y); if(p.x<0||p.x>W||p.y<0||p.y>H)continue; mx.fillStyle=car.hvt?'#ffd84a':car.roadblock?'#111':'#42a5f5'; mx.fillRect(p.x-2,p.y-2,4,4);}
+   for(const p0 of police){if(p0.dead)continue;let p=map(p0.x,p0.y); if(p.x<0||p.x>W||p.y<0||p.y>H)continue; mx.fillStyle=p0.tank?'#ff1744':p0.heli?'#ff8a00':'#ff5252'; mx.beginPath();mx.arc(p.x,p.y,3,0,7);mx.fill();}
+   for(const n of npcs){if(n.dead||n.helped)continue;let p=map(n.x,n.y); if(p.x<0||p.x>W||p.y<0||p.y>H)continue; mx.fillStyle='#fff'; mx.fillRect(p.x,p.y,2,2);}
+   mx.fillStyle='#00ff66'; mx.beginPath();mx.arc(W/2,H/2,5,0,7);mx.fill(); mx.strokeStyle='#00ff66';mx.beginPath();mx.moveTo(W/2,H/2);mx.lineTo(W/2+Math.cos(tank.a)*14,H/2+Math.sin(tank.a)*14);mx.stroke();
+ }
+ tagAll(); updateCityPanel(); drawMiniMap();
+})();
+</script>
+
+
+<script id="versus_mode_patch">
+(function(){
+ if(window.__VERSUS_MODE_PATCH__)return; window.__VERSUS_MODE_PATCH__=true;
+ let versus=false, versusTime=300*60, ai=null, aiShots=[], versusOver=false;
+ function addMenuButtons(){
+   const box=document.getElementById('menuBox'); if(!box||document.getElementById('versusModeBtn'))return;
+   const b=document.createElement('button'); b.className='red'; b.id='versusModeBtn'; b.textContent='Versus Mode: 5 Min Score Race'; b.onclick=startVersusMode;
+   const start=[...box.querySelectorAll('button')].find(x=>x.textContent.includes('Start New Game'));
+   if(start) start.insertAdjacentElement('afterend',b); else box.appendChild(b);
+ }
+ function addUi(){
+   const ui=document.getElementById('ui'); if(!ui||document.getElementById('versusUI'))return;
+   const d=document.createElement('div'); d.id='versusUI'; d.style.cssText='display:none;margin-top:8px;padding-top:8px;border-top:1px solid #fff6;color:#ffd84a';
+   d.innerHTML='<b>VERSUS MODE</b><br>Time: <span id="vTime">5:00</span><br>Your Score: <span id="vPlayer">0</span><br>AI Score: <span id="vAI">0</span><br>Leader: <span id="vLead">Tied</span><br><small>Dying resets that tank\'s score.</small>';
+   ui.appendChild(d);
+ }
+ window.startVersusMode=function(){
+   resetRunStats(); generateCity(); newMission();
+   versus=true; versusOver=false; versusTime=300*60;
+   ai={x:tank.x+360,y:tank.y+140,a:0,hp:430,maxHp:430,score:0,cool:0,target:null,type:'maximus',weapon:0,name:'AI Maximus'};
+   tank.score=0; tank.wanted=0; tank.money=0; tank.rep=0; tank.xp=0; tank.hp=tank.maxHp;
+   document.getElementById('menu').style.display='none'; gameStarted=true;
+   document.getElementById('versusUI').style.display='block';
+   updateVersusUI(); updateUI(); renderGarage();
+   msg('VERSUS STARTED: 5 minutes. Destroy more than the AI. Death resets your score!');
+ };
+ const oldStart=startGame;
+ window.startGame=startGame=function(){versus=false;versusOver=false;document.getElementById('versusUI').style.display='none';oldStart();};
+ const oldOpen=openMenu;
+ window.openMenu=openMenu=function(){ if(versus&&!versusOver){msg('Versus paused in garage. Press Start New Game or Versus to restart.');} oldOpen(); };
+ const oldAddScore=addScore;
+ window.addScore=addScore=function(base,label,px,py){ oldAddScore(base,label,px,py); if(versus)updateVersusUI(); };
+ window.__versusPlayerDeath=function(){ if(versus&&!versusOver){tank.score=0; tank.money=0; tank.xp=0; tank.rep=0; tank.wanted=0; msg('You got destroyed in Versus — YOUR SCORE RESET TO 0!'); updateVersusUI();} };
+ function updateVersusUI(){
+   if(!document.getElementById('versusUI'))return;
+   const sec=Math.max(0,Math.ceil(versusTime/60)), m=Math.floor(sec/60), ss=String(sec%60).padStart(2,'0');
+   document.getElementById('vTime').textContent=m+':'+ss;
+   document.getElementById('vPlayer').textContent=Math.floor(tank.score||0).toLocaleString();
+   document.getElementById('vAI').textContent=Math.floor(ai?ai.score:0).toLocaleString();
+   let leader='Tied'; if(ai){leader=(tank.score>ai.score?'You':ai.score>tank.score?'AI Tank':'Tied');}
+   document.getElementById('vLead').textContent=leader;
+ }
+ function aiAddScore(v,label,x,y){ if(!ai)return; ai.score+=Math.floor(v); particles.push({x:x||ai.x,y:(y||ai.y)-20,vx:0,vy:-1.2,life:45,size:0,color:'#ff6bff',txt:'AI +'+Math.floor(v)+' '+label}); }
+ function nearestTarget(){
+   let best=null, bd=1e9, kind='';
+   for(const b of buildings){if(b.dead)continue; const cx=b.x+b.w/2,cy=b.y+b.h/2,d=Math.hypot(cx-ai.x,cy-ai.y); if(d<bd){bd=d;best=b;kind='building';}}
+   for(const car of cars){if(car.dead)continue; const d=Math.hypot(car.x-ai.x,car.y-ai.y); if(d<bd){bd=d;best=car;kind='car';}}
+   for(const n of npcs){if(n.dead||n.helped)continue; const d=Math.hypot(n.x-ai.x,n.y-ai.y); if(d<bd){bd=d;best=n;kind='npc';}}
+   return best?{o:best,d:bd,kind}:null;
+ }
+ function aiFire(target){
+   if(!target||ai.cool>0)return; ai.cool=32;
+   const tx=target.kind==='building'?target.o.x+target.o.w/2:target.o.x, ty=target.kind==='building'?target.o.y+target.o.h/2:target.o.y;
+   const a=Math.atan2(ty-ai.y,tx-ai.x); ai.a=a;
+   // AI gets three different attack styles so it feels like an actual rival, not a parked turret.
+   const mode=Math.floor(Math.random()*3);
+   if(mode===0){ aiShots.push({x:ai.x+Math.cos(a)*35,y:ai.y+Math.sin(a)*35,vx:Math.cos(a)*15,vy:Math.sin(a)*15,life:80,damage:80,power:1.0}); }
+   else if(mode===1){ for(let i=-1;i<=1;i++){let aa=a+i*.12; aiShots.push({x:ai.x+Math.cos(aa)*35,y:ai.y+Math.sin(aa)*35,vx:Math.cos(aa)*13,vy:Math.sin(aa)*13,life:70,damage:44,power:.7});}}
+   else { beams.push({x:ai.x+Math.cos(a)*34,y:ai.y+Math.sin(a)*34,a,life:6,len:620,color:'#ff45ff'}); aiLaserDamage(ai.x,ai.y,a); }
+   muzzle(ai.x+Math.cos(a)*35,ai.y+Math.sin(a)*35,a,.55);
+ }
+ function aiLaserDamage(sx,sy,a){
+   for(const b of buildings){if(!b.dead){let cx=b.x+b.w/2,cy=b.y+b.h/2;if(lineHit(sx,sy,a,cx,cy,620,Math.max(b.w,b.h)/2))aiDamageBuilding(b,95);}}
+   for(const car of cars){if(!car.dead&&lineHit(sx,sy,a,car.x,car.y,620,18))aiDestroyCar(car);}
+   for(const n of npcs){if(!n.dead&&!n.helped&&lineHit(sx,sy,a,n.x,n.y,620,13)){n.dead=true;aiAddScore(250,'CIV',n.x,n.y);}}
+   if(lineHit(sx,sy,a,tank.x,tank.y,620,24))tank.hp-=24;
+ }
+ function aiDamageBuilding(b,dmg){ b.hp-=dmg; if(b.hp<=0&&!b.dead)aiCollapseBuilding(b); }
+ function aiCollapseBuilding(b){
+   b.dead=true; for(let i=0;i<35;i++)b.rubble.push({x:rnd(0,b.w),y:rnd(0,b.h),w:rnd(5,18),h:rnd(4,14),a:rnd(0,6.28),color:Math.random()<.5?'#555':'#777'});
+   aiAddScore((b.scoreValue||500),'BUILDING',b.x+b.w/2,b.y+b.h/2); shockwaves.push({x:b.x+b.w/2,y:b.y+b.h/2,r:6,max:75,life:22});
+ }
+ function aiDestroyCar(car){car.dead=true; aiAddScore(car.hvtKind?3200:500,car.hvtKind||'CAR',car.x,car.y); shockwaves.push({x:car.x,y:car.y,r:5,max:42,life:18});}
+ function aiUpdateShots(){
+   for(const s of aiShots){
+     s.x+=s.vx; s.y+=s.vy; s.life--;
+     let bl=hitBuilding(s.x,s.y); if(bl){aiDamageBuilding(bl,s.damage); shockwaves.push({x:s.x,y:s.y,r:5,max:55*s.power,life:18}); s.dead=true; continue;}
+     for(const car of cars){if(!car.dead&&Math.abs(car.x-s.x)<20&&Math.abs(car.y-s.y)<16){aiDestroyCar(car);s.dead=true;break;}}
+     if(s.dead)continue;
+     for(const n of npcs){if(!n.dead&&!n.helped&&Math.hypot(n.x-s.x,n.y-s.y)<13){n.dead=true;aiAddScore(250,'CIV',n.x,n.y);s.dead=true;break;}}
+     if(Math.hypot(tank.x-s.x,tank.y-s.y)<23){tank.hp-=s.damage*.35;s.dead=true;}
+   }
+   aiShots=aiShots.filter(s=>!s.dead&&s.life>0);
+ }
+ function updateAI(){
+   if(!versus||versusOver||!gameStarted||!ai)return;
+   if(versusTime>0)versusTime--; else endVersus();
+   const t=nearestTarget();
+   if(t){ const tx=t.kind==='building'?t.o.x+t.o.w/2:t.o.x, ty=t.kind==='building'?t.o.y+t.o.h/2:t.o.y; const a=Math.atan2(ty-ai.y,tx-ai.x); ai.a=a; if(t.d>230){let nx=ai.x+Math.cos(a)*3.3, ny=ai.y+Math.sin(a)*3.3; if(!hitBuilding(nx,ny)){ai.x=nx;ai.y=ny;}} aiFire(t); }
+   if(ai.cool>0)ai.cool--; aiUpdateShots();
+   // Player can damage/ram the rival tank.
+   for(const sh of shells){if(!sh.dead&&Math.hypot(sh.x-ai.x,sh.y-ai.y)<30){ai.hp-=sh.damage||50;sh.dead=true;}}
+   for(const b of bullets){if(!b.dead&&!b.cop&&Math.hypot(b.x-ai.x,b.y-ai.y)<24){ai.hp-=b.damage||5;b.dead=true;}}
+   for(const f of flames){if(Math.hypot(f.x-ai.x,f.y-ai.y)<30)ai.hp-=f.damage||2;}
+   if(Math.hypot(tank.x-ai.x,tank.y-ai.y)<35){tank.hp-=.08; ai.hp-=.08;}
+   if(ai.hp<=0){ai.score=0; ai.hp=ai.maxHp; ai.x=tank.x+rnd(520,820)*(Math.random()<.5?-1:1); ai.y=tank.y+rnd(520,820)*(Math.random()<.5?-1:1); msg('AI tank destroyed — AI SCORE RESET TO 0!');}
+   updateVersusUI();
+ }
+ function endVersus(){
+   versusOver=true; gameStarted=false; let result=(tank.score>ai.score?'YOU WIN!':ai.score>tank.score?'AI WINS!':'TIE!');
+   msg('VERSUS OVER — '+result+' You: '+Math.floor(tank.score).toLocaleString()+' | AI: '+Math.floor(ai.score).toLocaleString());
+   setTimeout(()=>{document.getElementById('menu').style.display='flex'; renderGarage();},600);
+ }
+ const oldDraw=draw;
+ window.draw=draw=function(){ oldDraw(); if(versus&&ai){ drawTankModel(ai.x-cam.x,ai.y-cam.y,ai.a,ai.type); x.fillStyle='#ff45ff'; x.font='bold 13px Arial'; x.textAlign='center'; x.fillText('AI RIVAL',ai.x-cam.x,ai.y-cam.y-34); x.fillText(Math.floor(ai.score).toLocaleString(),ai.x-cam.x,ai.y-cam.y-50); x.textAlign='left'; x.fillStyle='#0008'; x.fillRect(ai.x-cam.x-34,ai.y-cam.y-28,68,5); x.fillStyle='#ff45ff'; x.fillRect(ai.x-cam.x-34,ai.y-cam.y-28,68*Math.max(0,ai.hp/ai.maxHp),5); for(const s of aiShots){x.fillStyle='#ff88ff';x.beginPath();x.arc(s.x-cam.x,s.y-cam.y,5,0,7);x.fill();} } };
+ setInterval(updateAI,16);
+ addMenuButtons(); addUi(); setTimeout(addMenuButtons,400); setTimeout(addUi,400);
+})();
+</script>
+
+
+
+<script id="megaTankBossPatch">
+(function(){
+  if(window.__MEGA_TANK_BOSS_PATCH__) return;
+  window.__MEGA_TANK_BOSS_PATCH__=true;
+
+  window.megaTanks = window.megaTanks || [];
+  window.megaRounds = window.megaRounds || [];
+  window.__megaTankSpawnedLevels = window.__megaTankSpawnedLevels || {};
+
+  function dist(ax,ay,bx,by){ return Math.hypot(ax-bx, ay-by); }
+  function aliveMegaCount(){ return megaTanks.filter(m=>!m.dead).length; }
+  function floatText(x0,y0,text,color){
+    try{ particles.push({x:x0,y:y0,vx:0,vy:-1.2,life:70,size:0,color:color||'#ff3333',txt:text}); }catch(e){}
+  }
+
+  function spawnMegaTank(level){
+    if(aliveMegaCount()>=2) return;
+    const ang=Math.random()*Math.PI*2;
+    const range=950+Math.random()*450;
+    const hp=4500 + level*900 + Math.floor((tank.score||0)/25);
+    const m={
+      x:tank.x+Math.cos(ang)*range,
+      y:tank.y+Math.sin(ang)*range,
+      a:0,
+      hp:hp,
+      maxHp:hp,
+      cool:90,
+      burst:0,
+      dead:false,
+      level:level,
+      r:82,
+      w:190,
+      h:122,
+      stuck:0
+    };
+    megaTanks.push(m);
+    try{ addScore(1500,'MEGA-TANK ARRIVAL',tank.x,tank.y-80); }catch(e){}
+    try{ msg('WARNING: MEGA-TANK deployed! Giant red boss vehicle is hunting you.'); }catch(e){}
+    try{ shockwaves.push({x:m.x,y:m.y,r:20,max:280,life:45,color:'#ff1744'}); }catch(e){}
+  }
+
+  function checkMegaSpawn(){
+    const wanted=Math.floor((tank&&tank.wanted)||0);
+    const level=Math.floor(wanted/10)*10;
+    if(level>=10 && !window.__megaTankSpawnedLevels[level]){
+      window.__megaTankSpawnedLevels[level]=true;
+      spawnMegaTank(level);
+    }
+  }
+
+  const oldAddWanted = window.addWanted || addWanted;
+  window.addWanted = addWanted = function(v){
+    const before=Math.floor((tank&&tank.wanted)||0);
+    const ret = oldAddWanted.apply(this, arguments);
+    const after=Math.floor((tank&&tank.wanted)||0);
+    for(let lv=10; lv<=after; lv+=10){
+      if(before < lv && !window.__megaTankSpawnedLevels[lv]){
+        window.__megaTankSpawnedLevels[lv]=true;
+        spawnMegaTank(lv);
+      }
+    }
+    checkMegaSpawn();
+    return ret;
+  };
+
+  function damageMega(m, dmg, label){
+    if(!m || m.dead) return;
+    m.hp -= dmg;
+    if(Math.random()<0.18) floatText(m.x,m.y-m.r, '-' + Math.floor(dmg), '#ff7777');
+    if(m.hp<=0){
+      m.dead=true;
+      try{ explosion(m.x,m.y,3.2); }catch(e){}
+      try{ shockwaves.push({x:m.x,y:m.y,r:30,max:420,life:55,color:'#ff3333'}); }catch(e){}
+      try{ addScore(20000,'MEGA-TANK DESTROYED',m.x,m.y); }catch(e){}
+      try{ tank.money += 2500; addXP(900); }catch(e){}
+      try{ msg('MEGA-TANK destroyed! Huge score bonus.'); }catch(e){}
+    }
+  }
+
+  function damageMegaRadius(px,py,r,dmg){
+    for(const m of megaTanks){
+      if(!m.dead && dist(px,py,m.x,m.y)<r+m.r){ damageMega(m,dmg,'blast'); }
+    }
+  }
+
+  // Patch explosions/radius damage so nukes and big weapons hurt Mega-Tanks too.
+  const oldDamageRadius = window.damageRadius || damageRadius;
+  window.damageRadius = damageRadius = function(px,py,r,dmg){
+    const ret = oldDamageRadius.apply(this, arguments);
+    damageMegaRadius(px,py,r,dmg*2.4);
+    return ret;
+  };
+
+  // Patch line weapons by passively checking beams each frame below.
+  function lineHitMega(b,m){
+    const len=b.len || 700;
+    const width=58;
+    const along=(m.x-b.x)*Math.cos(b.a)+(m.y-b.y)*Math.sin(b.a);
+    const side=Math.abs(-(m.x-b.x)*Math.sin(b.a)+(m.y-b.y)*Math.cos(b.a));
+    return along>0 && along<len && side<m.r+width;
+  }
+
+  function megaTankBlocked(nx,ny){
+    // Mega-Tank crushes small traffic/police but avoids intact buildings.
+    const rect={x:nx-95,y:ny-61,w:190,h:122};
+    if(typeof buildings!=='undefined'){
+      for(const b of buildings){ if(!b.dead && rects(rect,b)) return true; }
+    }
+    return false;
+  }
+
+  function updateMegaTank(m){
+    if(m.dead) return;
+    const a=Math.atan2(tank.y-m.y,tank.x-m.x);
+    m.a=a;
+    const speed=1.05 + Math.min(0.7,(m.level||10)/40);
+    let nx=m.x+Math.cos(a)*speed;
+    let ny=m.y+Math.sin(a)*speed;
+    if(!megaTankBlocked(nx,ny)){ m.x=nx; m.y=ny; m.stuck=0; }
+    else{
+      m.stuck++;
+      // If stuck, grind into the building in front instead of freezing forever.
+      const bx=m.x+Math.cos(a)*100, by=m.y+Math.sin(a)*70;
+      const b=hitBuilding(bx,by);
+      if(b){ try{ chipBuilding(b,bx,by,8+m.level, a); }catch(e){} }
+      if(m.stuck>90){ m.x+=Math.cos(a+Math.PI/2)*2.5; m.y+=Math.sin(a+Math.PI/2)*2.5; m.stuck=0; }
+    }
+
+    // Crush cars and police that get underneath it.
+    for(const car of cars||[]){ if(!car.dead && dist(car.x,car.y,m.x,m.y)<m.r+18){ car.hp-=8; if(car.hp<=0) destroyCar(car); } }
+    for(const p of police||[]){ if(!p.dead && dist(p.x,p.y,m.x,m.y)<m.r+22){ p.hp-=10; if(p.hp<=0) destroyPolice(p); } }
+
+    // Ram the player hard.
+    const d=dist(m.x,m.y,tank.x,tank.y);
+    if(d<m.r+28){
+      tank.hp -= 1.4 + (m.level||10)*0.035;
+      const push=Math.atan2(tank.y-m.y,tank.x-m.x);
+      tank.x += Math.cos(push)*7;
+      tank.y += Math.sin(push)*7;
+      if(Math.random()<0.08) floatText(tank.x,tank.y-45,'RAMMED','#ff3333');
+    }
+
+    m.cool--;
+    if(m.cool<=0){
+      m.cool = Math.max(42, 120 - (m.level||10)*2);
+      m.burst = 3;
+    }
+    if(m.burst>0 && (m.cool%10===0 || m.cool<0)){
+      m.burst--;
+      const spread=(m.burst-1)*0.055;
+      const aa=a+spread;
+      megaRounds.push({
+        x:m.x+Math.cos(aa)*105,
+        y:m.y+Math.sin(aa)*72,
+        vx:Math.cos(aa)*(8.5+(m.level||10)*0.05),
+        vy:Math.sin(aa)*(8.5+(m.level||10)*0.05),
+        life:150,
+        damage:34+(m.level||10)*2.2,
+        r:14,
+        power:1.45+(m.level||10)*0.025
+      });
+      try{ muzzle(m.x+Math.cos(aa)*105,m.y+Math.sin(aa)*72,aa,1.0); }catch(e){}
+    }
+
+    // Player bullets/shells/flames/drones/laser interactions.
+    for(const b of bullets||[]){ if(!b.dead && !b.cop && dist(b.x,b.y,m.x,m.y)<m.r+8){ damageMega(m,b.damage||6,'bullet'); b.dead=true; } }
+    for(const s of shells||[]){ if(!s.dead && dist(s.x,s.y,m.x,m.y)<m.r+10){ damageMega(m,(s.damage||35)*2.1,'shell'); try{ explosion(s.x,s.y,s.power||1); }catch(e){} if(s.pierce){s.pierce--;} else s.dead=true; } }
+    for(const f of flames||[]){ if(dist(f.x,f.y,m.x,m.y)<m.r+16){ damageMega(m,(f.damage||2)*2.0,'flame'); } }
+    for(const b of beams||[]){ if(lineHitMega(b,m)){ damageMega(m,10,'beam'); } }
+  }
+
+  function updateMegaRounds(){
+    for(const r of megaRounds){
+      r.x+=r.vx; r.y+=r.vy; r.life--;
+      if(dist(r.x,r.y,tank.x,tank.y)<r.r+24){
+        tank.hp -= r.damage;
+        try{ explosion(r.x,r.y,r.power); }catch(e){}
+        r.dead=true;
+        continue;
+      }
+      const bl=hitBuilding(r.x,r.y);
+      if(bl){
+        try{ chipBuilding(bl,r.x,r.y,120,Math.atan2(r.vy,r.vx)); explosion(r.x,r.y,r.power); }catch(e){}
+        r.dead=true;
+      }
+    }
+    window.megaRounds = megaRounds = megaRounds.filter(r=>!r.dead && r.life>0);
+  }
+
+  function updateMegaTanks(){
+    checkMegaSpawn();
+    for(const m of megaTanks) updateMegaTank(m);
+    updateMegaRounds();
+    window.megaTanks = megaTanks = megaTanks.filter(m=>!m.dead || (m.deadTimer=(m.deadTimer||80)-1)>0);
+  }
+
+  function drawMegaTank(m){
+    if(m.dead) return;
+    const sx=m.x-cam.x, sy=m.y-cam.y;
+    x.save();
+    x.translate(sx,sy); x.rotate(m.a);
+    // huge red tank body
+    x.fillStyle='#2b0606'; x.fillRect(-105,-64,210,22); x.fillRect(-105,42,210,22);
+    x.fillStyle='#9b0000'; x.fillRect(-95,-50,190,100);
+    x.strokeStyle='#ff6666'; x.lineWidth=4; x.strokeRect(-95,-50,190,100);
+    x.fillStyle='#d60000'; x.fillRect(-25,-38,82,76);
+    x.strokeStyle='#330000'; x.lineWidth=3; x.strokeRect(-25,-38,82,76);
+    x.fillStyle='#4a0000'; x.fillRect(35,-11,120,22);
+    x.fillStyle='#ffcc66'; x.fillRect(143,-14,14,28);
+    x.fillStyle='#220000'; x.fillRect(-84,-36,24,72);
+    x.fillStyle='#ff3333'; x.font='bold 18px Arial'; x.textAlign='center'; x.fillText('MEGA',12,7);
+    x.restore();
+
+    // boss hp bar
+    const w=260, h=12, bx=sx-w/2, by=sy-105;
+    x.fillStyle='rgba(0,0,0,.8)'; x.fillRect(bx,by,w,h);
+    x.fillStyle='#4a0000'; x.fillRect(bx,by,w,h);
+    x.fillStyle='#ff2222'; x.fillRect(bx,by,Math.max(0,m.hp/m.maxHp)*w,h);
+    x.strokeStyle='#fff'; x.lineWidth=1; x.strokeRect(bx,by,w,h);
+    x.fillStyle='#ffb3b3'; x.font='bold 13px Arial'; x.textAlign='center'; x.fillText('MEGA-TANK  HP '+Math.max(0,Math.floor(m.hp)).toLocaleString(),sx,by-6);
+    x.textAlign='left';
+  }
+
+  function drawMegaRounds(){
+    for(const r of megaRounds){
+      const sx=r.x-cam.x, sy=r.y-cam.y;
+      x.fillStyle='#ff1a1a'; x.beginPath(); x.arc(sx,sy,r.r,0,7); x.fill();
+      x.strokeStyle='#ffd6d6'; x.lineWidth=3; x.stroke();
+      x.fillStyle='rgba(255,60,0,.25)'; x.beginPath(); x.arc(sx,sy,r.r+12,0,7); x.fill();
+    }
+  }
+
+  const oldUpd = window.upd || upd;
+  window.upd = upd = function(){
+    const ret=oldUpd.apply(this, arguments);
+    if(gameStarted) updateMegaTanks();
+    return ret;
+  };
+
+  const oldDraw = window.draw || draw;
+  window.draw = draw = function(){
+    // This wrapper cannot replace the already-running RAF body perfectly in some builds,
+    // so drawMegaOverlay is also called by an independent RAF below.
+    return oldDraw.apply(this, arguments);
+  };
+
+  function megaOverlayLoop(){
+    try{
+      if(typeof x!=='undefined' && typeof cam!=='undefined'){
+        drawMegaRounds();
+        for(const m of megaTanks) drawMegaTank(m);
+      }
+    }catch(e){}
+    requestAnimationFrame(megaOverlayLoop);
+  }
+  requestAnimationFrame(megaOverlayLoop);
+
+  // Reset Mega-Tank bosses when city/run resets, but keep normal garage choices.
+  const oldResetRunStats = window.resetRunStats;
+  if(typeof oldResetRunStats==='function'){
+    window.resetRunStats = function(){
+      const ret=oldResetRunStats.apply(this, arguments);
+      megaTanks.length=0; megaRounds.length=0; window.__megaTankSpawnedLevels={};
+      return ret;
+    };
+  }
+  const oldResetCity = window.resetCity;
+  if(typeof oldResetCity==='function'){
+    window.resetCity = function(){
+      const ret=oldResetCity.apply(this, arguments);
+      megaTanks.length=0; megaRounds.length=0; window.__megaTankSpawnedLevels={};
+      return ret;
+    };
+  }
+})();
+</script>
+
+
+
+<script id="enemyScalingSwatMilitaryMegaFix">
+(function(){
+  if(window.__ENEMY_SCALING_SWAT_MILITARY_MEGA_FIX__) return;
+  window.__ENEMY_SCALING_SWAT_MILITARY_MEGA_FIX__=true;
+
+  function dist(ax,ay,bx,by){ return Math.hypot(ax-bx, ay-by); }
+  function enemyStar(){ return Math.max(0, Math.floor((tank && tank.wanted) || 0)); }
+  function starMult(){ return Math.pow(1.5, enemyStar()); }
+  function enemyKindForStars(stars){
+    if(stars>=15) return 'military';
+    if(stars>=8) return 'swat';
+    return 'police';
+  }
+  function baseStats(kind){
+    if(kind==='military') return {hp:260, speed:2.75, damage:18, score:900, color:'#3c4b2b', label:'ARMY', w:52, h:32};
+    if(kind==='swat') return {hp:145, speed:3.05, damage:11, score:600, color:'#151a22', label:'SWAT', w:44, h:26};
+    return {hp:55, speed:2.55, damage:4, score:350, color:'#244cff', label:'POLICE', w:34, h:20};
+  }
+  function setupEnemyVehicle(p, kind){
+    kind = kind || p.kind || p.type || enemyKindForStars(enemyStar());
+    const b=baseStats(kind), sm=starMult();
+    p.kind=kind; p.type=kind;
+    p.baseHp=b.hp; p.baseDamage=b.damage; p.baseSpeed=b.speed; p.scoreValue=b.score;
+    p.w=b.w; p.h=b.h;
+    if(!p._scaledBorn){
+      p.maxHp=Math.min(250000, b.hp*sm);
+      p.hp=p.maxHp;
+      p.damage=Math.min(20000, b.damage*sm);
+      p.speed=b.speed + Math.min(3.4, enemyStar()*0.08);
+      p._scaledBorn=true;
+    }else{
+      p.damage=Math.max(p.damage||0, Math.min(20000, b.damage*sm));
+      p.speed=Math.max(p.speed||0, b.speed + Math.min(3.4, enemyStar()*0.08));
+      p.maxHp=Math.max(p.maxHp||b.hp, Math.min(250000, b.hp*sm));
+    }
+    p.color=b.color; p.label=b.label;
+    p.elite = kind!=='police';
+    return p;
+  }
+
+  // Make AddWanted not hard-cap low anymore and spawn the correct threats instantly at thresholds.
+  const prevAddWanted = window.addWanted || addWanted;
+  window.addWanted = addWanted = function(v=1){
+    const before = Math.floor((tank&&tank.wanted)||0);
+    const ret = prevAddWanted.apply(this, arguments);
+    if(tank.wanted>999) tank.wanted=999;
+    const after = Math.floor((tank&&tank.wanted)||0);
+    if(after>=8 && before<8) try{ msg('SWAT RESPONSE DEPLOYED — enemy HP/damage scaling active.'); }catch(e){}
+    if(after>=15 && before<15) try{ msg('MILITARY RESPONSE DEPLOYED — tanks and heavy vehicles are hunting you.'); }catch(e){}
+    return ret;
+  };
+
+  function spawnThreat(kind){
+    const a=Math.random()*Math.PI*2, range=720+rnd(0,380);
+    const p=setupEnemyVehicle({
+      x:tank.x+Math.cos(a)*range,
+      y:tank.y+Math.sin(a)*range,
+      a:0,hp:1,w:34,h:20,dead:false,cool:rnd(0,45),kind
+    }, kind);
+    police.push(p);
+    return p;
+  }
+
+  function maintainThreatMix(){
+    if(!gameStarted || !tank) return;
+    const stars=enemyStar();
+    if(stars<=1) return;
+    const maxCount=Math.min(44, 3 + stars*3);
+    const alive=police.filter(p=>!p.dead);
+    while(alive.length < maxCount){
+      let kind='police';
+      if(stars>=15) kind = Math.random()<0.55 ? 'military' : (Math.random()<0.65?'swat':'police');
+      else if(stars>=8) kind = Math.random()<0.65 ? 'swat' : 'police';
+      else kind='police';
+      alive.push(spawnThreat(kind));
+    }
+    for(const p of alive) setupEnemyVehicle(p, p.kind);
+  }
+
+  // Fix police/SWAT/military bullets to use +50% damage per star.
+  const oldBulletsPush = bullets.push.bind(bullets);
+  bullets.push = function(...items){
+    for(const b of items){
+      if(b && b.cop && !b._enemyScaled){
+        b.damage = Math.max(b.damage||1, Math.min(20000, (b.damage||4) * starMult()));
+        b._enemyScaled=true;
+        b.r = enemyStar()>=15 ? 4 : enemyStar()>=8 ? 3 : 2;
+      }
+    }
+    return oldBulletsPush(...items);
+  };
+
+  // Draw different enemy vehicle types instead of every responder being the same cop car.
+  const oldDrawCarScaled = window.drawCar || drawCar;
+  window.drawCar = drawCar = function(car,isPolice=false){
+    if(!isPolice || !car || car.dead) return oldDrawCarScaled.apply(this, arguments);
+    const kind=car.kind||car.type||'police';
+    const st=baseStats(kind);
+    const sx=car.x-cam.x, sy=car.y-cam.y;
+    x.save(); x.translate(sx,sy); x.rotate(car.a||0);
+    x.fillStyle=st.color;
+    x.fillRect(-st.w/2,-st.h/2,st.w,st.h);
+    x.strokeStyle=kind==='military'?'#b6ff77':kind==='swat'?'#aee4ff':'#ffffff';
+    x.lineWidth=2; x.strokeRect(-st.w/2,-st.h/2,st.w,st.h);
+    if(kind==='military'){
+      x.fillStyle='#202819'; x.fillRect(-12,-10,24,20); x.fillStyle='#111'; x.fillRect(8,-4,34,8); x.fillStyle='#86ff4d'; x.fillRect(-st.w/2+4,-st.h/2+3,8,5);
+    }else if(kind==='swat'){
+      x.fillStyle='#26394c'; x.fillRect(-16,-8,32,16); x.fillStyle='#d9f4ff'; x.fillRect(-5,-st.h/2-5,10,4);
+    }else{
+      x.fillStyle='#fff'; x.fillRect(-8,-8,7,4); x.fillRect(3,-8,7,4); x.fillStyle='#f00'; x.fillRect(-4,-13,4,4); x.fillStyle='#00f'; x.fillRect(1,-13,4,4);
+    }
+    x.restore();
+    // mini hp bar on tougher units
+    if(kind!=='police'){
+      const hp=Math.max(0,(car.hp||0)/(car.maxHp||car.hp||1));
+      x.fillStyle='#000b'; x.fillRect(sx-28,sy-st.h/2-13,56,5);
+      x.fillStyle=kind==='military'?'#9cff57':'#64b5f6'; x.fillRect(sx-28,sy-st.h/2-13,56*hp,5);
+      x.fillStyle='#fff'; x.font='bold 9px Arial'; x.textAlign='center'; x.fillText(st.label,sx,sy-st.h/2-17); x.textAlign='left';
+    }
+  };
+
+  // Higher value and correct labels when responder vehicles die.
+  const oldDestroyPoliceScaled = window.destroyPolice || destroyPolice;
+  window.destroyPolice = destroyPolice = function(p){
+    if(p && !p._customRewardPatched){
+      p._customRewardPatched=true;
+      const kind=p.kind||p.type||'police';
+      const label=kind==='military'?'MILITARY':kind==='swat'?'SWAT':'POLICE';
+      const extra=kind==='military'?550:kind==='swat'?250:0;
+      try{ addScore(extra,label,p.x,p.y); }catch(e){}
+    }
+    return oldDestroyPoliceScaled.apply(this, arguments);
+  };
+
+  // Mega-Tank fixes: real giant hitbox and +50% hp/damage per star. Also unsticks itself by crushing buildings.
+  function scaleMega(m){
+    if(!m || m.dead) return;
+    const sm=starMult();
+    if(!m._scalingFixed){
+      const base = Math.max(m.maxHp||4500, 7000 + enemyStar()*1500);
+      m.maxHp = Math.min(5000000, base*sm);
+      m.hp = m.maxHp;
+      m.r = Math.max(m.r||82, 118);
+      m.w = Math.max(m.w||190, 280);
+      m.h = Math.max(m.h||122, 170);
+      m._scalingFixed=true;
+    }else{
+      m.r=Math.max(m.r||118,118); m.w=Math.max(m.w||280,280); m.h=Math.max(m.h||170,170);
+    }
+    m.damageMult=sm;
+  }
+
+  function damageMegaDirect(m,dmg){
+    if(!m || m.dead) return;
+    scaleMega(m);
+    m.hp -= dmg;
+    if(Math.random()<0.18) try{ particles.push({x:m.x,y:m.y-m.r,vx:0,vy:-1.2,life:50,size:0,color:'#ff7777',txt:'-'+Math.floor(dmg)}); }catch(e){}
+    if(m.hp<=0){
+      m.dead=true;
+      try{ explosion(m.x,m.y,4.5); shockwaves.push({x:m.x,y:m.y,r:40,max:580,life:65,color:'#ff3333'}); }catch(e){}
+      try{ addScore(35000,'MEGA-TANK DESTROYED',m.x,m.y); tank.money+=4500; addXP(1500); msg('MEGA-TANK destroyed!'); }catch(e){}
+    }
+  }
+
+  function hitMegaPoint(px,py,extra=0){
+    if(!window.megaTanks) return null;
+    for(const m of megaTanks){
+      if(m.dead) continue; scaleMega(m);
+      const ca=Math.cos(-(m.a||0)), sa=Math.sin(-(m.a||0));
+      const dx=px-m.x, dy=py-m.y;
+      const lx=dx*ca - dy*sa, ly=dx*sa + dy*ca;
+      if(Math.abs(lx) < (m.w/2)+extra || dist(px,py,m.x,m.y)<m.r+extra){
+        if(Math.abs(ly) < (m.h/2)+extra || dist(px,py,m.x,m.y)<m.r+extra) return m;
+      }
+    }
+    return null;
+  }
+
+  const oldExplosionFix = window.explosion || explosion;
+  window.explosion = explosion = function(px,py,power=1){
+    const ret=oldExplosionFix.apply(this, arguments);
+    if(window.megaTanks){ for(const m of megaTanks){ if(!m.dead && dist(px,py,m.x,m.y)<(m.r||118)+90*power) damageMegaDirect(m, (80*power+60)*2.5); } }
+    return ret;
+  };
+
+  function fixMegaInteractions(){
+    if(!gameStarted) return;
+    if(window.megaTanks){
+      for(const m of megaTanks){
+        scaleMega(m);
+        // If sitting inside a building, crush it instead of becoming a wall ornament.
+        const frontX=m.x+Math.cos(m.a||0)*(m.w/2), frontY=m.y+Math.sin(m.a||0)*(m.h/2);
+        const b=hitBuilding(frontX,frontY) || hitBuilding(m.x,m.y);
+        if(b && !b.dead) chipBuilding(b, Math.max(b.x,Math.min(b.x+b.w,frontX)), Math.max(b.y,Math.min(b.y+b.h,frontY)), 45+enemyStar()*10, m.a||0);
+      }
+    }
+    // Robust hitbox for all player projectiles, including blades/skulls/custom shells.
+    for(const b of bullets||[]){ if(!b.dead && !b.cop){ const m=hitMegaPoint(b.x,b.y,14); if(m){ damageMegaDirect(m,b.damage||8); b.dead=true; } } }
+    for(const s of shells||[]){ if(!s.dead){ const m=hitMegaPoint(s.x,s.y,22); if(m){ damageMegaDirect(m,(s.damage||40)*2.4); try{ explosion(s.x,s.y,s.power||1); }catch(e){} if(s.pierce){s.pierce--;} else s.dead=true; } } }
+    if(typeof blades!=='undefined') for(const bl of blades){ if(!bl.dead){ const m=hitMegaPoint(bl.x,bl.y,(bl.r||14)+20); if(m){ damageMegaDirect(m,(bl.damage||25)*1.7); bl.pierce=(bl.pierce||1)-1; if(bl.pierce<=0) bl.dead=true; } } }
+    for(const f of flames||[]){ const m=hitMegaPoint(f.x,f.y,28); if(m) damageMegaDirect(m,(f.damage||2)*3); }
+    for(const bm of beams||[]){
+      for(const m of megaTanks||[]){
+        if(m.dead) continue; scaleMega(m);
+        const len=bm.len||800, width=90;
+        const along=(m.x-bm.x)*Math.cos(bm.a)+(m.y-bm.y)*Math.sin(bm.a);
+        const side=Math.abs(-(m.x-bm.x)*Math.sin(bm.a)+(m.y-bm.y)*Math.cos(bm.a));
+        if(along>0 && along<len && side<m.r+width) damageMegaDirect(m,25);
+      }
+    }
+    // Scale mega rounds damage if old patch created them before this fix.
+    if(window.megaRounds){ for(const r of megaRounds){ if(!r._starScaled){ r.damage=(r.damage||40)*starMult(); r.r=Math.max(r.r||14,18); r._starScaled=true; } } }
+  }
+
+  // Replace the old police-control feel with extra post-update scaling/spawns. Old police still move, but now they become SWAT/army and hit harder.
+  const prevUpdScaling = window.upd || upd;
+  window.upd = upd = function(){
+    const ret=prevUpdScaling.apply(this, arguments);
+    if(gameStarted){ maintainThreatMix(); fixMegaInteractions(); }
+    return ret;
+  };
+
+  // Improve UI stars so high wanted feels like actual escalation instead of just 5 icons forever.
+  const oldUpdateUIScaling = window.updateUI || updateUI;
+  window.updateUI = updateUI = function(){
+    const ret=oldUpdateUIScaling.apply(this, arguments);
+    const st=document.getElementById('stars');
+    if(st){
+      const stars=enemyStar();
+      st.textContent = stars<=12 ? '★'.repeat(Math.max(0,stars)) : ('★'.repeat(12)+' x'+stars);
+    }
+    return ret;
+  };
+
+  // Reset spawned boss thresholds between runs.
+  const oldResetRunStatsScaling=window.resetRunStats;
+  if(typeof oldResetRunStatsScaling==='function') window.resetRunStats=function(){ const r=oldResetRunStatsScaling.apply(this,arguments); window.__megaTankSpawnedLevels={}; return r; };
+})();
+</script>
+
+
+<script id="ACTUAL_MEGA_TANK_AND_EXPONENTIAL_WANTED_FIX">
+(function(){
+  if(window.__ACTUAL_MEGA_TANK_AND_EXPONENTIAL_WANTED_FIX__) return;
+  window.__ACTUAL_MEGA_TANK_AND_EXPONENTIAL_WANTED_FIX__ = true;
+
+  // This patch does NOT rely on replacing upd(), because the original game used setInterval(upd,16)
+  // before later scripts run. So this runs its own real update loop.
+  window.megaTanks = Array.isArray(window.megaTanks) ? window.megaTanks : [];
+  window.megaRounds = Array.isArray(window.megaRounds) ? window.megaRounds : [];
+  window.__megaTankSpawnedLevels = window.__megaTankSpawnedLevels || {};
+
+  function d(ax,ay,bx,by){ return Math.hypot(ax-bx, ay-by); }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function safeMsg(t){ try{ msg(t); }catch(e){} }
+  function text(px,py,t,c){ try{ particles.push({x:px,y:py,vx:0,vy:-1.25,life:65,size:0,color:c||'#ff5555',txt:t}); }catch(e){} }
+  function stars(){ return Math.max(0, Math.floor((tank && tank.wanted) || 0)); }
+  function enemyMult(){ return Math.pow(1.5, stars()); }
+  function nextStarCost(star){ return Math.max(3, Math.floor(3 * Math.pow(1.35, Math.max(0, star)))); }
+
+  // Wanted-star economy: each next star takes 35% more wanted points.
+  function ensureWantedPoints(){
+    if(!tank) return;
+    if(!Number.isFinite(tank.wantedPoints)) tank.wantedPoints = 0;
+    if(!Number.isFinite(tank.wanted)) tank.wanted = 0;
+  }
+
+  window.addWanted = addWanted = function(points){
+    ensureWantedPoints();
+    points = Number(points == null ? 1 : points) || 1;
+    tank.wantedPoints += points;
+    let gained = 0;
+    while(tank.wantedPoints >= nextStarCost(tank.wanted) && tank.wanted < 999){
+      tank.wantedPoints -= nextStarCost(tank.wanted);
+      tank.wanted++;
+      gained++;
+      if(tank.wanted % 10 === 0) spawnMegaTank(tank.wanted);
+    }
+    if(gained > 0){
+      if(tank.wanted >= 15) safeMsg('MILITARY RESPONSE: +' + gained + ' star. Enemy HP/damage x' + enemyMult().toFixed(1));
+      else if(tank.wanted >= 8) safeMsg('SWAT RESPONSE: +' + gained + ' star. Enemy HP/damage x' + enemyMult().toFixed(1));
+      else safeMsg('Wanted star gained! Next star needs ' + nextStarCost(tank.wanted) + ' chaos points. (+35% curve).');
+    }
+  };
+
+  function resetWantedProgress(){
+    if(tank){ tank.wanted = 0; tank.wantedPoints = 0; }
+    window.__megaTankSpawnedLevels = {};
+    megaTanks.length = 0;
+    megaRounds.length = 0;
+  }
+
+  const oldStartGame = window.startGame;
+  if(typeof oldStartGame === 'function'){
+    window.startGame = startGame = function(){
+      resetWantedProgress();
+      return oldStartGame.apply(this, arguments);
+    };
+  }
+  const oldResetRunStats = window.resetRunStats;
+  if(typeof oldResetRunStats === 'function'){
+    window.resetRunStats = function(){ const r=oldResetRunStats.apply(this, arguments); resetWantedProgress(); return r; };
+  }
+  const oldResetCity = window.resetCity;
+  if(typeof oldResetCity === 'function'){
+    window.resetCity = function(){ const r=oldResetCity.apply(this, arguments); resetWantedProgress(); return r; };
+  }
+
+  function enemyKind(){
+    const s = stars();
+    if(s >= 15) return Math.random() < 0.62 ? 'military' : (Math.random()<0.7?'swat':'police');
+    if(s >= 8) return Math.random() < 0.72 ? 'swat' : 'police';
+    return 'police';
+  }
+  function baseStats(kind){
+    if(kind === 'military') return {hp:320, dmg:18, speed:2.65, w:58, h:34, color:'#405229', score:1000, label:'ARMY'};
+    if(kind === 'swat') return {hp:160, dmg:11, speed:3.0, w:46, h:28, color:'#151a22', score:650, label:'SWAT'};
+    return {hp:60, dmg:4, speed:2.55, w:34, h:20, color:'#244cff', score:350, label:'POLICE'};
+  }
+  function scaleResponder(p, forcedKind){
+    if(!p || p.dead) return p;
+    const kind = forcedKind || p.kind || p.type || enemyKind();
+    const b = baseStats(kind), m = enemyMult();
+    p.kind = p.type = kind;
+    p.w = b.w; p.h = b.h; p.color = b.color; p.label = b.label;
+    p.maxHp = Math.max(p.maxHp || 0, Math.min(900000, b.hp * m));
+    if(!p._actuallyScaledBorn){ p.hp = p.maxHp; p._actuallyScaledBorn = true; }
+    p.damage = Math.min(50000, b.dmg * m);
+    p.speed = b.speed + Math.min(4, stars()*0.08);
+    p.scoreValue = b.score;
+    p.elite = kind !== 'police';
+    return p;
+  }
+  function spawnResponder(kind){
+    if(!gameStarted) return;
+    const a = Math.random()*Math.PI*2, range = 850 + Math.random()*450;
+    const p = scaleResponder({x:tank.x+Math.cos(a)*range, y:tank.y+Math.sin(a)*range, a:0, hp:1, dead:false, cool:Math.random()*55}, kind);
+    police.push(p);
+  }
+  function updateResponders(){
+    if(!gameStarted || !tank) return;
+    const s = stars();
+    if(s <= 0) return;
+    const max = Math.min(55, 2 + s*3);
+    const alive = police.filter(p=>!p.dead);
+    while(alive.length < max){ spawnResponder(enemyKind()); alive.push(police[police.length-1]); }
+    for(const p of alive){
+      scaleResponder(p);
+      const a = Math.atan2(tank.y-p.y, tank.x-p.x); p.a = a;
+      let nx = p.x + Math.cos(a)*p.speed, ny = p.y + Math.sin(a)*p.speed;
+      const rr = {x:nx-(p.w||34)/2, y:ny-(p.h||20)/2, w:p.w||34, h:p.h||20};
+      if(!(buildings||[]).some(b=>!b.dead && rects(rr,b))){ p.x = nx; p.y = ny; }
+      else { p.a += Math.random()*1.2-0.6; }
+      const distToPlayer = d(p.x,p.y,tank.x,tank.y);
+      p.cool = (p.cool||0)-1;
+      if(distToPlayer < 310 && p.cool <= 0){
+        p.cool = Math.max(14, 58 - s*1.5);
+        const aa = Math.atan2(tank.y-p.y, tank.x-p.x);
+        bullets.push({x:p.x+Math.cos(aa)*20, y:p.y+Math.sin(aa)*16, vx:Math.cos(aa)*(12+s*.08), vy:Math.sin(aa)*(12+s*.08), life:80, damage:p.damage||4, cop:true, enemyKind:p.kind});
+      }
+      if(distToPlayer < 34 + (p.kind==='military'?18:p.kind==='swat'?10:0)){
+        tank.hp -= (p.damage||4) * 0.012;
+        const push = Math.atan2(p.y-tank.y, p.x-tank.x);
+        p.x += Math.cos(push)*7; p.y += Math.sin(push)*7;
+      }
+    }
+  }
+
+  const oldDestroyPolice = window.destroyPolice || destroyPolice;
+  window.destroyPolice = destroyPolice = function(p){
+    if(p && !p.__rewardedKind){
+      p.__rewardedKind = true;
+      const label = (p.kind==='military') ? 'MILITARY' : (p.kind==='swat') ? 'SWAT' : 'POLICE';
+      try{ addScore(p.scoreValue || baseStats(p.kind||'police').score, label, p.x, p.y); }catch(e){}
+    }
+    return oldDestroyPolice.apply(this, arguments);
+  };
+
+  const oldDrawCar = window.drawCar || drawCar;
+  window.drawCar = drawCar = function(car, isPolice){
+    if(!isPolice || !car || car.dead || !(car.kind==='swat' || car.kind==='military')) return oldDrawCar.apply(this, arguments);
+    const b = baseStats(car.kind), sx=car.x-cam.x, sy=car.y-cam.y;
+    x.save(); x.translate(sx,sy); x.rotate(car.a||0);
+    x.fillStyle = b.color; x.fillRect(-b.w/2,-b.h/2,b.w,b.h);
+    x.strokeStyle = car.kind==='military' ? '#b6ff77' : '#bde8ff'; x.lineWidth = 3; x.strokeRect(-b.w/2,-b.h/2,b.w,b.h);
+    if(car.kind==='military'){
+      x.fillStyle='#1c2515'; x.fillRect(-14,-11,28,22); x.fillStyle='#0d1209'; x.fillRect(6,-4,42,8); x.fillStyle='#aaff66'; x.fillRect(-24,-10,8,5);
+    }else{
+      x.fillStyle='#26394c'; x.fillRect(-17,-9,34,18); x.fillStyle='#d9f4ff'; x.fillRect(-6,-b.h/2-6,12,4);
+    }
+    x.restore();
+    const hp = Math.max(0, (car.hp||0)/(car.maxHp||1));
+    x.fillStyle='#000b'; x.fillRect(sx-32, sy-b.h/2-14, 64, 5);
+    x.fillStyle=car.kind==='military'?'#aaff66':'#64b5f6'; x.fillRect(sx-32, sy-b.h/2-14, 64*hp, 5);
+    x.fillStyle='#fff'; x.font='bold 9px Arial'; x.textAlign='center'; x.fillText(b.label, sx, sy-b.h/2-18); x.textAlign='left';
+  };
+
+  function spawnMegaTank(level){
+    if(!tank || window.__megaTankSpawnedLevels[level]) return;
+    window.__megaTankSpawnedLevels[level] = true;
+    const a = Math.random()*Math.PI*2, range = 1050 + Math.random()*350, mlt = enemyMult();
+    const hp = Math.min(8000000, (12000 + level*2200) * mlt);
+    const m = {x:tank.x+Math.cos(a)*range, y:tank.y+Math.sin(a)*range, a:0, hp, maxHp:hp, w:300, h:185, r:130, cool:80, burst:0, dead:false, level, damageMult:mlt, stuck:0};
+    megaTanks.push(m);
+    safeMsg('🚨 MEGA-TANK DEPLOYED at ' + level + ' stars! It has a real hitbox now.');
+    try{ shockwaves.push({x:m.x,y:m.y,r:20,max:360,life:50,color:'#ff1111'}); }catch(e){}
+  }
+  function checkMegaSpawns(){
+    const s = stars();
+    for(let lv=10; lv<=s; lv+=10){ if(!window.__megaTankSpawnedLevels[lv]) spawnMegaTank(lv); }
+  }
+  function hitMegaPoint(px,py,extra){
+    extra = extra || 0;
+    for(const m of megaTanks){
+      if(!m || m.dead) continue;
+      const ca=Math.cos(-(m.a||0)), sa=Math.sin(-(m.a||0));
+      const dx=px-m.x, dy=py-m.y, lx=dx*ca-dy*sa, ly=dx*sa+dy*ca;
+      if((Math.abs(lx) <= m.w/2+extra && Math.abs(ly) <= m.h/2+extra) || d(px,py,m.x,m.y) <= m.r+extra) return m;
+    }
+    return null;
+  }
+  function damageMega(m, dmg){
+    if(!m || m.dead) return;
+    m.hp -= dmg;
+    if(Math.random()<0.22) text(m.x, m.y-m.r, '-' + Math.floor(dmg), '#ff7777');
+    if(m.hp <= 0){
+      m.dead = true; m.deadTimer = 100;
+      try{ explosion(m.x,m.y,5.2); shockwaves.push({x:m.x,y:m.y,r:40,max:680,life:70,color:'#ff2222'}); }catch(e){}
+      try{ addScore(45000, 'MEGA-TANK DESTROYED', m.x, m.y); tank.money += 6000; addXP(2200); }catch(e){}
+      safeMsg('MEGA-TANK destroyed!');
+    }
+  }
+  function megaBlocked(m,nx,ny){
+    const rect = {x:nx-m.w/2, y:ny-m.h/2, w:m.w, h:m.h};
+    let hit = null;
+    for(const b of buildings||[]){ if(!b.dead && rects(rect,b)){ hit=b; break; } }
+    return hit;
+  }
+  function updateMega(m){
+    if(!m || m.dead) return;
+    const a = Math.atan2(tank.y-m.y, tank.x-m.x); m.a = a;
+    const speed = 1.35 + Math.min(1.6, m.level/35);
+    let nx = m.x + Math.cos(a)*speed, ny = m.y + Math.sin(a)*speed;
+    const b = megaBlocked(m,nx,ny);
+    if(!b){ m.x = nx; m.y = ny; m.stuck = 0; }
+    else{
+      m.stuck++;
+      const px = clamp(m.x + Math.cos(a)*m.w/2, b.x, b.x+b.w);
+      const py = clamp(m.y + Math.sin(a)*m.h/2, b.y, b.y+b.h);
+      try{ chipBuilding(b, px, py, 70 + m.level*10, a); }catch(e){ b.hp -= 70 + m.level*10; if(b.hp<=0 && !b.dead) collapseBuilding(b); }
+      if(m.stuck > 30){
+        // brute-force wiggle so it does not sit there forever
+        const side = a + (Math.random()<0.5 ? Math.PI/2 : -Math.PI/2);
+        m.x += Math.cos(side)*12; m.y += Math.sin(side)*12; m.stuck = 0;
+      }
+    }
+    for(const car of cars||[]){ if(!car.dead && d(car.x,car.y,m.x,m.y)<m.r+22){ car.hp -= 22; if(car.hp<=0) destroyCar(car); } }
+    for(const p of police||[]){ if(!p.dead && d(p.x,p.y,m.x,m.y)<m.r+28){ p.hp -= 35; if(p.hp<=0) destroyPolice(p); } }
+    if(d(m.x,m.y,tank.x,tank.y) < m.r + 32){
+      tank.hp -= (2.0 + m.level*0.08) * m.damageMult;
+      const pa = Math.atan2(tank.y-m.y, tank.x-m.x); tank.x += Math.cos(pa)*10; tank.y += Math.sin(pa)*10;
+    }
+    m.cool--;
+    if(m.cool <= 0){ m.cool = Math.max(34, 112 - m.level*1.4); m.burst = 3; }
+    if(m.burst > 0 && m.cool % 8 === 0){
+      m.burst--;
+      const aa = a + (m.burst-1)*0.075;
+      megaRounds.push({x:m.x+Math.cos(aa)*150,y:m.y+Math.sin(aa)*92,vx:Math.cos(aa)*(9.5+m.level*.04),vy:Math.sin(aa)*(9.5+m.level*.04),life:180,r:20,damage:(55+m.level*3.5)*m.damageMult,power:2.0+m.level*.025});
+      try{ muzzle(m.x+Math.cos(aa)*150, m.y+Math.sin(aa)*92, aa, 1.5); }catch(e){}
+    }
+  }
+  function updateMegaRounds(){
+    for(const r of megaRounds){
+      r.x += r.vx; r.y += r.vy; r.life--;
+      if(d(r.x,r.y,tank.x,tank.y) < r.r + 24){ tank.hp -= r.damage; try{ explosion(r.x,r.y,r.power); }catch(e){} r.dead = true; continue; }
+      const b = hitBuilding(r.x,r.y);
+      if(b){ try{ chipBuilding(b,r.x,r.y,180,Math.atan2(r.vy,r.vx)); explosion(r.x,r.y,r.power); }catch(e){} r.dead = true; }
+    }
+    window.megaRounds = megaRounds = megaRounds.filter(r=>!r.dead && r.life > 0 && Number.isFinite(r.x) && Number.isFinite(r.y));
+  }
+  function projectileMegaHits(){
+    for(const b of bullets||[]){ if(!b.dead && !b.cop){ const m=hitMegaPoint(b.x,b.y,16); if(m){ damageMega(m,b.damage||8); b.dead=true; } } }
+    for(const s of shells||[]){ if(!s.dead){ const m=hitMegaPoint(s.x,s.y,28); if(m){ damageMega(m,(s.damage||45)*2.5); try{ explosion(s.x,s.y,s.power||1); }catch(e){} if(s.pierce){ s.pierce--; } else s.dead = true; } } }
+    for(const f of flames||[]){ const m=hitMegaPoint(f.x,f.y,32); if(m) damageMega(m,(f.damage||2)*4); }
+    if(typeof blades !== 'undefined') for(const bl of blades){ if(!bl.dead){ const m=hitMegaPoint(bl.x,bl.y,(bl.r||14)+28); if(m){ damageMega(m,(bl.damage||30)*2.1); bl.pierce=(bl.pierce||1)-1; if(bl.pierce<=0) bl.dead=true; } } }
+    for(const bm of beams||[]){
+      for(const m of megaTanks){
+        if(m.dead) continue;
+        const len=bm.len||900, width=120;
+        const along=(m.x-bm.x)*Math.cos(bm.a)+(m.y-bm.y)*Math.sin(bm.a);
+        const side=Math.abs(-(m.x-bm.x)*Math.sin(bm.a)+(m.y-bm.y)*Math.cos(bm.a));
+        if(along>0 && along<len && side<m.r+width) damageMega(m,38);
+      }
+    }
+  }
+  function cleanupProjectiles(){
+    if(bullets && bullets.length>600) bullets.splice(0, bullets.length-600);
+    if(shells && shells.length>400) shells.splice(0, shells.length-400);
+    if(typeof blades!=='undefined' && blades.length>260) blades.splice(0, blades.length-260);
+    if(megaRounds && megaRounds.length>120) megaRounds.splice(0, megaRounds.length-120);
+  }
+  function realUpdateLoop(){
+    if(!gameStarted || !tank) return;
+    ensureWantedPoints();
+    checkMegaSpawns();
+    updateResponders();
+    for(const m of megaTanks) updateMega(m);
+    updateMegaRounds();
+    projectileMegaHits();
+    cleanupProjectiles();
+    window.megaTanks = megaTanks = megaTanks.filter(m=>!m.dead || (m.deadTimer=(m.deadTimer||100)-1)>0);
+  }
+  setInterval(realUpdateLoop, 16);
+
+  function drawMega(m){
+    if(!m || m.dead) return;
+    const sx=m.x-cam.x, sy=m.y-cam.y;
+    x.save(); x.translate(sx,sy); x.rotate(m.a||0);
+    x.fillStyle='#270000'; x.fillRect(-m.w/2-10,-m.h/2-18,m.w+20,32); x.fillRect(-m.w/2-10,m.h/2-14,m.w+20,32);
+    x.fillStyle='#990000'; x.fillRect(-m.w/2,-m.h/2,m.w,m.h);
+    x.strokeStyle='#ff7777'; x.lineWidth=5; x.strokeRect(-m.w/2,-m.h/2,m.w,m.h);
+    x.fillStyle='#d40000'; x.fillRect(-38,-55,110,110); x.strokeStyle='#330000'; x.lineWidth=4; x.strokeRect(-38,-55,110,110);
+    x.fillStyle='#3a0000'; x.fillRect(45,-13,160,26); x.fillStyle='#ffd27a'; x.fillRect(193,-17,18,34);
+    x.fillStyle='#ff3333'; x.font='bold 24px Arial'; x.textAlign='center'; x.fillText('MEGA',16,8);
+    x.restore();
+    const w=320, hp=Math.max(0,m.hp/m.maxHp), by=sy-m.h/2-34;
+    x.fillStyle='#000d'; x.fillRect(sx-w/2,by,w,14); x.fillStyle='#3a0000'; x.fillRect(sx-w/2,by,w,14); x.fillStyle='#ff2020'; x.fillRect(sx-w/2,by,w*hp,14); x.strokeStyle='#fff'; x.strokeRect(sx-w/2,by,w,14);
+    x.fillStyle='#ffb3b3'; x.font='bold 13px Arial'; x.textAlign='center'; x.fillText('MEGA-TANK  '+Math.floor(m.hp).toLocaleString()+' HP',sx,by-6); x.textAlign='left';
+  }
+  function drawMegaStuff(){
+    try{
+      for(const r of megaRounds){ x.fillStyle='#ff1515'; x.beginPath(); x.arc(r.x-cam.x,r.y-cam.y,r.r||20,0,7); x.fill(); x.strokeStyle='#ffd6d6'; x.lineWidth=3; x.stroke(); }
+      for(const m of megaTanks) drawMega(m);
+      const st=document.getElementById('stars');
+      if(st){
+        ensureWantedPoints();
+        st.textContent = '★'.repeat(Math.min(12, stars())) + (stars()>12?' x'+stars():'') + '  next: '+Math.floor(tank.wantedPoints||0)+'/'+nextStarCost(stars());
+      }
+    }catch(e){}
+    requestAnimationFrame(drawMegaStuff);
+  }
+  requestAnimationFrame(drawMegaStuff);
+
+  const oldUpdateUI = window.updateUI || updateUI;
+  window.updateUI = updateUI = function(){
+    const r = oldUpdateUI.apply(this, arguments);
+    const st=document.getElementById('stars');
+    if(st){ ensureWantedPoints(); st.textContent = '★'.repeat(Math.min(12, stars())) + (stars()>12?' x'+stars():'') + ' next '+Math.floor(tank.wantedPoints||0)+'/'+nextStarCost(stars()); }
+    return r;
+  };
+})();
+</script>
+
+
+
+<script id="COPS_SWAT_MILITARY_HITBOX_NERF_REAL_FIX">
+(function(){
+  if(window.__COPS_SWAT_MILITARY_HITBOX_NERF_REAL_FIX__) return;
+  window.__COPS_SWAT_MILITARY_HITBOX_NERF_REAL_FIX__ = true;
+
+  function dist(ax,ay,bx,by){ return Math.hypot(ax-bx, ay-by); }
+  function stars(){ return Math.max(0, Math.floor((tank && tank.wanted) || 0)); }
+  // Nerfed scaling: instead of impossible x1.5^stars, responders now grow gently.
+  function nerfMult(){ return 1 + stars() * 0.18; }
+  function kindOf(p){
+    if(!p) return 'police';
+    if(p.kind === 'military' || p.type === 'military' || p.tank) return 'military';
+    if(p.kind === 'swat' || p.type === 'swat' || p.elite || p.heli) return 'swat';
+    return 'police';
+  }
+  function base(kind){
+    if(kind === 'military') return {hp:180, dmg:7, speed:2.25, w:56, h:34, score:1000, label:'ARMY'};
+    if(kind === 'swat') return {hp:95, dmg:4, speed:2.45, w:46, h:28, score:650, label:'SWAT'};
+    return {hp:38, dmg:2, speed:2.35, w:36, h:22, score:350, label:'POLICE'};
+  }
+  function normalizeResponder(p){
+    if(!p || p.dead) return;
+    const k = kindOf(p), b = base(k), m = nerfMult();
+    p.kind = p.type = k;
+    p.w = b.w; p.h = b.h; p.label = b.label;
+    const newMax = Math.round(b.hp * m);
+    if(!p._nerfInit){
+      p.maxHp = newMax;
+      p.hp = Math.min(Number.isFinite(p.hp)?p.hp:newMax, newMax);
+      p._nerfInit = true;
+    }else{
+      p.maxHp = newMax;
+      if(p.hp > newMax) p.hp = newMax;
+    }
+    p.damage = Math.max(1, Math.round(b.dmg * (1 + stars()*0.12)));
+    p.speed = Math.min(b.speed + stars()*0.025, b.speed + 0.75);
+    p.scoreValue = b.score;
+    // Slow their shooting down a bit if an older patch made them spam.
+    if((p.cool||0) < -5) p.cool = 20;
+  }
+  function responderRadius(p){ return Math.max((p && p.w) || 34, (p && p.h) || 20) * 0.62 + 18; }
+  function damageResponder(p, dmg, label){
+    if(!p || p.dead) return false;
+    normalizeResponder(p);
+    p.hp -= dmg;
+    try{ if(Math.random()<0.2) particles.push({x:p.x,y:p.y-24,vx:0,vy:-1,life:35,size:0,color:'#9ee7ff',txt:'-'+Math.floor(dmg)}); }catch(e){}
+    if(p.hp <= 0){
+      try{ destroyPolice(p); }catch(e){ p.dead = true; }
+    }
+    return true;
+  }
+  function lineHitsPoint(sx,sy,a,px,py,len,width){
+    const along=(px-sx)*Math.cos(a)+(py-sy)*Math.sin(a);
+    const side=Math.abs(-(px-sx)*Math.sin(a)+(py-sy)*Math.cos(a));
+    return along>0 && along<len && side<width;
+  }
+
+  // This is the important part: one shared, forgiving hitbox for police, SWAT, and military.
+  function responderProjectileHits(){
+    if(!Array.isArray(police)) return;
+    const live = police.filter(p=>p && !p.dead);
+    for(const p of live) normalizeResponder(p);
+
+    for(const b of (bullets||[])){
+      if(!b || b.dead || b.cop) continue;
+      for(const p of live){
+        if(!p.dead && dist(b.x,b.y,p.x,p.y) <= responderRadius(p) + (b.r||3)){
+          damageResponder(p, Math.max(3, b.damage || 6), 'bullet');
+          b.dead = true; break;
+        }
+      }
+    }
+    for(const s of (shells||[])){
+      if(!s || s.dead) continue;
+      for(const p of live){
+        if(!p.dead && dist(s.x,s.y,p.x,p.y) <= responderRadius(p) + 14){
+          damageResponder(p, Math.max(18, s.damage || 45), 'shell');
+          try{ explosion(s.x, s.y, s.power || 1); }catch(e){}
+          if(s.pierce){ s.pierce--; if(s.pierce <= 0) s.dead = true; }
+          else s.dead = true;
+          break;
+        }
+      }
+    }
+    for(const f of (flames||[])){
+      if(!f) continue;
+      for(const p of live){
+        if(!p.dead && dist(f.x,f.y,p.x,p.y) <= responderRadius(p) + 16){
+          damageResponder(p, Math.max(1.5, (f.damage||2)*1.4), 'flame');
+        }
+      }
+    }
+    if(typeof blades !== 'undefined'){
+      for(const bl of blades){
+        if(!bl || bl.dead) continue;
+        for(const p of live){
+          if(!p.dead && dist(bl.x,bl.y,p.x,p.y) <= responderRadius(p) + (bl.r||18)){
+            damageResponder(p, Math.max(20, bl.damage || 35), 'blade');
+            bl.pierce = (bl.pierce || 1) - 1;
+            if(bl.pierce <= 0) bl.dead = true;
+            break;
+          }
+        }
+      }
+    }
+    for(const bm of (beams||[])){
+      if(!bm) continue;
+      for(const p of live){
+        if(!p.dead && lineHitsPoint(bm.x,bm.y,bm.a,p.x,p.y,bm.len||900,responderRadius(p)+35)){
+          damageResponder(p, 18, 'beam');
+        }
+      }
+    }
+
+    // Nerf their bullets too; old patches may have created huge-damage cop bullets.
+    for(const b of (bullets||[])){
+      if(b && b.cop){
+        b.damage = Math.min(b.damage || 2, Math.max(2, 2 + stars()*0.5));
+        b.r = Math.min(b.r || 2, 3);
+        if(!Number.isFinite(b.life) || b.life > 100) b.life = 100;
+      }
+    }
+  }
+
+  // Extra Mega-Tank safety: if the old boss exists, guarantee it moves and has a hitbox too.
+  function megaPointHit(px,py,extra){
+    if(!Array.isArray(window.megaTanks)) return null;
+    for(const m of window.megaTanks){
+      if(!m || m.dead) continue;
+      m.w = Math.max(m.w || 0, 300); m.h = Math.max(m.h || 0, 185); m.r = Math.max(m.r || 0, 130);
+      const a = -(m.a||0), ca=Math.cos(a), sa=Math.sin(a), dx=px-m.x, dy=py-m.y;
+      const lx=dx*ca-dy*sa, ly=dx*sa+dy*ca;
+      if(Math.abs(lx) <= m.w/2 + extra && Math.abs(ly) <= m.h/2 + extra) return m;
+      if(dist(px,py,m.x,m.y) <= m.r + extra) return m;
+    }
+    return null;
+  }
+  function hurtMega(m,dmg){
+    if(!m || m.dead) return;
+    if(!Number.isFinite(m.hp)) m.hp = 10000;
+    if(!Number.isFinite(m.maxHp)) m.maxHp = Math.max(m.hp,10000);
+    m.hp -= dmg;
+    try{ if(Math.random()<0.15) particles.push({x:m.x,y:m.y-150,vx:0,vy:-1.1,life:45,size:0,color:'#ff7777',txt:'MEGA -'+Math.floor(dmg)}); }catch(e){}
+    if(m.hp <= 0){
+      m.dead = true;
+      try{ explosion(m.x,m.y,5); addScore(45000,'MEGA-TANK DESTROYED',m.x,m.y); msg('MEGA-TANK destroyed!'); }catch(e){}
+    }
+  }
+  function megaFallback(){
+    if(!gameStarted || !Array.isArray(window.megaTanks)) return;
+    for(const m of window.megaTanks){
+      if(!m || m.dead) continue;
+      const a = Math.atan2(tank.y-m.y,tank.x-m.x); m.a = a;
+      const beforeX=m.x, beforeY=m.y;
+      m.x += Math.cos(a)*1.8; m.y += Math.sin(a)*1.8;
+      // If it got stuck inside a building, chew it instead of becoming decoration.
+      const frontX=m.x+Math.cos(a)*150, frontY=m.y+Math.sin(a)*90;
+      try{ const b=hitBuilding(frontX,frontY); if(b) chipBuilding(b,frontX,frontY,55,a); }catch(e){}
+      m.cool = (m.cool||0)-1;
+      if(m.cool <= 0){
+        m.cool = 75;
+        const aa = Math.atan2(tank.y-m.y,tank.x-m.x);
+        window.megaRounds = window.megaRounds || [];
+        window.megaRounds.push({x:m.x+Math.cos(aa)*150,y:m.y+Math.sin(aa)*90,vx:Math.cos(aa)*10,vy:Math.sin(aa)*10,life:150,r:20,damage:45,power:1.8});
+        try{ muzzle(m.x+Math.cos(aa)*150,m.y+Math.sin(aa)*90,aa,1.2); }catch(e){}
+      }
+    }
+    for(const b of (bullets||[])){ if(!b.dead && !b.cop){ const m=megaPointHit(b.x,b.y,18); if(m){ hurtMega(m,b.damage||8); b.dead=true; } } }
+    for(const s of (shells||[])){ if(!s.dead){ const m=megaPointHit(s.x,s.y,30); if(m){ hurtMega(m,(s.damage||45)*2.2); try{ explosion(s.x,s.y,s.power||1); }catch(e){} s.dead=true; } } }
+    for(const f of (flames||[])){ const m=megaPointHit(f.x,f.y,35); if(m) hurtMega(m,(f.damage||2)*3); }
+    if(typeof blades !== 'undefined') for(const bl of blades){ if(!bl.dead){ const m=megaPointHit(bl.x,bl.y,(bl.r||20)+35); if(m){ hurtMega(m,bl.damage||35); bl.dead=true; } } }
+  }
+
+  setInterval(function(){
+    if(!gameStarted) return;
+    responderProjectileHits();
+    megaFallback();
+  }, 16);
+
+  // Make the UI say this is the nerfed build.
+  try{ msg('Police/SWAT hitboxes fixed. Responders nerfed.'); }catch(e){}
+})();
+</script>
+
+</body>
+</html>

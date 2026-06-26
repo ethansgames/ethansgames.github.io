@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Legends of the World - Clean TD Build</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#071020;color:white;font-family:system-ui,Segoe UI,Arial}
+canvas{display:block;width:100vw;height:100vh;background:#0a1428}
+#ui{position:fixed;inset:0;pointer-events:none}
+.panel{position:absolute;background:rgba(5,10,25,.92);border:2px solid rgba(100,220,255,.5);border-radius:16px;padding:12px;box-shadow:0 0 30px rgba(0,200,255,.18);pointer-events:auto}
+#top{left:12px;top:12px;right:12px;height:74px;display:flex;align-items:center;gap:16px}
+#left{left:12px;top:98px;width:300px;bottom:12px;overflow:auto}
+#right{right:12px;top:98px;width:340px;bottom:12px;overflow:auto}
+#bottom{left:330px;right:370px;bottom:12px;min-height:116px}
+button,.card,select{pointer-events:auto}
+button{border:0;border-radius:10px;padding:9px 12px;background:#2563ff;color:white;font-weight:900;cursor:pointer}
+button:hover{filter:brightness(1.18)}
+button.danger{background:#ff4166}
+button.good{background:#25b86d}
+button.gold{background:#d89d25}
+button.off{background:#39445f}
+.card{border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);border-radius:12px;padding:9px;margin:7px 0;cursor:pointer}
+.card:hover{background:rgba(120,220,255,.12)}
+.card.sel{border-color:#6ff;background:rgba(30,210,255,.22)}
+.small{font-size:12px;opacity:.8}
+.title{font-weight:1000;color:#6ff;font-size:20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+#toast{position:absolute;left:50%;top:88px;transform:translateX(-50%);background:rgba(0,0,0,.76);border:1px solid #6ff;border-radius:999px;padding:10px 20px;font-weight:900;opacity:0;transition:.2s}
+.stat{background:rgba(255,255,255,.07);border-radius:10px;padding:7px 10px}
+.pathChoice{display:flex;gap:6px;flex-wrap:wrap}
+.pathChoice button{padding:6px 8px;font-size:12px}
+select{width:100%;padding:7px;border-radius:8px;background:#101a35;color:white;border:1px solid rgba(255,255,255,.25);margin:5px 0}
+hr{border:0;border-top:1px solid rgba(255,255,255,.14);margin:10px 0}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="ui">
+  <div id="top" class="panel"></div>
+  <div id="left" class="panel"></div>
+  <div id="right" class="panel"></div>
+  <div id="bottom" class="panel"></div>
+  <div id="toast"></div>
+</div>
+
+<script>
+const canvas=document.getElementById("game"),ctx=canvas.getContext("2d");
+function resize(){canvas.width=innerWidth;canvas.height=innerHeight}
+addEventListener("resize",resize);resize();
+
+const towerNames=[
+"Swordsman","Archer","Ice Mage","Fire Mage","Stormcaller","Necromancer","Engineer","Sniper","Paladin","Gravity Monk",
+"Pirate Cannon","Crystal Sage","Dragon Rider","Laser Bot","Poison Druid","Wind Ronin","Sun Priest","Moon Witch","Void Archer","Meteor Monk",
+"Tesla Engineer","Beastmaster","Samurai","Crossbow Ace","Alchemist","Rocket Trooper","Golem Builder","Spirit Caller","Time Wizard","Phoenix Keeper",
+"Alien Blaster","Ninja","Viking","Gladiator","Oracle","Demon Hunter","Angel Guard","Star Sorcerer","Machine Gunner","Reality Bender",
+"Cannon Crew","Falconer","Musketeer","Rune Knight","Plasma Adept","Frost Archer","Bog Witch","Sand Shaman","Mech Pilot","World Guardian",
+"Boomerang Scout","Railgunner","Lantern Keeper","Bone Archer","Magnet Mage"
+];
+
+const upgradePaths={
+  pierce:{name:"Pierce Path",color:"#8df",levels:[
+    {name:"Sharp Tips",desc:"+1 pierce. Shots hit enemies behind the target.",cost:90,apply:t=>{t.pierce+=1;t.range+=12}},
+    {name:"Linebreaker",desc:"+2 pierce and faster bullets.",cost:160,apply:t=>{t.pierce+=2;t.projSpeed+=70}},
+    {name:"World Spear",desc:"Every shot becomes a long rail line.",cost:260,apply:t=>{t.pierce+=99;t.rail=true}}
+  ]},
+  frost:{name:"Frost Path",color:"#9ff",levels:[
+    {name:"Chill Shot",desc:"Shots slow enemies.",cost:90,apply:t=>{t.slow=.35}},
+    {name:"Deep Freeze",desc:"Slow is stronger and lasts longer.",cost:160,apply:t=>{t.slow=.55;t.slowTime=1500}},
+    {name:"Absolute Zero",desc:"Occasional stun freeze.",cost:260,apply:t=>{t.slow=.72;t.stun=true}}
+  ]},
+  storm:{name:"Storm Path",color:"#fd6",levels:[
+    {name:"Spark Jump",desc:"Hits chain to 1 nearby enemy.",cost:90,apply:t=>{t.chain=1}},
+    {name:"Chain Lightning",desc:"Chains to 3 enemies.",cost:160,apply:t=>{t.chain=3}},
+    {name:"Thunder Web",desc:"Chains to 6 enemies and zaps groups.",cost:260,apply:t=>{t.chain=6;t.aoe=35}}
+  ]},
+  forge:{name:"Forge Path",color:"#f86",levels:[
+    {name:"Burning Bolts",desc:"Enemies burn over time.",cost:90,apply:t=>{t.burn=45}},
+    {name:"Napalm Shells",desc:"Burn splashes to nearby enemies.",cost:160,apply:t=>{t.burn=75;t.aoe=45}},
+    {name:"Meteor Core",desc:"Random meteor blasts around target.",cost:260,apply:t=>{t.burn=110;t.meteor=true}}
+  ]},
+  gravity:{name:"Gravity Path",color:"#c8f",levels:[
+    {name:"Pull Field",desc:"Shots tug enemies backward.",cost:90,apply:t=>{t.pull=.035}},
+    {name:"Crush Well",desc:"Pulls groups together.",cost:160,apply:t=>{t.pull=.07;t.aoe=60}},
+    {name:"Black Hole",desc:"Occasionally opens a damaging black hole.",cost:260,apply:t=>{t.blackhole=true;t.pull=.11}}
+  ]},
+  summon:{name:"Summon Path",color:"#7f8",levels:[
+    {name:"Tiny Guard",desc:"Spawns blocker spirits on the road.",cost:90,apply:t=>{t.summon=1}},
+    {name:"Spirit Squad",desc:"More frequent blockers.",cost:160,apply:t=>{t.summon=2;t.rate*=.85}},
+    {name:"Guardian Legion",desc:"Blockers explode when they vanish.",cost:260,apply:t=>{t.summon=3;t.guardian=true}}
+  ]}
+};
+
+const pathStyles={
+  meadow:{name:"Meadow Spiral",desc:"Big open curves. Easiest.",bonusGold:120,life:1},
+  canyon:{name:"Canyon Split",desc:"Long sharp turns. More gold.",bonusGold:220,life:0},
+  ruins:{name:"Ancient Ruins",desc:"Huge zigzag road. Balanced.",bonusGold:160,life:1},
+  void:{name:"Void Relay",desc:"Teleport-like turns. Harder, rich.",bonusGold:280,life:0}
+};
+
+let game;
+let mouse={x:0,y:0};
+let selectedTowerIndex=-1;
+let selectedPlaced=-1;
+let toastTimer=0;
+
+function baseTower(i){
+  const p=Object.keys(upgradePaths)[i%Object.keys(upgradePaths).length];
+  return {
+    name:towerNames[i%towerNames.length],
+    cost:45+Math.floor(i%5)*15,
+    dmg:9+(i%7)*2,
+    range:105+(i%4)*12,
+    rate:.65+(i%5)*.08,
+    cd:0,
+    projSpeed:280,
+    level:0,
+    path:p,
+    pierce:0,chain:0,slow:0,slowTime:900,burn:0,aoe:0,pull:0,summon:0
+  };
+}
+function cloneTower(t){return JSON.parse(JSON.stringify(t))}
+function newGame(){
+  const style=game?.pathStyle||"meadow";
+  const ps=pathStyles[style];
+  game={
+    state:"map",pathStyle:style,gold:650+ps.bonusGold,lives:5+ps.life,stage:1,node:0,bonusWaves:0,
+    crew:[],placed:[],enemies:[],projectiles:[],blockers:[],wave:0,totalWaves:5,waveLive:false,spawnLeft:0,spawnT:0,
+    crystal:40,map:makeMap(),visited:new Set(),bossKills:0,endless:false
+  };
+  for(let i=0;i<12;i++)game.crew.push(baseTower(i));
+  selectedTowerIndex=-1;selectedPlaced=-1;
+  renderUI();toast("Fresh run. Gold reset properly.");
+}
+function makeMap(){
+  let nodes=[];
+  const len=90;
+  for(let i=0;i<len;i++){
+    let choices=["battle","battle","battle","chest","elite","shop","event"];
+    let type=i===len-1?"boss":choices[(i*7+3)%choices.length];
+    nodes.push({i,type,lanes:2+((i*11)%4)});
+  }
+  return nodes;
+}
+function toast(s){const el=document.getElementById("toast");el.textContent=s;el.style.opacity=1;clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.style.opacity=0,1800)}
+
+function setPathStyle(k){
+  if(game && game.node>0){toast("Path style locks after the run starts.");return}
+  if(!game)game={pathStyle:k};
+  game.pathStyle=k;
+  renderUI();
+}
+function enterNode(i){
+  if(game.state!=="map")return;
+  if(i!==game.node+1 && !(game.node===0&&i===0)){toast("You can only move forward to the next tile.");return}
+  game.node=i;
+  const n=game.map[i];
+  if(n.type==="battle"||n.type==="elite"||n.type==="boss")startBattle(n.type);
+  else if(n.type==="chest"){chestReward();game.node++;renderUI()}
+  else if(n.type==="shop"){game.gold+=120;toast("Shop stop: +120 gold for prototype.");game.node++;renderUI()}
+  else {game.lives=Math.min(10,game.lives+1);toast("Event: healed 1 life.");game.node++;renderUI()}
+}
+function chestReward(){
+  const t=baseTower(game.crew.length+Math.floor(Math.random()*40));
+  game.crew.push(t);
+  game.gold+=80;
+  toast("Chest: recruited "+t.name+" and +80 gold.");
+}
+
+function battlePath(){
+  const w=canvas.width,h=canvas.height;
+  let pts=[];
+  const style=game.pathStyle;
+  if(style==="canyon"){
+    pts=[{x:360,y:h*.22},{x:w*.42,y:h*.22},{x:w*.42,y:h*.78},{x:w*.58,y:h*.78},{x:w*.58,y:h*.28},{x:w*.76,y:h*.28},{x:w*.76,y:h*.68},{x:w-370,y:h*.68}];
+  }else if(style==="ruins"){
+    for(let i=0;i<13;i++)pts.push({x:350+i*(w-720)/12,y:h*.5+Math.sin(i*.9)*h*.28});
+  }else if(style==="void"){
+    pts=[{x:350,y:h*.35},{x:w*.43,y:h*.35},{x:w*.43,y:h*.72},{x:w*.53,y:h*.72},{x:w*.53,y:h*.25},{x:w*.68,y:h*.25},{x:w*.68,y:h*.75},{x:w-370,y:h*.75}];
+  }else{
+    for(let i=0;i<15;i++){let t=i/14;pts.push({x:350+t*(w-720),y:h*.52+Math.sin(t*Math.PI*4)*h*.22})}
+  }
+  return pts;
+}
+function startBattle(kind){
+  game.state="battle";game.kind=kind;game.placed=[];game.enemies=[];game.projectiles=[];game.blockers=[];
+  game.wave=0;game.totalWaves=5+game.bonusWaves;game.waveLive=false;game.spawnLeft=0;game.crystal=kind==="boss"?70:kind==="elite"?52:42;
+  game.bpath=battlePath();
+  selectedTowerIndex=-1;selectedPlaced=-1;
+  renderUI();toast("Place towers. Waves auto start.");
+}
+function skipBattle(){
+  if(game.state!=="battle"){toast("Only during battle.");return}
+  if(game.lives<=1){toast("Need at least 2 lives to skip.");return}
+  game.lives--;game.bonusWaves+=2;game.state="map";game.enemies=[];game.projectiles=[];game.placed=[];game.blockers=[];game.waveLive=false;
+  game.node++;
+  renderUI();toast("Skipped: -1 life, no rewards, future battles +2 waves.");
+}
+function startWave(){
+  if(game.state!=="battle"||game.waveLive)return;
+  if(game.wave>=game.totalWaves)return;
+  game.wave++;game.waveLive=true;
+  const variety=game.wave%6;
+  let base=7+game.wave*2+(game.kind==="elite"?6:0)+(game.kind==="boss"?14:0);
+  game.spawnLeft=base+(variety===0?8:0);
+  game.spawnT=0;
+  toast("Wave "+game.wave+"/"+game.totalWaves);
+}
+setInterval(()=>{if(game&&game.state==="battle"&&!game.waveLive&&game.wave<game.totalWaves)startWave()},900);
+
+function finishBattle(){
+  game.state="map";game.gold+=game.kind==="boss"?420:game.kind==="elite"?220:140;
+  game.lives=Math.min(10,game.lives+1);
+  game.bonusWaves+=2;
+  game.node++;
+  if(game.kind==="boss"){game.bossKills++;game.crew.push(baseTower(game.crew.length+5));toast("Boss defeated! Relic tower recruited. Future battles +2 waves.");}
+  else toast("Battle won! +gold, +1 life, future battles +2 waves.");
+  renderUI();
+}
+function loseBattle(){
+  game.lives--;
+  if(game.lives<=0){toast("Run lost. Starting a fresh run.");newGame();return}
+  game.state="map";game.node++;renderUI();toast("Crystal broke. -1 life, moving forward.");
+}
+
+function dist(a,b,c,d){return Math.hypot(a-c,b-d)}
+function pointOnPath(path,t){
+  let seg=Math.min(path.length-2,Math.floor(t*(path.length-1)));
+  let local=t*(path.length-1)-seg;
+  let a=path[seg],b=path[seg+1];
+  return {x:a.x+(b.x-a.x)*local,y:a.y+(b.y-a.y)*local};
+}
+function spawnEnemy(){
+  const v=game.wave%6;
+  let e={t:0,hp:34+game.wave*9,speed:.028+game.wave*.0015,type:"normal",burn:0,slowMul:1,stun:0};
+  if(v===0){e.type="swarm";e.hp*=.5;e.speed*=1.55}
+  if(v===1){e.type="brute";e.hp*=2.1;e.speed*=.72}
+  if(v===2){e.type="runner";e.hp*=.75;e.speed*=1.9}
+  if(v===3){e.type="shield";e.hp*=1.35;e.armor=3}
+  if(v===4){e.type="regen";e.regen=.5}
+  if(v===5){e.type="flyer";e.speed*=1.25}
+  game.enemies.push(e);
+}
+function shoot(t,enemy){
+  let p={x:t.x,y:t.y,target:enemy,dmg:t.dmg,spd:t.projSpeed,pierce:t.pierce,chain:t.chain,slow:t.slow,slowTime:t.slowTime,burn:t.burn,aoe:t.aoe,pull:t.pull,rail:t.rail,meteor:t.meteor,blackhole:t.blackhole,stun:t.stun,color:upgradePaths[t.path].color};
+  game.projectiles.push(p);
+}
+function hitEnemy(e,dmg){
+  dmg=Math.max(1,dmg-(e.armor||0));
+  e.hp-=dmg;
+}
+function applyHit(p,e){
+  hitEnemy(e,p.dmg);
+  if(p.slow){e.slowMul=Math.min(e.slowMul,p.slow);e.slowUntil=performance.now()+p.slowTime}
+  if(p.burn)e.burn+=p.burn;
+  if(p.stun&&Math.random()<.15)e.stun=500;
+  if(p.pull)e.t=Math.max(0,e.t-p.pull);
+  if(p.aoe){
+    const pos=pointOnPath(game.bpath,e.t);
+    for(const o of game.enemies){
+      if(o!==e){const op=pointOnPath(game.bpath,o.t);if(dist(pos.x,pos.y,op.x,op.y)<p.aoe)hitEnemy(o,p.dmg*.45)}
+    }
+  }
+  if(p.chain){
+    let chained=0;
+    for(const o of game.enemies){
+      if(o!==e&&chained<p.chain){hitEnemy(o,p.dmg*.45);chained++}
+    }
+  }
+  if(p.meteor){
+    for(let i=0;i<2;i++){let o=game.enemies[Math.floor(Math.random()*game.enemies.length)];if(o)hitEnemy(o,p.dmg*.8)}
+  }
+  if(p.blackhole){
+    for(const o of game.enemies){o.t=Math.max(0,o.t-.012);hitEnemy(o,p.dmg*.12)}
+  }
+}
+function update(dt){
+  if(!game||game.state!=="battle")return;
+  if(game.waveLive){
+    game.spawnT-=dt;
+    if(game.spawnLeft>0&&game.spawnT<=0){spawnEnemy();game.spawnLeft--;game.spawnT=.42}
+  }
+  for(const t of game.placed){
+    t.cd-=dt;
+    if(t.cd<=0){
+      let target=null,best=99999;
+      for(const e of game.enemies){
+        const p=pointOnPath(game.bpath,e.t);
+        const d=dist(t.x,t.y,p.x,p.y);
+        if(d<t.range&&d<best){best=d;target=e}
+      }
+      if(target){shoot(t,target);t.cd=t.rate}
+      if(t.summon&&Math.random()<.015*t.summon){
+        game.blockers.push({t:Math.max(0,target?.t||.2),life:2.5+t.summon});
+      }
+    }
+  }
+  for(const b of game.blockers)b.life-=dt;
+  game.blockers=game.blockers.filter(b=>b.life>0);
+
+  for(const e of game.enemies){
+    if(e.burn){e.hp-=e.burn*dt*.35;e.burn*=.995}
+    if(e.regen)e.hp+=e.regen*dt;
+    if(e.stun>0){e.stun-=dt*1000;continue}
+    let slow=(e.slowUntil&&performance.now()<e.slowUntil)?e.slowMul:1;
+    let blocked=game.blockers.find(b=>Math.abs(b.t-e.t)<.018);
+    if(blocked){blocked.life-=dt*2;continue}
+    e.t+=e.speed*slow*dt;
+    if(e.t>=1){game.crystal--;e.dead=true}
+  }
+  for(const p of game.projectiles){
+    if(!p.target||p.target.dead||p.target.hp<=0){p.dead=true;continue}
+    const tp=pointOnPath(game.bpath,p.target.t);
+    if(p.rail){applyHit(p,p.target);p.dead=true;continue}
+    const dx=tp.x-p.x,dy=tp.y-p.y,d=Math.hypot(dx,dy);
+    if(d<12){applyHit(p,p.target);p.dead=true}
+    else{p.x+=dx/d*p.spd*dt;p.y+=dy/d*p.spd*dt}
+  }
+  game.projectiles=game.projectiles.filter(p=>!p.dead);
+  game.enemies=game.enemies.filter(e=>!e.dead&&e.hp>0);
+  if(game.crystal<=0)loseBattle();
+  if(game.waveLive&&game.spawnLeft<=0&&game.enemies.length===0){
+    game.waveLive=false;
+    if(game.wave>=game.totalWaves)finishBattle();
+  }
+}
+
+function canBuild(x,y){
+  if(game.state!=="battle")return false;
+  for(const p of game.bpath)if(dist(x,y,p.x,p.y)<36)return false;
+  for(let i=0;i<game.bpath.length-1;i++){
+    let a=game.bpath[i],b=game.bpath[i+1];
+    let l2=(b.x-a.x)**2+(b.y-a.y)**2;
+    let u=Math.max(0,Math.min(1,((x-a.x)*(b.x-a.x)+(y-a.y)*(b.y-a.y))/l2));
+    let px=a.x+u*(b.x-a.x),py=a.y+u*(b.y-a.y);
+    if(dist(x,y,px,py)<42)return false;
+  }
+  return x>330&&x<canvas.width-360&&y>96&&y<canvas.height-135;
+}
+function placeTower(x,y){
+  if(selectedTowerIndex<0)return;
+  const src=game.crew[selectedTowerIndex];
+  if(!src)return;
+  if(game.gold<src.cost){toast("Need "+src.cost+" gold.");return}
+  if(!canBuild(x,y)){toast("Can't build on the road/UI.");return}
+  const t=cloneTower(src);t.x=x;t.y=y;t.cd=.1;
+  game.gold-=t.cost;game.placed.push(t);selectedPlaced=game.placed.length-1;renderUI();
+}
+function upgradePlaced(){
+  if(selectedPlaced<0||!game.placed[selectedPlaced]){toast("Select a placed tower.");return}
+  const t=game.placed[selectedPlaced];
+  const path=upgradePaths[t.path];
+  if(t.level>=3){toast("Max upgrade.");return}
+  const up=path.levels[t.level];
+  if(game.gold<up.cost){toast("Need "+up.cost+" gold.");return}
+  game.gold-=up.cost;up.apply(t);t.level++;
+  renderUI();toast(t.name+" got "+up.name);
+}
+function setPlacedPath(path){
+  if(selectedPlaced<0||!game.placed[selectedPlaced])return;
+  const t=game.placed[selectedPlaced];
+  if(t.level>0){toast("Path locked after first upgrade.");return}
+  t.path=path;renderUI();toast("Path changed to "+upgradePaths[path].name);
+}
+
+canvas.addEventListener("mousemove",e=>{mouse.x=e.clientX;mouse.y=e.clientY});
+canvas.addEventListener("click",e=>{
+  if(!game)return;
+  const x=e.clientX,y=e.clientY;
+  if(game.state==="battle"){
+    for(let i=0;i<game.placed.length;i++){
+      const t=game.placed[i];
+      if(dist(x,y,t.x,t.y)<18){selectedPlaced=i;selectedTowerIndex=-1;renderUI();return}
+    }
+    placeTower(x,y);
+  }
+});
+addEventListener("keydown",e=>{
+  if(e.key==="Escape"||e.key==="0"){selectedTowerIndex=-1;selectedPlaced=-1;renderUI()}
+  let n=parseInt(e.key);if(n>=1&&n<=9){selectedTowerIndex=n-1;selectedPlaced=-1;renderUI()}
+});
+
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const w=canvas.width,h=canvas.height;
+  let g=ctx.createLinearGradient(0,0,w,h);g.addColorStop(0,"#07142d");g.addColorStop(1,"#10102d");ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+  ctx.globalAlpha=.25;
+  for(let i=0;i<80;i++){ctx.fillStyle=i%2?"#2df":"#fff";ctx.beginPath();ctx.arc((i*97)%w,(i*173)%h,1.3,0,7);ctx.fill()}
+  ctx.globalAlpha=1;
+  if(!game)return;
+  if(game.state==="map")drawMap(); else drawBattle();
+  requestAnimationFrame(loop);
+}
+function drawMap(){
+  ctx.fillStyle="#bdf";ctx.font="900 28px system-ui";ctx.fillText("Forward Campaign Route",350,135);
+  const startX=370,startY=205,step=54;
+  for(let i=0;i<Math.min(game.map.length,90);i++){
+    const col=i%15,row=Math.floor(i/15);
+    const x=startX+col*step,y=startY+row*76+(col%2)*14;
+    const n=game.map[i];
+    ctx.fillStyle=i<game.node?"#29445a":i===game.node?"#3cff9a":i===game.node+1?"#34c6ff":"#1d2945";
+    ctx.strokeStyle=n.type==="boss"?"#ff4":n.type==="elite"?"#f67":"#6df";
+    ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(x,y,20,0,7);ctx.fill();ctx.stroke();
+    ctx.fillStyle="white";ctx.font="12px system-ui";ctx.textAlign="center";ctx.fillText(n.type[0].toUpperCase(),x,y+4);ctx.textAlign="left";
+    n.x=x;n.y=y;
+  }
+}
+function drawBattle(){
+  const path=game.bpath;
+  ctx.lineCap="round";ctx.lineJoin="round";
+  ctx.strokeStyle="#48351e";ctx.lineWidth=58;ctx.beginPath();path.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();
+  ctx.strokeStyle="#b88645";ctx.lineWidth=38;ctx.beginPath();path.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();
+  ctx.strokeStyle="rgba(255,255,255,.22)";ctx.lineWidth=2;ctx.beginPath();path.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();
+
+  ctx.fillStyle="rgba(60,255,160,.08)";ctx.fillRect(330,96,canvas.width-700,canvas.height-230);
+  ctx.strokeStyle="rgba(80,255,180,.25)";ctx.strokeRect(330,96,canvas.width-700,canvas.height-230);
+
+  if(selectedTowerIndex>=0){
+    ctx.beginPath();ctx.arc(mouse.x,mouse.y,game.crew[selectedTowerIndex].range,0,7);
+    ctx.fillStyle=canBuild(mouse.x,mouse.y)?"rgba(80,255,180,.12)":"rgba(255,60,80,.12)";ctx.fill();
+    ctx.strokeStyle=canBuild(mouse.x,mouse.y)?"#5fa":"#f56";ctx.stroke();
+  }
+  for(const b of game.blockers){
+    const p=pointOnPath(path,b.t);ctx.fillStyle="#7f8";ctx.beginPath();ctx.arc(p.x,p.y,9,0,7);ctx.fill();
+  }
+  for(let i=0;i<game.placed.length;i++){
+    const t=game.placed[i],color=upgradePaths[t.path].color;
+    ctx.beginPath();ctx.arc(t.x,t.y,t.range,0,7);ctx.fillStyle=i===selectedPlaced?"rgba(120,220,255,.09)":"rgba(255,255,255,.025)";ctx.fill();
+    ctx.fillStyle=color;ctx.beginPath();ctx.arc(t.x,t.y,17,0,7);ctx.fill();
+    ctx.strokeStyle=i===selectedPlaced?"#fff":"#000";ctx.lineWidth=3;ctx.stroke();
+    ctx.fillStyle="#001";ctx.font="900 10px system-ui";ctx.textAlign="center";ctx.fillText(t.name[0],t.x,t.y+4);ctx.textAlign="left";
+  }
+  for(const e of game.enemies){
+    const p=pointOnPath(path,e.t);
+    ctx.fillStyle=e.type==="brute"?"#f55":e.type==="runner"?"#ff5":e.type==="shield"?"#9af":e.type==="regen"?"#6f6":e.type==="flyer"?"#f8f":"#ddd";
+    ctx.beginPath();ctx.arc(p.x,p.y,e.type==="brute"?16:11,0,7);ctx.fill();
+    ctx.fillStyle="#111";ctx.fillRect(p.x-17,p.y-23,34,4);ctx.fillStyle="#f44";ctx.fillRect(p.x-17,p.y-23,Math.max(0,34*Math.min(1,e.hp/(50+game.wave*12))),4);
+  }
+  for(const p of game.projectiles){
+    ctx.fillStyle=p.color||"#fff";ctx.beginPath();ctx.arc(p.x,p.y,5,0,7);ctx.fill();
+  }
+}
+function renderUI(){
+  if(!game)return;
+  document.getElementById("top").innerHTML=`
+    <div class="title">Legends of the World</div>
+    <div class="stat">Gold: <b>${Math.floor(game.gold)}</b></div>
+    <div class="stat">Lives: <b>${game.lives}</b></div>
+    <div class="stat">Tile: <b>${game.node}/90</b></div>
+    <div class="stat">Future Waves: <b>+${game.bonusWaves}</b></div>
+    <button onclick="newGame()" class="good">Fresh Run</button>
+  `;
+  document.getElementById("left").innerHTML=`
+    <div class="title">Crew Towers</div>
+    <div class="small">Click a crew tower, then click the battlefield. Keys 1-9 select. Esc deselect.</div>
+    ${game.crew.slice(0,18).map((t,i)=>`
+      <div class="card ${selectedTowerIndex===i?'sel':''}" onclick="selectedTowerIndex=${selectedTowerIndex===i?-1:i};selectedPlaced=-1;renderUI()">
+        <b>${i+1}. ${t.name}</b><br>
+        <span class="small">${upgradePaths[t.path].name} • Cost ${t.cost} • Dmg ${Math.round(t.dmg)} • Range ${Math.round(t.range)}</span>
+      </div>
+    `).join("")}
+  `;
+  let right="";
+  if(game.state==="map"){
+    const ps=pathStyles[game.pathStyle];
+    right=`
+      <div class="title">Route Control</div>
+      <div class="small">Forward-only. You cannot go back or replay tiles.</div>
+      <hr>
+      <b>Battle Path Style</b>
+      <div class="small">This changes the actual TD road shape.</div>
+      <div class="pathChoice">
+        ${Object.entries(pathStyles).map(([k,p])=>`<button class="${game.pathStyle===k?'good':'off'}" onclick="setPathStyle('${k}')">${p.name}</button>`).join("")}
+      </div>
+      <p><b>${ps.name}</b><br><span class="small">${ps.desc}<br>Starting bonus: +${ps.bonusGold} gold, +${ps.life} life.</span></p>
+      <hr>
+      <button onclick="enterNode(game.node)" class="gold">Enter Current Tile</button>
+      <button onclick="enterNode(game.node+1)">Move to Next Tile</button>
+      <p class="small">Current tile: ${game.map[Math.min(game.node,game.map.length-1)].type}</p>
+    `;
+  }else{
+    const t=selectedPlaced>=0?game.placed[selectedPlaced]:null;
+    right=`
+      <div class="title">Battle</div>
+      <button onclick="skipBattle()" class="danger">Sacrifice 1 Life: Skip Battle</button>
+      <p><b>Crystal:</b> ${game.crystal}<br><b>Wave:</b> ${game.wave}/${game.totalWaves}<br><b>Enemies:</b> ${game.enemies.length}</p>
+      <hr>
+      <div class="title">Tower Upgrade Panel</div>
+      ${t?towerUpgradePanel(t):`<div class="small">Select a placed tower on the battlefield to open its custom upgrade panel.</div>`}
+    `;
+  }
+  document.getElementById("right").innerHTML=right;
+  document.getElementById("bottom").innerHTML= game.state==="battle" ? `
+    <b>How to play:</b> select tower → click green build zone → select placed tower → choose upgrade path → upgrade.
+    <br><span class="small">No Start Wave button: waves auto-start. Tower paths are inside each placed tower's upgrade panel.</span>
+  ` : `
+    <b>Campaign:</b> 90 forward tiles. Battles get +2 waves every win or skip. Boss at the end unlocks endless later.
+  `;
+}
+function towerUpgradePanel(t){
+  const p=upgradePaths[t.path];
+  const next=p.levels[t.level];
+  return `
+    <div class="card sel">
+      <b>${t.name}</b><br>
+      <span class="small">Level ${t.level}/3 • ${p.name}</span>
+    </div>
+    <label class="small">Custom path for this tower:</label>
+    <select onchange="setPlacedPath(this.value)" ${t.level>0?"disabled":""}>
+      ${Object.entries(upgradePaths).map(([k,v])=>`<option value="${k}" ${k===t.path?'selected':''}>${v.name}</option>`).join("")}
+    </select>
+    <div class="small">${t.level>0?"Path locked after upgrading.":"Pick any path before first upgrade."}</div>
+    <hr>
+    ${next?`
+      <b style="color:${p.color}">${next.name}</b>
+      <p class="small">${next.desc}</p>
+      <button onclick="upgradePlaced()" class="good">Buy Upgrade: ${next.cost} gold</button>
+    `:`<b>MAXED</b><p class="small">This tower has completed its custom upgrade path.</p>`}
+    <hr>
+    <div class="small">
+      Dmg ${Math.round(t.dmg)} • Range ${Math.round(t.range)} • Rate ${t.rate.toFixed(2)}<br>
+      Special: ${p.name}
+    </div>
+  `;
+}
+let last=performance.now();
+function loop(now=performance.now()){
+  const dt=Math.min(.05,(now-last)/1000);last=now;
+  update(dt);
+  drawFrame();
+  requestAnimationFrame(loop);
+}
+function drawFrame(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const w=canvas.width,h=canvas.height;
+  let g=ctx.createLinearGradient(0,0,w,h);g.addColorStop(0,"#07142d");g.addColorStop(1,"#10102d");ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+  ctx.globalAlpha=.25;
+  for(let i=0;i<80;i++){ctx.fillStyle=i%2?"#2df":"#fff";ctx.beginPath();ctx.arc((i*97)%w,(i*173)%h,1.3,0,7);ctx.fill()}
+  ctx.globalAlpha=1;
+  if(game){if(game.state==="map")drawMap();else drawBattle();}
+}
+newGame();
+loop();
+</script>
+</body>
+</html>

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Snake Cartoon Levels</title>
+<style>
+    body {
+        background: #f4f4f4;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        margin: 0;
+        font-family: Arial, sans-serif;
+    }
+    canvas {
+        background: #fff8e8;
+        border: 5px solid #ffb347;
+        border-radius: 10px;
+        box-shadow: 0 0 15px rgba(0,0,0,0.25);
+    }
+    #score, #level {
+        margin-top: 10px;
+        font-size: 22px;
+        font-weight: bold;
+        color: #ff8c00;
+    }
+</style>
+</head>
+<body>
+
+<canvas id="game" width="500" height="500"></canvas>
+<div id="score">Score: 0</div>
+<div id="level">Level: 1</div>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+let grid = 25;
+let baseSpeed = 16; // slower snake (more frames per move)
+let speed = baseSpeed;
+
+let isgameover = false;
+let level = 1;
+let levelThreshold = 5;
+
+let snake = [{ x: 10, y: 10 }];
+let direction = "RIGHT";
+let nextDirection = "RIGHT";
+let score = 0;
+
+let food = randomPosition();
+let foodEmoji = randomFoodEmoji();
+
+let frame = 0;
+let lastSnake = JSON.parse(JSON.stringify(snake));
+
+document.addEventListener("keydown", e => {
+    if (e.key === "ArrowUp" && direction !== "DOWN") nextDirection = "UP";
+    if (e.key === "ArrowDown" && direction !== "UP") nextDirection = "DOWN";
+    if (e.key === "ArrowLeft" && direction !== "RIGHT") nextDirection = "LEFT";
+    if (e.key === "ArrowRight" && direction !== "LEFT") nextDirection = "RIGHT";
+});
+
+function randomFoodEmoji() {
+    const foods = ["🍎","🍇","🍒","🍉","🍋","🍓"];
+    return foods[Math.floor(Math.random()*foods.length)];
+}
+
+function randomPosition() {
+    return {
+        x: Math.floor(Math.random()*20),
+        y: Math.floor(Math.random()*20)
+    };
+}
+
+function drawGrid() {
+    ctx.strokeStyle = "#ffddb0";
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 500; i+=grid) {
+        ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,500); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(500,i); ctx.stroke();
+    }
+}
+
+function drawRoundedRect(x,y,w,h,r,color){
+    ctx.fillStyle=color;
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.fill();
+}
+
+function updateLevel() {
+    if (score >= level * levelThreshold) {
+        level++;
+        document.getElementById("level").innerText = "Level: " + level;
+        speed = Math.max(6, baseSpeed - level * 2); // speeds up each level
+    }
+}
+
+function animate() {
+    ctx.clearRect(0, 0, 500, 500);
+    drawGrid();
+
+    let t = frame / speed;
+
+    for (let i=0;i<snake.length;i++){
+        let prev=lastSnake[i]||snake[i], curr=snake[i];
+        let x=(prev.x+(curr.x-prev.x)*t)*grid;
+        let y=(prev.y+(curr.y-prev.y)*t)*grid;
+
+        let color=i===0?"#6fd16f":"#8bf48b";
+        drawRoundedRect(x+3,y+3,grid-6,grid-6,8,color);
+
+        if(i===0){
+            ctx.fillStyle="#000";
+            ctx.beginPath();
+            ctx.arc(x+grid*0.35,y+grid*0.35,3,0,Math.PI*2);
+            ctx.arc(x+grid*0.65,y+grid*0.35,3,0,Math.PI*2);
+            ctx.fill();
+        }
+    }
+
+    ctx.font="28px serif";
+    ctx.fillText(foodEmoji, food.x*grid+3, food.y*grid+27);
+
+    frame++;
+    if(frame>=speed){
+        frame=0;
+        updateSnake();
+    }
+
+    requestAnimationFrame(animate);
+}
+
+function updateSnake(){
+    if (isgameover) return;
+    direction=nextDirection;
+    lastSnake=JSON.parse(JSON.stringify(snake));
+
+    let head={...snake[0]};
+    if(direction==="UP") head.y--;
+    if(direction==="DOWN") head.y++;
+    if(direction==="LEFT") head.x--;
+    if(direction==="RIGHT") head.x++;
+
+    if(head.x<0||head.x>19||head.y<0||head.y>19) return gameOver();
+
+    for(let s of snake) if(s.x===head.x && s.y===head.y) return gameOver();
+
+    snake.unshift(head);
+
+    if(head.x===food.x && head.y===food.y){
+        score++;
+        document.getElementById("score").innerText="Score: "+score;
+        updateLevel();
+        food=randomPosition();
+        foodEmoji=randomFoodEmoji();
+    }
+    else snake.pop();
+}
+
+function gameOver(){
+    isgameover = true;
+    alert("Game Over! Final Score: "+score+" | Level: "+level);
+    location.reload();
+}
+
+animate();
+</script>
+
+</body>
+</html>

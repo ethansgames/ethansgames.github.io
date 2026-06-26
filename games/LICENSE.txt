@@ -1,0 +1,151 @@
+LEGAL NOTICE, LICENSE, DISCLAIMER, AND LIMITATION OF LIABILITY
+
+VERSION 1.0
+
+PLEASE READ THIS DOCUMENT CAREFULLY BEFORE VIEWING, RUNNING, OR DOWNLOADING THIS SOFTWARE.
+
+BY VIEWING, DOWNLOADING, INSTALLING, RUNNING, OR OTHERWISE USING THIS SOFTWARE, YOU AGREE TO ALL OF THE TERMS BELOW. IF YOU DO NOT AGREE, DO NOT USE THIS SOFTWARE.
+
+==================================================================
+
+1. LICENSE
+   ==================================================================
+
+Permission is granted solely to:
+
+* View this software.
+* Download this software.
+* Install this software.
+* Run and play this software.
+* Make a reasonable number of personal backup copies for your own private use.
+
+No other rights are granted.
+
+==================================================================
+2. STRICTLY PROHIBITED
+======================
+
+WITHOUT PRIOR WRITTEN PERMISSION FROM THE COPYRIGHT HOLDER, YOU MAY NOT:
+
+* Modify, alter, patch, edit, adapt, translate, reverse engineer, decompile, disassemble, or create derivative works from any portion of this software, except where such restrictions are prohibited by applicable law.
+* Publish, upload, mirror, redistribute, sublicense, sell, rent, lease, bundle, or otherwise distribute this software or any portion of it.
+* Repackage this software under another name.
+* Remove or alter copyright notices, credits, trademarks, or legal notices.
+* Use assets, code, music, artwork, graphics, sounds, or other content from this software in another project.
+* Claim ownership of any part of this software.
+
+Any unauthorized use immediately terminates this license.
+
+==================================================================
+3. OWNERSHIP
+============
+
+This software and all associated materials remain the exclusive intellectual property of the copyright holder.
+
+All rights not expressly granted are reserved.
+
+==================================================================
+4. NO AFFILIATION OR ENDORSEMENT
+================================
+
+This software is an independent project.
+
+It is NOT affiliated with, associated with, authorized by, sponsored by, approved by, endorsed by, or connected with any company, corporation, publisher, developer, organization, trademark owner, or other entity unless expressly stated in writing by the copyright holder.
+
+If this software contains gameplay mechanics, visual styles, themes, ideas, or concepts that are similar to those found in other games or media, such similarities are purely for inspiration and do not imply any affiliation, endorsement, partnership, sponsorship, licensing, or approval.
+
+All trademarks, logos, product names, and company names remain the property of their respective owners.
+
+==================================================================
+5. NO WARRANTIES
+================
+
+THIS SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE."
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE COPYRIGHT HOLDER DISCLAIMS ALL WARRANTIES OF ANY KIND, WHETHER EXPRESS, IMPLIED, STATUTORY, OR OTHERWISE, INCLUDING BUT NOT LIMITED TO:
+
+* MERCHANTABILITY
+* FITNESS FOR A PARTICULAR PURPOSE
+* NON-INFRINGEMENT
+* ACCURACY
+* RELIABILITY
+* SECURITY
+* AVAILABILITY
+* COMPATIBILITY
+* PERFORMANCE
+* ERROR-FREE OPERATION
+
+NO GUARANTEE IS MADE THAT THE SOFTWARE WILL FUNCTION WITHOUT BUGS, INTERRUPTIONS, DATA LOSS, OR SECURITY ISSUES.
+
+==================================================================
+6. LIMITATION OF LIABILITY
+==========================
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE COPYRIGHT HOLDER SHALL NOT BE LIABLE FOR ANY DAMAGES OR LOSSES ARISING OUT OF OR RELATING TO THIS SOFTWARE.
+
+THIS INCLUDES, BUT IS NOT LIMITED TO:
+
+* Direct damages
+* Indirect damages
+* Incidental damages
+* Consequential damages
+* Special damages
+* Exemplary damages
+* Punitive damages
+* Loss of profits
+* Loss of revenue
+* Loss of business opportunities
+* Loss of goodwill
+* Loss of savings
+* Loss of use
+* Loss of data
+* Corrupted files
+* Hardware damage
+* Software damage
+* System instability
+* Security breaches
+* Malware introduced by third parties
+* Any other monetary or non-monetary loss
+
+THIS LIMITATION APPLIES EVEN IF THE COPYRIGHT HOLDER HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+YOUR USE OF THIS SOFTWARE IS ENTIRELY AT YOUR OWN RISK.
+
+==================================================================
+7. USER RESPONSIBILITY
+======================
+
+You assume full responsibility for:
+
+* Installing this software.
+* Running this software.
+* Maintaining backups of your own files.
+* Determining whether this software is appropriate for your device.
+
+==================================================================
+8. TERMINATION
+==============
+
+Any violation of this agreement automatically terminates your permission to use this software.
+
+Upon termination, you must immediately cease using the software and destroy all copies in your possession.
+
+==================================================================
+9. SEVERABILITY
+===============
+
+If any provision of this document is found to be invalid or unenforceable, the remaining provisions shall remain in full force and effect.
+
+==================================================================
+10. ENTIRE AGREEMENT
+====================
+
+This document constitutes the entire agreement governing the use of this software and supersedes any prior verbal or written statements regarding its use.
+
+==================================================================
+COPYRIGHT
+=========
+
+Copyright (c) 2026 GrepBDS.
+
+All Rights Reserved.

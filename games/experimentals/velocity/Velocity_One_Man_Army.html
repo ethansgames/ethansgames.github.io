@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Velocity: One Man Army</title>
+<style>
+  html,body{margin:0;overflow:hidden;background:#08111f;color:white;font-family:Arial,Helvetica,sans-serif;user-select:none}
+  canvas{display:block;background:linear-gradient(#75b8ff,#ddefff)}
+  #hud{position:fixed;left:14px;top:12px;background:rgba(0,0,0,.42);padding:12px 14px;border:1px solid rgba(255,255,255,.22);border-radius:12px;backdrop-filter:blur(5px);font-weight:bold;line-height:1.45;min-width:250px}
+  #title{font-size:20px;color:#ffe28a;text-shadow:0 0 8px #ffbc3a;margin-bottom:5px}
+  #help{position:fixed;right:14px;top:12px;background:rgba(0,0,0,.42);padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.18);line-height:1.45}
+  #upgrade{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.62);z-index:5}
+  #panel{width:min(820px,92vw);background:linear-gradient(160deg,#1a2242,#0d1327);border:2px solid #f7d06a;border-radius:20px;padding:24px;box-shadow:0 0 35px #000}
+  #cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px}
+  .card{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.22);border-radius:16px;padding:18px;cursor:pointer;min-height:145px;transition:.14s;box-shadow:inset 0 0 20px rgba(255,255,255,.03)}
+  .card:hover{transform:translateY(-5px) scale(1.02);background:rgba(255,220,120,.16);border-color:#ffe28a}
+  .card h3{margin:0 0 8px;color:#ffe28a}
+  #centerMsg{position:fixed;left:50%;top:22%;transform:translateX(-50%);font-size:38px;font-weight:900;color:#fff4b8;text-shadow:0 0 14px #000,0 0 25px #ffb52e;pointer-events:none;text-align:center;opacity:0;transition:.4s}
+  #dead{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.72);z-index:10;text-align:center}
+  button{font-size:18px;border:0;border-radius:12px;padding:12px 18px;background:#f7d06a;color:#141014;font-weight:bold;cursor:pointer}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud"><div id="title">Velocity: One Man Army</div><div id="stats"></div></div>
+<div id="help">WASD move<br>Mouse move aim camera<br>Left click / Space slash<br>Shift dash<br>Collect gold gems to upgrade</div>
+<div id="centerMsg"></div>
+<div id="upgrade"><div id="panel"><h1>Forge the Prince’s Sword</h1><p>Choose one royal upgrade. Armies get bigger every wave.</p><div id="cards"></div></div></div>
+<div id="dead"><div><h1 id="deadTitle">The Prince Has Fallen</h1><p id="deadText"></p><button onclick="location.reload()">Restart Kingdom</button></div></div>
+<script>
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+let W=innerWidth,H=innerHeight;canvas.width=W;canvas.height=H;addEventListener('resize',()=>{W=innerWidth;H=innerHeight;canvas.width=W;canvas.height=H});
+const keys={};addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(e.code==='Space')slash();});addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+let mouseX=0,mouseY=0;addEventListener('mousemove',e=>{mouseX=(e.clientX/W-.5)*2;mouseY=(e.clientY/H-.5)*2});addEventListener('mousedown',slash);
+const rand=(a,b)=>a+Math.random()*(b-a),dist=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z),clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const player={x:0,z:0,y:0,vx:0,vz:0,r:14,hp:120,maxHp:120,level:1,xp:0,next:22,gold:0,dmg:20,range:70,speed:3.4,atk:0,spin:0,dash:0,crit:.08,cleave:1,lifeSteal:0,shock:false,trail:[]};
+let enemies=[],particles=[],gems=[],wave=1,kills=0,paused=false,last=0,shake=0,msgTimer=0,cameraRot=0;
+const upgrades=[
+ ['Royal Edge','Sword damage +12',p=>p.dmg+=12],['Longblade','Sword range +18',p=>p.range+=18],['Velocity Boots','Move speed +0.55',p=>p.speed+=.55],['Crown Guard','Max HP +35 and heal',p=>{p.maxHp+=35;p.hp=p.maxHp}],['Cleave Rune','Hit +1 extra enemy per swing',p=>p.cleave++],['Blood Prince','Life steal +5%',p=>p.lifeSteal+=.05],['Thundersteel','Sword shocks nearby soldiers',p=>p.shock=true],['Critical Gem','Critical chance +12%',p=>p.crit+=.12],['Storm Dash','Dash cooldown lower',p=>p.dash-=20]
+];
+function showMsg(t){const m=document.getElementById('centerMsg');m.innerHTML=t;m.style.opacity=1;msgTimer=90}
+function spawnWave(){showMsg('Wave '+wave+'<br><span style="font-size:20px">The army charges!</span>');let n=8+wave*4;for(let i=0;i<n;i++){let a=rand(0,Math.PI*2),d=rand(620,950);let type=Math.random()<.13+wave*.006?'knight':'grunt'; if(wave%5===0&&i<2)type='captain';enemies.push(makeEnemy(Math.cos(a)*d,Math.sin(a)*d,type));}}
+function makeEnemy(x,z,type){let e={x,z,y:0,vx:0,vz:0,type,r:13,hp:30,maxHp:30,dmg:8,speed:1.2,color:'#7a1e22',hit:0,ang:0};
+ if(type==='knight')Object.assign(e,{r:15,hp:55,maxHp:55,dmg:13,speed:1.05,color:'#343a50'});
+ if(type==='captain')Object.assign(e,{r:22,hp:180+wave*18,maxHp:180+wave*18,dmg:22,speed:1.0,color:'#781f99'});
+ return e;
+}
+function slash(){if(paused||player.atk>0)return;player.atk=18;player.spin+=.8;let hits=0;enemies.sort((a,b)=>dist(player,a)-dist(player,b));for(const e of enemies){if(hits>=player.cleave)break;let d=dist(player,e);if(d<player.range+e.r){let dmg=player.dmg*(Math.random()<player.crit?2.4:1);e.hp-=dmg;e.hit=10;hits++;shake=8;burst(e.x,e.z,12,'#ffe28a');if(player.lifeSteal)player.hp=clamp(player.hp+dmg*player.lifeSteal,0,player.maxHp);if(player.shock){for(const o of enemies){if(o!==e&&dist(e,o)<95){o.hp-=player.dmg*.35;o.hit=8;burst(o.x,o.z,5,'#8ee7ff')}}}}}
+}
+function burst(x,z,n,c){for(let i=0;i<n;i++)particles.push({x,z,y:rand(10,50),vx:rand(-4,4),vz:rand(-4,4),vy:rand(2,8),life:rand(18,35),c});}
+function levelUp(){paused=true;document.getElementById('upgrade').style.display='flex';const cards=document.getElementById('cards');cards.innerHTML='';let picks=[...upgrades].sort(()=>Math.random()-.5).slice(0,3);picks.forEach(u=>{let div=document.createElement('div');div.className='card';div.innerHTML=`<h3>${u[0]}</h3><p>${u[1]}</p><small>Click to forge this power.</small>`;div.onclick=()=>{u[2](player);player.level++;player.next=Math.floor(player.next*1.35+18);paused=false;document.getElementById('upgrade').style.display='none';showMsg('Sword Forged:<br>'+u[0]);};cards.appendChild(div);});}
+function project(x,y,z){let ca=Math.cos(cameraRot),sa=Math.sin(cameraRot);let dx=x-player.x,dz=z-player.z;let rx=dx*ca-dz*sa,rz=dx*sa+dz*ca+520;let scale=520/(rz+520);return {x:W/2+rx*scale,y:H*.58-(y+120)*scale+zDepth(rx,rz)*0,scale,rz};}
+function zDepth(){return 0}
+function drawBox(x,z,w,h,d,color,top){let p=project(x,0,z),s=p.scale;if(p.rz<-450)return;ctx.fillStyle=color;ctx.fillRect(p.x-w*s/2,p.y-h*s,w*s,h*s);ctx.fillStyle=top||'rgba(255,255,255,.18)';ctx.fillRect(p.x-w*s/2,p.y-h*s,w*s,Math.max(2,8*s));}
+function drawActor(a,isPlayer){let p=project(a.x,a.y||0,a.z),s=p.scale;if(p.rz<-450)return;let bob=Math.sin(performance.now()/130+(a.x+a.z))*3*s;ctx.save();ctx.translate(p.x,p.y+bob);ctx.scale(s,s);ctx.fillStyle='rgba(0,0,0,.25)';ctx.beginPath();ctx.ellipse(0,10,a.r*1.4,8,0,0,7);ctx.fill();
+ if(isPlayer){ctx.fillStyle='#3152d8';ctx.fillRect(-11,-42,22,40);ctx.fillStyle='#ffd49d';ctx.beginPath();ctx.arc(0,-56,12,0,7);ctx.fill();ctx.fillStyle='#f6d353';ctx.beginPath();ctx.moveTo(-13,-67);ctx.lineTo(0,-88);ctx.lineTo(13,-67);ctx.fill();ctx.fillStyle='#e9eefc';ctx.fillRect(-24,-32,9,25);ctx.fillRect(15,-32,9,25);let swing=player.atk>0?Math.sin((18-player.atk)/18*Math.PI)*75:28;ctx.strokeStyle='#e8fbff';ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(18,-30);ctx.lineTo(18+swing,-76);ctx.stroke();ctx.strokeStyle='rgba(150,220,255,.35)';ctx.lineWidth=14;ctx.beginPath();ctx.arc(0,-36,player.range, -0.35, 0.8); if(player.atk>0)ctx.stroke();}
+ else{ctx.fillStyle=a.color;ctx.fillRect(-a.r,-34,a.r*2,35);ctx.fillStyle=a.hit?'#fff':'#c89161';ctx.beginPath();ctx.arc(0,-45,a.r*.8,0,7);ctx.fill();ctx.fillStyle='#111';ctx.fillRect(-a.r*.6,-49,a.r*1.2,4); if(a.type==='captain'){ctx.fillStyle='#ff66ff';ctx.fillRect(-18,-68,36,9)}}
+ ctx.restore();
+ if(!isPlayer){ctx.fillStyle='#111';ctx.fillRect(p.x-22*s,p.y-75*s,44*s,5);ctx.fillStyle='#ff5656';ctx.fillRect(p.x-22*s,p.y-75*s,44*s*(a.hp/a.maxHp),5);}
+}
+function update(){if(paused)return;cameraRot+=((mouseX*.45)-cameraRot)*.04;let ax=(keys.d?1:0)-(keys.a?1:0),az=(keys.s?1:0)-(keys.w?1:0);let len=Math.hypot(ax,az)||1;ax/=len;az/=len;let ca=Math.cos(-cameraRot),sa=Math.sin(-cameraRot);let mx=ax*ca-az*sa,mz=ax*sa+az*ca;let sp=player.speed*(keys.shift&&player.dash<=0?4.2:1);if(keys.shift&&player.dash<=0&&(ax||az)){player.dash=70;burst(player.x,player.z,20,'#7fd7ff')}player.x+=mx*sp;player.z+=mz*sp;player.dash=Math.max(0,player.dash-1);player.atk=Math.max(0,player.atk-1);player.trail.push({x:player.x,z:player.z,life:20});player.trail=player.trail.filter(t=>--t.life>0);
+ for(const e of enemies){let dx=player.x-e.x,dz=player.z-e.z,d=Math.hypot(dx,dz)||1;e.x+=dx/d*e.speed;e.z+=dz/d*e.speed;e.ang+=.1;if(d<e.r+player.r+8){player.hp-=e.dmg*.035;shake=3;if(Math.random()<.08)burst(player.x,player.z,2,'#ff6666')}}
+ for(let i=enemies.length-1;i>=0;i--){let e=enemies[i];e.hit=Math.max(0,e.hit-1);if(e.hp<=0){kills++;player.xp+=e.type==='captain'?12:e.type==='knight'?5:3;player.gold+=e.type==='captain'?9:2;gems.push({x:e.x,z:e.z,y:15,life:500});burst(e.x,e.z,24,e.color);enemies.splice(i,1)}}
+ for(const g of gems){if(dist(player,g)<45){player.xp+=1;g.life=0;burst(g.x,g.z,7,'#ffd84b')}}gems=gems.filter(g=>--g.life>0);
+ if(player.xp>=player.next){player.xp-=player.next;levelUp()}
+ if(enemies.length===0){wave++;spawnWave()}
+ for(const p of particles){p.x+=p.vx;p.z+=p.vz;p.y+=p.vy;p.vy-=.35;p.life--}particles=particles.filter(p=>p.life>0);
+ if(player.hp<=0){document.getElementById('dead').style.display='flex';document.getElementById('deadText').textContent=`You reached wave ${wave}, defeated ${kills} soldiers, and forged a level ${player.level} sword.`;paused=true}
+}
+function render(){ctx.clearRect(0,0,W,H);let sx=shake?rand(-shake,shake):0,sy=shake?rand(-shake,shake):0;shake*=.88;ctx.save();ctx.translate(sx,sy);
+ let sky=ctx.createLinearGradient(0,0,0,H);sky.addColorStop(0,'#70baff');sky.addColorStop(.56,'#dceeff');sky.addColorStop(.57,'#47733c');sky.addColorStop(1,'#1d3c23');ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+ ctx.fillStyle='rgba(255,232,120,.9)';ctx.beginPath();ctx.arc(W-120,90,42,0,7);ctx.fill();
+ for(let i=-8;i<=8;i++)for(let j=-8;j<=8;j++){let x=i*170,z=j*170;if(Math.abs(x-player.x)<1400&&Math.abs(z-player.z)<1400)drawBox(x,z,90,rand(18,60),90,(i+j)%2?'#325b34':'#3d6a3b','#5a8a4a')}
+ for(const t of player.trail){let p=project(t.x,5,t.z);ctx.fillStyle=`rgba(120,210,255,${t.life/45})`;ctx.beginPath();ctx.arc(p.x,p.y,18*p.scale,0,7);ctx.fill()}
+ for(const g of gems){let p=project(g.x,g.y+Math.sin(g.life/8)*8,g.z);ctx.fillStyle='#ffd84b';ctx.beginPath();ctx.moveTo(p.x,p.y-12*p.scale);ctx.lineTo(p.x+10*p.scale,p.y);ctx.lineTo(p.x,p.y+12*p.scale);ctx.lineTo(p.x-10*p.scale,p.y);ctx.fill()}
+ let drawList=[...enemies.map(e=>({o:e,p:project(e.x,0,e.z),pl:false})),{o:player,p:project(player.x,0,player.z),pl:true}].sort((a,b)=>b.p.rz-a.p.rz);drawList.forEach(d=>drawActor(d.o,d.pl));
+ for(const p0 of particles){let p=project(p0.x,p0.y,p0.z);ctx.fillStyle=p0.c;ctx.globalAlpha=Math.max(0,p0.life/30);ctx.beginPath();ctx.arc(p.x,p.y,5*p.scale,0,7);ctx.fill();ctx.globalAlpha=1}
+ ctx.restore();
+ document.getElementById('stats').innerHTML=`HP: ${Math.ceil(player.hp)} / ${player.maxHp}<br>Wave: ${wave} &nbsp; Kills: ${kills}<br>Sword Level: ${player.level} &nbsp; XP: ${player.xp}/${player.next}<br>Damage: ${Math.floor(player.dmg)} &nbsp; Range: ${Math.floor(player.range)}<br>Gold: ${player.gold} &nbsp; Enemies: ${enemies.length}`;
+ if(msgTimer>0){msgTimer--; if(msgTimer===0)document.getElementById('centerMsg').style.opacity=0}
+}
+function loop(t){update();render();requestAnimationFrame(loop)}spawnWave();requestAnimationFrame(loop);
+</script>
+</body>
+</html>

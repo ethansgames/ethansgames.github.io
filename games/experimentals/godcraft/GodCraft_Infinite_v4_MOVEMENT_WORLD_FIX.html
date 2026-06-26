@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>GodCraft Infinite 3D</title>
+<style>
+html,body{margin:0;overflow:hidden;background:#83cfff;color:white;font-family:system-ui,Arial}
+#hud{position:fixed;left:10px;top:10px;background:rgba(0,0,0,.58);padding:12px;border-radius:12px;z-index:5;max-width:520px}
+#craft{position:fixed;right:10px;top:10px;width:360px;max-height:88vh;overflow:auto;background:rgba(0,0,0,.64);padding:12px;border-radius:12px;z-index:5}
+#bar{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:7px;z-index:5}
+.slot{width:64px;height:56px;background:rgba(0,0,0,.55);border:2px solid #456;border-radius:10px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;font-weight:900;cursor:pointer}
+.sel{border-color:#00ffff;background:rgba(0,255,255,.25)}
+button{margin:4px;padding:8px 10px;border:0;border-radius:9px;background:#2563eb;color:white;font-weight:900;cursor:pointer}
+button:hover{filter:brightness(1.15)}
+.god{background:linear-gradient(90deg,#ffd84a,#ff8c00);color:#201000}
+.good{background:#16a34a}
+.bad{background:#e11d48}
+#cross{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:6;font-size:26px;text-shadow:0 0 6px black}
+#msg{position:fixed;left:50%;top:80px;transform:translateX(-50%);z-index:8;background:rgba(0,0,0,.72);padding:9px 18px;border-radius:999px;opacity:0;transition:.2s}
+#minebar{position:fixed;left:50%;top:55%;transform:translateX(-50%);width:220px;height:14px;border:2px solid white;background:rgba(0,0,0,.5);display:none;z-index:8}
+#minefill{height:100%;width:0;background:#67e8f9}
+#error{position:fixed;inset:0;background:#111;color:#ffb4b4;z-index:99;display:none;align-items:center;justify-content:center;text-align:center;padding:25px;font-size:18px}
+small{opacity:.8}
+hr{border:0;border-top:1px solid rgba(255,255,255,.22)}
+</style>
+</head>
+<body>
+<div id="error"></div>
+<div id="cross">+</div>
+<div id="msg"></div>
+<div id="minebar"><div id="minefill"></div></div>
+<div id="hud">Loading GodCraft Infinite...</div>
+<div id="craft"></div>
+<div id="bar"></div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+function showError(t){let e=document.getElementById('error');e.style.display='flex';e.innerHTML='<div><h1>GodCraft crashed</h1><p>'+t+'</p></div>'}
+window.onerror=(m,s,l)=>showError(String(m)+'<br>line '+l);
+if(!window.THREE)showError('Three.js failed to load.');
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x89d5ff);
+scene.fog=new THREE.Fog(0x89d5ff,70,190);
+const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,.1,900);
+const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:"high-performance"});
+renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(1);document.body.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xffffff,0x324d2b,1.45));
+const sun=new THREE.DirectionalLight(0xffffff,1.15);sun.position.set(60,110,30);scene.add(sun);
+
+const CH=16, RENDER=2, SEA=18, WORLD_HEIGHT=500;
+const world=new Map(), chunks=new Map(), dirtyChunks=new Set();
+const cubeGeo=new THREE.BoxGeometry(1,1,1), dummy=new THREE.Object3D();
+let meshByChunkType=new Map();
+
+const block={
+ air:{hard:0,tier:0,color:0},
+ grass:{color:0x3fa34d,drop:'dirt',hard:.7,tier:0},
+ dirt:{color:0x80512d,drop:'dirt',hard:.6,tier:0},
+ sand:{color:0xd8c47a,drop:'sand',hard:.55,tier:0},
+ snow:{color:0xf1f5f9,drop:'snow',hard:.5,tier:0},
+ stone:{color:0x888888,drop:'stone',hard:1.8,tier:1},
+ coal:{color:0x222222,drop:'coal',hard:2.0,tier:1},
+ copper:{color:0xb87333,drop:'copper',hard:2.2,tier:1},
+ iron:{color:0xc9c9c9,drop:'iron',hard:2.7,tier:2},
+ silver:{color:0xdbeafe,drop:'silver',hard:3.0,tier:2},
+ gold:{color:0xffcc33,drop:'gold',hard:3.2,tier:2},
+ ruby:{color:0xdc2626,drop:'ruby',hard:3.8,tier:3},
+ sapphire:{color:0x2563eb,drop:'sapphire',hard:3.8,tier:3},
+ emerald:{color:0x22c55e,drop:'emerald',hard:4.1,tier:3},
+ diamond:{color:0x55eaff,drop:'diamond',hard:4.6,tier:4},
+ mythril:{color:0x67e8f9,drop:'mythril',hard:5.2,tier:4},
+ adamant:{color:0x22d3ee,drop:'adamant',hard:5.8,tier:5},
+ obsidian:{color:0x181020,drop:'obsidian',hard:7.5,tier:5},
+ star:{color:0xfff176,drop:'starShard',hard:8.5,tier:6},
+ void:{color:0x7c3aed,drop:'voidCrystal',hard:9.0,tier:6},
+ dragon:{color:0xff4444,drop:'dragonCore',hard:9.5,tier:6},
+ heart:{color:0xff55cc,drop:'worldHeart',hard:12,tier:7},
+ wood:{color:0x8b5527,drop:'wood',hard:1.0,tier:0},
+ leaves:{color:0x2d8a35,drop:'wood',hard:.35,tier:0},
+ plank:{color:0xb8793a,drop:'plank',hard:.8,tier:0},
+ glass:{color:0xa7f3ff,drop:'glass',hard:.4,tier:0},
+ brick:{color:0x9a3412,drop:'brick',hard:1.7,tier:1},
+ torch:{color:0xffe66d,drop:'torch',hard:.1,tier:0}
+};
+const placeables=['dirt','stone','wood','plank','brick','glass','obsidian','torch'];
+
+let inv={dirt:20,stone:8,wood:12,plank:0,brick:0,glass:0,sand:0,snow:0,coal:0,copper:0,iron:0,silver:0,gold:0,ruby:0,sapphire:0,emerald:0,diamond:0,mythril:0,adamant:0,obsidian:0,starShard:0,voidCrystal:0,dragonCore:0,worldHeart:0,godIngot:0};
+let tools={
+ hand:{name:'Hand',tier:0,speed:.45,dmg:3},
+ woodPick:{name:'Wood Pick',tier:1,speed:1.0,dmg:5,owned:false},
+ stonePick:{name:'Stone Pick',tier:2,speed:1.45,dmg:7,owned:false},
+ ironPick:{name:'Iron Pick',tier:3,speed:2.0,dmg:10,owned:false},
+ diamondPick:{name:'Diamond Pick',tier:4,speed:2.85,dmg:15,owned:false},
+ mythrilPick:{name:'Mythril Pick',tier:5,speed:3.7,dmg:21,owned:false},
+ godPick:{name:'God Pick',tier:7,speed:7.0,dmg:60,owned:false}
+};
+let weapons={
+ woodSword:{name:'Wood Sword',dmg:8,owned:false},ironSword:{name:'Iron Sword',dmg:18,owned:false},diamondSword:{name:'Diamond Sword',dmg:34,owned:false},
+ godSpear:{name:'God Spear',dmg:90,owned:false},godSword:{name:'God Sword',dmg:115,owned:false},godMace:{name:'God Mace',dmg:150,owned:false},godAxe:{name:'God Axe',dmg:130,owned:false}
+};
+let armor={helmet:0,chest:0,belt:0,neck:0,legs:0,boots:0};
+let selected=0, equippedTool='hand', equippedWeapon='woodSword';
+let player={pos:new THREE.Vector3(0,heightAt(0,8)+5,8),hp:100,maxHp:100};
+let yaw=0,pitch=0,vel=new THREE.Vector3(),onGround=false,key={},noclip=false;
+let npcs=[], aiPlayers=[], hostile=[], drops=[];
+let mining=null, mouseDown=false, lastAim=null;
+let handGroup, handItem;
+
+function K(x,y,z){return `${x},${y},${z}`}
+function CK(cx,cz){return `${cx},${cz}`}
+function ccoord(v){return Math.floor(v/CH)}
+function getB(x,y,z){if(y<0||y>=WORLD_HEIGHT)return null;return world.get(K(x,y,z))}
+function setB(x,y,z,t){if(y<0||y>=WORLD_HEIGHT)return;const k=K(x,y,z); if(!t)world.delete(k);else world.set(k,t); dirtyChunks.add(CK(ccoord(x),ccoord(z)))}
+
+function hash(x,z){let n=(x*374761393+z*668265263)^0x5bf03635;n=(n^(n>>13))*1274126177;return ((n^(n>>16))>>>0)/4294967295}
+function noise(x,z){return Math.sin(x*.045)*13+Math.cos(z*.052)*11+Math.sin((x+z)*.025)*18+Math.sin((x-z)*.09)*4}
+function heightAt(x,z){return Math.floor(SEA+10+Math.sin(x*.035)*5+Math.cos(z*.037)*5+Math.sin((x+z)*.018)*7)}
+function biomeAt(x,z){let n=Math.sin(x*.017)+Math.cos(z*.019)+Math.sin((x+z)*.011); if(n>1.15)return 'snow'; if(n<-1.1)return 'desert'; if(Math.sin((x-z)*.013)>1.25)return 'forest'; return 'plains'}
+function oreAt(x,y,z){
+ const r=hash(x*3+y,z*5-y);
+ if(y<25&&r<.020)return 'coal';
+ if(y<18&&r<.016)return 'copper';
+ if(y<10&&r<.012)return 'iron';
+ if(y<8&&r<.009)return 'silver';
+ if(y<7&&r<.008)return 'gold';
+ if(y<5&&r<.005)return 'ruby';
+ if(y<5&&r>.995)return 'sapphire';
+ if(y<4&&r<.0035)return 'emerald';
+ if(y<3&&r>.997)return 'diamond';
+ if(y<2&&r<.0025)return 'mythril';
+ if(y<2&&r>.9985)return 'adamant';
+ return null;
+}
+function genChunk(cx,cz){
+ const key=CK(cx,cz); if(chunks.has(key))return; chunks.set(key,true);
+ for(let lx=0;lx<CH;lx++)for(let lz=0;lz<CH;lz++){
+  const x=cx*CH+lx,z=cz*CH+lz,h=heightAt(x,z),bio=biomeAt(x,z);
+  for(let y=Math.max(0,h-28);y<=h;y++){
+   let t=y===h?(bio==='desert'?'sand':bio==='snow'?'snow':'grass'):y>h-3?(bio==='desert'?'sand':'dirt'):'stone';
+   const ore=oreAt(x,y,z); if(ore&&t==='stone')t=ore;
+   setB(x,y,z,t);
+  }
+  if(hash(x,z)<.018&&bio!=='desert'){
+   for(let y=h+1;y<h+5;y++)setB(x,y,z,'wood');
+   for(let dx=-2;dx<=2;dx++)for(let dz=-2;dz<=2;dz++)for(let dy=3;dy<=5;dy++)if(Math.abs(dx)+Math.abs(dz)+hash(x+dx*7,z+dz*11)<4.2)setB(x+dx,h+dy,z+dz,'leaves');
+  }
+  if(hash(x+99,z-71)<.0025){
+   const r=['star','void','dragon','heart'][Math.floor(hash(x,z)*4)];
+   setB(x,h+1,z,r);setB(x+1,h+1,z,'obsidian');setB(x-1,h+1,z,'obsidian');setB(x,h+1,z+1,'obsidian');setB(x,h+1,z-1,'obsidian');
+  }
+ }
+ // camps / villages / AI players / NPCs
+ if(hash(cx,cz)<.10){
+   const bx=cx*CH+4+Math.floor(hash(cx+1,cz)*8),bz=cz*CH+4+Math.floor(hash(cx,cz+1)*8),hy=heightAt(bx,bz);
+   for(let dx=0;dx<5;dx++)for(let dz=0;dz<5;dz++)setB(bx+dx,hy+1,bz+dz,'plank');
+   for(let y=hy+2;y<hy+5;y++){setB(bx, y,bz,'wood');setB(bx+4,y,bz,'wood');setB(bx,y,bz+4,'wood');setB(bx+4,y,bz+4,'wood')}
+   for(let dx=0;dx<5;dx++)for(let dz=0;dz<5;dz++)setB(bx+dx,hy+5,bz+dz,'brick');
+   spawnNPC(bx+2,hy+2,bz+2,hash(cx+5,cz)>.5?'friendly':'trader');
+ }
+ if(hash(cx+33,cz-17)<.08)spawnAI(cx*CH+8,heightAt(cx*CH+8,cz*CH+8)+2,cz*CH+8,hash(cx,cz)>.55);
+ dirtyChunks.add(key);
+}
+function ensureChunks(){
+ const pcx=ccoord(player.pos.x),pcz=ccoord(player.pos.z);
+ for(let dx=-RENDER;dx<=RENDER;dx++)for(let dz=-RENDER;dz<=RENDER;dz++)genChunk(pcx+dx,pcz+dz);
+}
+
+function visible(x,y,z){return !getB(x+1,y,z)||!getB(x-1,y,z)||!getB(x,y+1,z)||!getB(x,y-1,z)||!getB(x,y,z+1)||!getB(x,y,z-1)}
+function rebuildChunk(key){
+ const [cx,cz]=key.split(',').map(Number);
+ for(const [mk,m] of [...meshByChunkType])if(m.userData.chunk===key){scene.remove(m);m.geometry.dispose();m.material.dispose();meshByChunkType.delete(mk)}
+ const buckets={};
+ for(let lx=0;lx<CH;lx++)for(let lz=0;lz<CH;lz++){
+  const x=cx*CH+lx,z=cz*CH+lz,h=heightAt(x,z);
+  for(let y=Math.max(0,h-20);y<=h+8;y++){
+   const t=getB(x,y,z); if(!t||!visible(x,y,z))continue;
+   (buckets[t]??=[]).push([x,y,z]);
+  }
+ }
+ for(const t in buckets){
+  const arr=buckets[t], mat=new THREE.MeshLambertMaterial({color:block[t].color});
+  const mesh=new THREE.InstancedMesh(cubeGeo,mat,arr.length);mesh.userData={chunk:key,type:t,blocks:arr};
+  arr.forEach(([x,y,z],i)=>{dummy.position.set(x+.5,y+.5,z+.5);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix)});
+  mesh.instanceMatrix.needsUpdate=true;scene.add(mesh);meshByChunkType.set(key+':'+t,mesh);
+ }
+}
+function processDirty(limit=3){let n=0;for(const key of [...dirtyChunks]){rebuildChunk(key);dirtyChunks.delete(key);if(++n>=limit)break}}
+
+function makeHumanoid(color,name,kind){
+ const g=new THREE.Group();g.userData={name,kind};
+ const mat=new THREE.MeshLambertMaterial({color});
+ const head=new THREE.Mesh(new THREE.BoxGeometry(.55,.55,.55),mat);head.position.y=1.55;g.add(head);
+ const body=new THREE.Mesh(new THREE.BoxGeometry(.65,.9,.35),mat);body.position.y=.85;g.add(body);
+ const armL=new THREE.Mesh(new THREE.BoxGeometry(.22,.8,.22),mat);armL.position.set(-.48,.85,0);g.add(armL);
+ const armR=armL.clone();armR.position.x=.48;g.add(armR);
+ const legL=new THREE.Mesh(new THREE.BoxGeometry(.24,.75,.24),mat);legL.position.set(-.2,.15,0);g.add(legL);
+ const legR=legL.clone();legR.position.x=.2;g.add(legR);
+ g.userData.parts={armL,armR,legL,legR};scene.add(g);return g;
+}
+function spawnNPC(x,y,z,type){const m=makeHumanoid(type==='trader'?0x22c55e:0x60a5fa,type==='trader'?'Trader':'Villager',type);m.position.set(x,y,z);npcs.push({m,type,friendly:true,t:Math.random()*10,chat:type==='trader'?'Trade: 5 gold -> 1 diamond':'Hello traveler!'})}
+function spawnAI(x,y,z,harmful){const m=makeHumanoid(harmful?0xef4444:0xfacc15,harmful?'Bandit AI':'Builder AI',harmful?'harmfulAI':'friendlyAI');m.position.set(x,y,z);aiPlayers.push({m,harmful,hp:harmful?90:70,t:0,target:null,buildTimer:2+Math.random()*3})}
+
+function setupHand(){
+ handGroup=new THREE.Group();camera.add(handGroup);scene.add(camera);
+ const skin=new THREE.MeshLambertMaterial({color:0xd19a66});
+ const sleeve=new THREE.MeshLambertMaterial({color:0x2563eb});
+ const arm=new THREE.Mesh(new THREE.BoxGeometry(.22,.22,.75),sleeve);arm.position.set(.48,-.35,-.72);arm.rotation.set(.25,-.2,-.1);handGroup.add(arm);
+ handItem=new THREE.Mesh(new THREE.BoxGeometry(.12,.5,.12),new THREE.MeshLambertMaterial({color:0x9ca3af}));handItem.position.set(.38,-.23,-.98);handItem.rotation.z=.55;handGroup.add(handItem);
+}
+setupHand();
+
+const ray=new THREE.Raycaster();
+function aimBlock(){
+ ray.setFromCamera({x:0,y:0},camera);let best=null;
+ for(const mesh of meshByChunkType.values()){
+  const h=ray.intersectObject(mesh,false)[0];
+  if(h&&(!best||h.distance<best.distance))best=h;
+ }
+ if(!best)return null;
+ const arr=best.object.userData.blocks;const [x,y,z]=arr[best.instanceId];
+ return {x,y,z,t:best.object.userData.type,normal:best.face.normal,distance:best.distance};
+}
+function toast(s){const m=document.getElementById('msg');m.textContent=s;m.style.opacity=1;clearTimeout(m.t);m.t=setTimeout(()=>m.style.opacity=0,1400)}
+function add(k,n=1){inv[k]=(inv[k]||0)+n;ui()}
+function spend(c){for(const k in c)if((inv[k]||0)<c[k])return false;for(const k in c)inv[k]-=c[k];return true}
+
+function beginMine(){
+ const h=aimBlock(); if(!h||h.distance>7){mining=null;return}
+ const b=block[h.t], tool=tools[equippedTool];
+ if(tool.tier<b.tier){toast('Need tier '+b.tier+' pickaxe for '+h.t);mining=null;return}
+ if(!mining||mining.x!==h.x||mining.y!==h.y||mining.z!==h.z)mining={...h,progress:0,need:b.hard/(tool.speed||.5)};
+}
+function updateMining(dt){
+ const bar=document.getElementById('minebar'),fill=document.getElementById('minefill');
+ if(!mouseDown){mining=null;bar.style.display='none';return}
+ beginMine(); if(!mining)return;
+ mining.progress+=dt;
+ handGroup.rotation.x=Math.sin(performance.now()/55)*.13;
+ bar.style.display='block';fill.style.width=Math.min(100,mining.progress/mining.need*100)+'%';
+ if(mining.progress>=mining.need){
+  const h=mining,b=block[h.t];setB(h.x,h.y,h.z,null);add(b.drop,1);toast('Broke '+h.t+' → '+b.drop);mining=null;bar.style.display='none';
+ }
+}
+function place(){
+ const t=placeables[selected];if((inv[t]||0)<=0)return toast('No '+t);
+ const h=aimBlock();if(!h||h.distance>7)return;
+ const x=h.x+h.normal.x,y=h.y+h.normal.y,z=h.z+h.normal.z;
+ if(getB(x,y,z))return;inv[t]--;setB(x,y,z,t);ui();
+}
+function attack(){
+ const dmg=(weapons[equippedWeapon]?.owned?weapons[equippedWeapon].dmg:tools[equippedTool].dmg)||3;
+ ray.setFromCamera({x:0,y:0},camera);
+ const targets=[...npcs.map(o=>o.m),...aiPlayers.map(o=>o.m)];
+ const hit=ray.intersectObjects(targets,true)[0];
+ if(!hit||hit.distance>7)return;
+ let obj=hit.object;while(obj.parent&&!obj.userData.kind)obj=obj.parent;
+ let ai=aiPlayers.find(a=>a.m===obj);
+ if(ai){ai.hp-=dmg;toast('Hit '+obj.userData.name+' for '+dmg);if(!ai.harmful&&ai.hp<60){ai.harmful=true;toast('You angered a friendly AI!')}}
+ let npc=npcs.find(n=>n.m===obj); if(npc)toast(npc.chat);
+}
+function interact(){
+ ray.setFromCamera({x:0,y:0},camera);
+ const hit=ray.intersectObjects(npcs.map(n=>n.m),true)[0];
+ if(hit&&hit.distance<6){let obj=hit.object;while(obj.parent&&!obj.userData.kind)obj=obj.parent;let npc=npcs.find(n=>n.m===obj);if(npc){toast(npc.chat);if(npc.type==='trader'&&spend({gold:5})){add('diamond',1);toast('Trade complete: +diamond')}}}
+}
+
+function craftTool(id,cost){if(tools[id].owned)return toast('Already owned');if(!spend(cost))return toast('Need resources');tools[id].owned=true;equippedTool=id;toast('Crafted '+tools[id].name);ui()}
+function craftWeapon(id,cost){if(weapons[id].owned)return toast('Already owned');if(!spend(cost))return toast('Need resources');weapons[id].owned=true;equippedWeapon=id;toast('Crafted '+weapons[id].name);ui()}
+function craftIngot(){if(!spend({diamond:12,obsidian:24,starShard:4,voidCrystal:4,dragonCore:2,worldHeart:1,gold:30}))return toast('Need absurd resources');add('godIngot',1);toast('Forged God Ingot')}
+function craftGodArmor(part,cost,amt){if(armor[part])return toast('Already have god '+part);if(!spend(cost))return toast('Need resources');armor[part]=amt;player.maxHp+=amt*2;player.hp=player.maxHp;toast('Crafted God '+part);ui()}
+window.craftTool=craftTool;window.craftWeapon=craftWeapon;window.craftIngot=craftIngot;window.craftGodArmor=craftGodArmor;window.sel=i=>{selected=i;ui()};window.equipTool=id=>{if(id==='hand'||tools[id].owned){equippedTool=id;toast('Equipped '+tools[id].name);ui()}};window.equipWeapon=id=>{if(weapons[id]?.owned){equippedWeapon=id;toast('Equipped '+weapons[id].name);ui()}};
+
+function solid(p){const x=Math.floor(p.x),y=Math.floor(p.y),z=Math.floor(p.z);return !!(getB(x,y,z)||getB(x,y+1,z));}
+function updatePlayer(dt){
+ camera.rotation.order='YXZ';camera.rotation.y=yaw;camera.rotation.x=pitch;
+ const f=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
+ const r=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
+ let w=new THREE.Vector3();
+ if(key.KeyW)w.add(f);if(key.KeyS)w.sub(f);if(key.KeyD)w.add(r);if(key.KeyA)w.sub(r);
+ if(w.length())w.normalize().multiplyScalar(key.ShiftLeft?9:5.5);
+ if(noclip){
+   player.pos.addScaledVector(w,dt);
+   if(key.Space)player.pos.y+=8*dt;
+   if(key.ControlLeft)player.pos.y-=8*dt;
+   camera.position.copy(player.pos).add(new THREE.Vector3(0,1.65,0));
+   return;
+ }
+ vel.x=w.x;vel.z=w.z;vel.y-=20*dt;
+ if(onGround&&key.Space){vel.y=7.5;onGround=false}
+ const n=player.pos.clone().addScaledVector(vel,dt);
+ if(!solid(new THREE.Vector3(n.x,player.pos.y,player.pos.z)))player.pos.x=n.x; else vel.x=0;
+ if(!solid(new THREE.Vector3(player.pos.x,player.pos.y,n.z)))player.pos.z=n.z; else vel.z=0;
+ if(!solid(new THREE.Vector3(player.pos.x,n.y,player.pos.z))){player.pos.y=n.y;onGround=false}else{if(vel.y<0)onGround=true;vel.y=0}
+ if(player.pos.y<0)player.pos.set(0,heightAt(0,8)+6,8);
+ camera.position.copy(player.pos).add(new THREE.Vector3(0,1.65,0));
+}
+function updateNPCs(dt){
+ const t=performance.now()/1000;
+ for(const n of npcs){n.m.userData.parts.legL.rotation.x=Math.sin(t*2+n.t)*.12;n.m.userData.parts.legR.rotation.x=-Math.sin(t*2+n.t)*.12}
+ for(let i=aiPlayers.length-1;i>=0;i--){
+  const a=aiPlayers[i],m=a.m;a.t+=dt;
+  const dir=player.pos.clone().sub(m.position);dir.y=0;const d=dir.length();
+  if(a.harmful&&d<35){dir.normalize();m.position.addScaledVector(dir,2.4*dt);m.lookAt(player.pos.x,m.position.y,player.pos.z);if(d<1.6&&a.t>1){a.t=0;player.hp-=Math.max(1,10-totalArmor()*.22);toast('AI player attacked you')}}
+  else{
+    m.position.x+=Math.sin(a.t*.7+m.id)*dt*.8;m.position.z+=Math.cos(a.t*.9+m.id)*dt*.8;
+    a.buildTimer-=dt;
+    if(!a.harmful&&a.buildTimer<0){a.buildTimer=3+Math.random()*4;const x=Math.floor(m.position.x+Math.random()*4-2),z=Math.floor(m.position.z+Math.random()*4-2),y=heightAt(x,z)+1;setB(x,y,z,Math.random()<.5?'plank':'torch')}
+  }
+  m.userData.parts.legL.rotation.x=Math.sin(t*5+a.t)*.45;m.userData.parts.legR.rotation.x=-Math.sin(t*5+a.t)*.45;
+  if(a.hp<=0){scene.remove(m);aiPlayers.splice(i,1);add(a.harmful?'gold':'wood',a.harmful?8:5)}
+ }
+ if(player.hp<=0){player.hp=player.maxHp;player.pos.set(0,60,0);toast('Respawned')}
+}
+function totalArmor(){return Object.values(armor).reduce((a,b)=>a+b,0)}
+function updateHand(dt){
+ const swing=mouseDown?Math.sin(performance.now()/45)*.35:Math.sin(performance.now()/500)*.03;
+ handGroup.position.set(0,0,0);handGroup.rotation.z=swing;
+ const col=equippedTool==='hand'?0xd19a66:equippedTool.includes('god')?0xffd84a:equippedTool.includes('diamond')?0x55eaff:equippedTool.includes('iron')?0xc9c9c9:0x8b5527;
+ handItem.material.color.setHex(col);
+}
+
+addEventListener('mousedown',e=>{if(document.pointerLockElement!==renderer.domElement){renderer.domElement.requestPointerLock();return} if(e.button===0){mouseDown=true} if(e.button===2)place(); if(e.button===1)attack()});
+addEventListener('mouseup',e=>{if(e.button===0)mouseDown=false});
+addEventListener('contextmenu',e=>e.preventDefault());
+addEventListener('keydown',e=>{key[e.code]=true;let n=parseInt(e.key);if(n>=1&&n<=8){selected=n-1;ui()} if(e.code==='KeyE')interact(); if(e.code==='KeyF')attack(); if(e.code==='KeyR'){player.pos.y=heightAt(Math.floor(player.pos.x),Math.floor(player.pos.z))+6;vel.set(0,0,0);toast('Unstuck');} if(e.code==='KeyN'){noclip=!noclip;toast('Noclip '+(noclip?'ON':'OFF'));}});
+addEventListener('keyup',e=>key[e.code]=false);
+addEventListener('mousemove',e=>{if(document.pointerLockElement===renderer.domElement){yaw-=e.movementX*.0025;pitch-=e.movementY*.0025;pitch=Math.max(-1.42,Math.min(1.42,pitch))}});
+
+function ui(){
+ const pos=`${Math.floor(player.pos.x)}, ${Math.floor(player.pos.y)}, ${Math.floor(player.pos.z)}`;
+ document.getElementById('hud').innerHTML=`<b style="color:#67e8f9;font-size:20px">GodCraft Infinite</b><br>
+ Infinite chunk world • height limit ${WORLD_HEIGHT}<br>
+ WASD/Space/Shift • R unstick • N noclip debug • Left hold mine • Right place • E interact • F/Middle attack<br>
+ <b>HP</b> ${Math.ceil(player.hp)}/${player.maxHp} <b>Armor</b> ${totalArmor()} <b>Tool</b> ${tools[equippedTool].name} <b>Weapon</b> ${(weapons[equippedWeapon]||{}).name||'Fist'}<br>
+ <small>XYZ ${pos} • NPCs ${npcs.length} • AI Players ${aiPlayers.length}</small>`;
+ document.getElementById('bar').innerHTML=placeables.map((b,i)=>`<div class="slot ${selected===i?'sel':''}" onclick="sel(${i})">${b}<br>${inv[b]||0}</div>`).join('');
+ document.getElementById('craft').innerHTML=`<b style="color:#67e8f9;font-size:20px">Crafting + Progression</b><hr>
+ <b>Resources</b><br>${['wood','plank','stone','coal','copper','iron','silver','gold','ruby','sapphire','emerald','diamond','mythril','adamant','obsidian','starShard','voidCrystal','dragonCore','worldHeart','godIngot'].map(k=>`<b>${k}:</b> ${inv[k]||0}`).join('<br>')}
+ <hr><b>Pickaxes</b><br>
+ <button onclick="craftTool('woodPick',{wood:6})">Wood Pick</button>
+ <button onclick="craftTool('stonePick',{wood:4,stone:10})">Stone Pick</button>
+ <button onclick="craftTool('ironPick',{wood:4,iron:8})">Iron Pick</button>
+ <button onclick="craftTool('diamondPick',{wood:4,diamond:8})">Diamond Pick</button>
+ <button onclick="craftTool('mythrilPick',{wood:4,mythril:8,diamond:4})">Mythril Pick</button>
+ <button class="god" onclick="craftTool('godPick',{godIngot:3,adamant:12,worldHeart:2})">God Pick</button><br>
+ ${Object.keys(tools).map(k=>`<button class="${equippedTool===k?'good':''}" onclick="equipTool('${k}')">${tools[k].owned||k==='hand'?'Equip ':''}${tools[k].name}</button>`).join('')}
+ <hr><b>Weapons</b><br>
+ <button onclick="craftWeapon('woodSword',{wood:8})">Wood Sword</button>
+ <button onclick="craftWeapon('ironSword',{iron:10,wood:2})">Iron Sword</button>
+ <button onclick="craftWeapon('diamondSword',{diamond:9,wood:2})">Diamond Sword</button><br>
+ <button class="god" onclick="craftIngot()">Forge God Ingot</button><br>
+ <button class="god" onclick="craftWeapon('godSpear',{godIngot:3,starShard:8,diamond:20})">God Spear</button>
+ <button class="god" onclick="craftWeapon('godSword',{godIngot:4,voidCrystal:8,diamond:24})">God Sword</button>
+ <button class="god" onclick="craftWeapon('godMace',{godIngot:5,dragonCore:8,obsidian:40})">God Mace</button>
+ <button class="god" onclick="craftWeapon('godAxe',{godIngot:4,worldHeart:3,wood:80})">God Axe</button><br>
+ ${Object.keys(weapons).filter(k=>weapons[k].owned).map(k=>`<button class="${equippedWeapon===k?'good':''}" onclick="equipWeapon('${k}')">${weapons[k].name}</button>`).join('')}
+ <hr><b>God Armor</b><br>
+ <button class="god" onclick="craftGodArmor('helmet',{godIngot:2,diamond:18,starShard:4},10)">God Helmet</button>
+ <button class="god" onclick="craftGodArmor('chest',{godIngot:5,diamond:35,voidCrystal:6},26)">God Chestplate</button>
+ <button class="god" onclick="craftGodArmor('belt',{godIngot:2,gold:40,dragonCore:2},7)">God Belt</button>
+ <button class="god" onclick="craftGodArmor('neck',{godIngot:3,worldHeart:2,starShard:10},12)">God Necklace</button>
+ <button class="god" onclick="craftGodArmor('legs',{godIngot:4,diamond:28,obsidian:25},18)">God Leggings</button>
+ <button class="god" onclick="craftGodArmor('boots',{godIngot:2,diamond:16,voidCrystal:4},9)">God Boots</button>`;
+}
+ensureChunks();processDirty(100);player.pos.set(0,heightAt(0,8)+4,8);ui();
+
+let last=performance.now(), uiT=0;
+function loop(now){
+ const dt=Math.min(.05,(now-last)/1000);last=now;
+ ensureChunks();processDirty(2);
+ updatePlayer(dt);updateNPCs(dt);updateMining(dt);updateHand(dt);
+ renderer.render(scene,camera);
+ if(now-uiT>900){uiT=now;ui()}
+ requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+</script>
+</body>
+</html>

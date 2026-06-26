@@ -1,0 +1,106 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Deep Transit Outdoors - 2500m Optimized</title>
+<style>
+html,body{margin:0;overflow:hidden;background:#071018;color:#eef7ff;font-family:Arial,Helvetica,sans-serif;user-select:none}canvas{display:block}
+#hud{position:fixed;top:10px;left:10px;padding:10px 12px;border:1px solid rgba(255,210,130,.35);background:rgba(4,6,8,.48);border-radius:10px;font-weight:800;line-height:1.42;text-shadow:0 2px 5px #000;pointer-events:none;min-width:260px}
+#msg{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);max-width:900px;text-align:center;padding:11px 17px;border-radius:10px;border:1px solid rgba(255,220,150,.25);background:rgba(0,0,0,.58);font-size:18px;font-weight:900;pointer-events:none;text-shadow:0 2px 6px #000}
+#cross{position:fixed;left:50%;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;pointer-events:none}#cross:before,#cross:after{content:"";position:absolute;background:#fff7dc;box-shadow:0 0 7px #ffcc75}#cross:before{left:6px;top:0;width:2px;height:14px}#cross:after{left:0;top:6px;width:14px;height:2px}
+#menu{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 30%,#28311f,#071018 70%)}.card{width:min(860px,88vw);padding:34px;border:1px solid rgba(255,210,130,.35);border-radius:16px;background:rgba(0,0,0,.68);box-shadow:0 0 80px #000}.card h1{margin:0 0 8px;font-size:42px}.card p{font-size:17px;line-height:1.4}.card button{padding:14px 30px;font-size:22px;font-weight:900;border:0;border-radius:12px;background:#ffd27c;color:#15100a;cursor:pointer}
+#jump{position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.45);font-size:64px;font-weight:900;color:white;text-shadow:0 0 28px red;letter-spacing:5px;pointer-events:none}.hurt{animation:hurt .18s linear}@keyframes hurt{50%{filter:brightness(2.1) contrast(1.35)}}
+</style></head><body>
+<div id="hud"></div><div id="msg">START then click to lock mouse. WASD move, Shift run, F flashlight, E interact.</div><div id="cross"></div><div id="jump">RUN</div>
+<div id="menu"><div class="card"><h1>DEEP TRANSIT: OUTDOORS</h1><p>2500m lantern trail. Night rain, warm lanterns, houses along the path, closets, crates, Mandrakes, and the Groundskeeper after 500m.</p><p>Stay on the trail. Step onto the grass after 500m and the Groundskeeper gets angry.</p><button id="start">START</button></div></div>
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+let scene,camera,renderer,clock=new THREE.Clock();
+let player=new THREE.Vector3(0,2.05,8),yaw=0,pitch=0,locked=false,started=false;
+let keys={},hp=100,stamina=100,battery=100,medkits=0,cratesOpened=0,flashOn=true,msgTimer=0,lastScare=0,lastPathD=0;
+const TOTAL_M=2500, TRAIL_COUNT=86, STEP_M=TOTAL_M/(TRAIL_COUNT-1);
+const hud=document.getElementById('hud'),msg=document.getElementById('msg'),jump=document.getElementById('jump');
+const colliders=[],loot=[],crateObjs=[],closets=[],lanternData=[],holes=[],activeLights=[],trees=[];
+let trailPoints=[],trailMeshes=[],spot,spotTarget,nearLight,rain,mandrake=null,vineLine=null,groundskeeper=null,groundsActive=false,wind=0;
+const tmpM=new THREE.Matrix4(), tmpV=new THREE.Vector3(), dummy=new THREE.Object3D();
+function init(){
+ scene=new THREE.Scene(); scene.background=new THREE.Color(0x22303a); scene.fog=new THREE.FogExp2(0x27333a,.0065);
+ camera=new THREE.PerspectiveCamera(78,innerWidth/innerHeight,.1,650);
+ renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'}); renderer.setSize(innerWidth,innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio,1.35)); renderer.shadowMap.enabled=false; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.85; document.body.appendChild(renderer.domElement);
+ scene.add(new THREE.HemisphereLight(0x8da0ad,0x23210f,1.25)); let moon=new THREE.DirectionalLight(0xb7cce0,.55); moon.position.set(-80,140,50); scene.add(moon);
+ let ground=mesh(new THREE.PlaneGeometry(1200,2800),0x20291a); ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
+ buildTrail(); buildInstancedForest(); buildLanterns(); buildHousesCratesClosets(); buildMandrakes(); makeGroundskeeper(); makeRain(); makeFlashlight();
+ addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+ document.getElementById('start').onclick=()=>{started=true;document.getElementById('menu').style.display='none';lockMouse();show('Follow the lanterns. Houses have crates and closets. Stay on the path after 500m.');};
+ renderer.domElement.addEventListener('click',()=>{if(started)lockMouse()}); document.addEventListener('pointerlockchange',()=>locked=document.pointerLockElement===renderer.domElement);
+ document.addEventListener('mousemove',e=>{if(!locked)return; yaw-=e.movementX*.00215; pitch-=e.movementY*.00215; pitch=Math.max(-1.32,Math.min(1.32,pitch));});
+ addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='KeyF')flashOn=!flashOn;if(e.code==='KeyE')interact();}); addEventListener('keyup',e=>keys[e.code]=false);
+ animate();
+}
+function lockMouse(){renderer.domElement.requestPointerLock?.()}
+function mat(c,em=0){let m=new THREE.MeshStandardMaterial({color:c,roughness:.9,metalness:0}); if(em){m.emissive=new THREE.Color(c);m.emissiveIntensity=em} return m}
+function mesh(g,c,em=0){let o=new THREE.Mesh(g,mat(c,em)); return o}
+function box(x,y,z,c,em=0){return mesh(new THREE.BoxGeometry(x,y,z),c,em)}
+function cyl(r,h,c,n=8){return mesh(new THREE.CylinderGeometry(r,r,h,n),c)}
+function cone(r,h,c,n=9){return mesh(new THREE.ConeGeometry(r,h,n),c)}
+function addCollider(x,z,r){colliders.push({x,z,r})}
+function pathAt(t){return new THREE.Vector3(Math.sin(t*.28)*55+Math.sin(t*.93)*16,0,-t*32)}
+function buildTrail(){
+ for(let i=0;i<TRAIL_COUNT;i++)trailPoints.push(pathAt(i));
+ for(let i=0;i<trailPoints.length-1;i++){let p=trailPoints[i],q=trailPoints[i+1],dx=q.x-p.x,dz=q.z-p.z,len=Math.hypot(dx,dz); let road=box(11,.08,len+2,0x5a4630); road.position.set((p.x+q.x)/2,.045,(p.z+q.z)/2); road.rotation.y=Math.atan2(dx,dz); scene.add(road); trailMeshes.push(road);
+   if(i%4===0){ // puddle highlights
+     let puddle=mesh(new THREE.CircleGeometry(1.2+Math.random()*2.2,18),0x2e4650,.05); puddle.rotation.x=-Math.PI/2; puddle.position.set(p.x+(Math.random()-.5)*5,.07,p.z+(Math.random()-.5)*5); scene.add(puddle);
+   }
+ }
+}
+function closestTrailInfo(x,z){let best=1e9,idx=0; for(let i=0;i<trailPoints.length;i++){let p=trailPoints[i],d=(x-p.x)**2+(z-p.z)**2;if(d<best){best=d;idx=i}} return {d:Math.sqrt(best),idx,meters:Math.min(TOTAL_M,idx*STEP_M)} }
+function buildInstancedForest(){
+ const trunkGeo=new THREE.CylinderGeometry(.55,.75,7,7), pineGeo=new THREE.ConeGeometry(3.1,9,8), bushGeo=new THREE.DodecahedronGeometry(1.25,0);
+ const trunkMat=mat(0x2e2116), pineMat=mat(0x123119), bushMat=mat(0x182d17);
+ const trunkCount=1600,bushCount=900;
+ const trunks=new THREE.InstancedMesh(trunkGeo,trunkMat,trunkCount); const pines=new THREE.InstancedMesh(pineGeo,pineMat,trunkCount); const bushes=new THREE.InstancedMesh(bushGeo,bushMat,bushCount);
+ trunks.frustumCulled=false; pines.frustumCulled=false; bushes.frustumCulled=false; scene.add(trunks,pines,bushes);
+ let ti=0,bi=0;
+ for(let i=0;i<trunkCount;i++){let t=Math.random()*(TRAIL_COUNT-1),p=pathAt(t),q=pathAt(Math.min(TRAIL_COUNT-1,t+.3)); let dx=q.x-p.x,dz=q.z-p.z,len=Math.hypot(dx,dz)||1,nx=dz/len,nz=-dx/len; let side=Math.random()<.5?-1:1; let dist=13+Math.pow(Math.random(),.7)*92; let x=p.x+nx*side*dist+(Math.random()-.5)*16, z=p.z+nz*side*dist+(Math.random()-.5)*25; let s=.65+Math.random()*1.35; dummy.position.set(x,3.5*s,z); dummy.scale.set(s,s,s); dummy.rotation.y=Math.random()*6.28; dummy.updateMatrix(); trunks.setMatrixAt(ti,dummy.matrix); dummy.position.set(x,7.9*s,z); dummy.updateMatrix(); pines.setMatrixAt(ti,dummy.matrix); ti++; if(Math.random()<.32)addCollider(x,z,.9*s); }
+ trunks.count=ti;pines.count=ti;trunks.instanceMatrix.needsUpdate=pines.instanceMatrix.needsUpdate=true;
+ for(let i=0;i<bushCount;i++){let t=Math.random()*(TRAIL_COUNT-1),p=pathAt(t),q=pathAt(Math.min(TRAIL_COUNT-1,t+.3)); let dx=q.x-p.x,dz=q.z-p.z,len=Math.hypot(dx,dz)||1,nx=dz/len,nz=-dx/len; let side=Math.random()<.5?-1:1; let dist=8+Math.random()*32; let x=p.x+nx*side*dist+(Math.random()-.5)*9, z=p.z+nz*side*dist+(Math.random()-.5)*20; let s=.8+Math.random()*1.6; dummy.position.set(x,.65*s,z); dummy.scale.set(s,s,s); dummy.rotation.y=Math.random()*6.28; dummy.updateMatrix(); bushes.setMatrixAt(bi,dummy.matrix); bi++; }
+ bushes.count=bi;bushes.instanceMatrix.needsUpdate=true;
+}
+function makeLantern(x,z){let post=cyl(.1,3.1,0x24180d,8);post.position.set(x,1.55,z);scene.add(post);let top=box(.55,.18,.55,0x1a1008);top.position.set(x,3.15,z);scene.add(top);let bulb=mesh(new THREE.SphereGeometry(.32,10,6),0xffc068,2.2);bulb.position.set(x,2.65,z);scene.add(bulb);lanternData.push({x,z,bulb,post,light:null});}
+function buildLanterns(){for(let i=0;i<trailPoints.length;i++){let p=trailPoints[i],q=trailPoints[Math.min(trailPoints.length-1,i+1)],dx=q.x-p.x,dz=q.z-p.z,len=Math.hypot(dx,dz)||1,nx=dz/len,nz=-dx/len;makeLantern(p.x+nx*5.2,p.z+nz*5.2); makeLantern(p.x-nx*5.2,p.z-nz*5.2); if(i%2===0)makeLantern(p.x,p.z+1.8)}}
+function updateLanternLights(){
+ lanternData.sort((a,b)=>(a.x-player.x)**2+(a.z-player.z)**2-((b.x-player.x)**2+(b.z-player.z)**2));
+ for(const d of lanternData){if(d.light){scene.remove(d.light);d.light=null}}
+ let max=18; for(let i=0;i<Math.min(max,lanternData.length);i++){let d=lanternData[i]; let l=new THREE.PointLight(0xffb158,9.5,58,1.25); l.position.set(d.x,2.25,d.z); scene.add(l); d.light=l; d.bulb.material.emissiveIntensity=3.2; }
+}
+function makeHouse(x,z,rot=0){let g=new THREE.Group(),sx=8,sz=7; let floor=box(sx,.12,sz,0x423324); floor.position.y=.07; g.add(floor); let back=box(sx,3.6,.32,0x5b4938); back.position.set(0,1.8,-sz/2); g.add(back); let left=box(.32,3.6,sz,0x5b4938); left.position.set(-sx/2,1.8,0); g.add(left); let right=box(.32,3.6,sz,0x5b4938); right.position.set(sx/2,1.8,0); g.add(right); let f1=box(2.5,3.6,.32,0x5b4938); f1.position.set(-2.75,1.8,sz/2);g.add(f1); let f2=box(2.5,3.6,.32,0x5b4938); f2.position.set(2.75,1.8,sz/2);g.add(f2); let roof=cone(6.2,2.4,0x2b2018,4); roof.rotation.y=Math.PI/4; roof.position.y=4.85;g.add(roof); let closet=box(1.3,2.7,1,0x22160d); closet.position.set(-2.7,1.35,-2.2); g.add(closet); let crate=box(1.1,1.0,1.1,0x7a5532); crate.position.set(2,.5,-1.6); crate.userData.crate=true; g.add(crate);
+ g.position.set(x,0,z); g.rotation.y=rot; scene.add(g); closets.push({x,z,r:4,inside:false}); crateObjs.push({x:x+Math.cos(rot)*2+Math.sin(rot)*-1.6,z:z-Math.sin(rot)*2+Math.cos(rot)*-1.6,opened:false});
+}
+function buildHousesCratesClosets(){for(let i=4;i<TRAIL_COUNT-4;i+=3){let p=trailPoints[i],q=trailPoints[i+1],dx=q.x-p.x,dz=q.z-p.z,len=Math.hypot(dx,dz)||1,nx=dz/len,nz=-dx/len; let side=i%2?1:-1; makeHouse(p.x+nx*side*(15+Math.random()*5),p.z+nz*side*(15+Math.random()*5),Math.atan2(dx,dz)+Math.PI+(Math.random()-.5)*.35); if(i%6===0)makeHouse(p.x-nx*side*17,p.z-nz*side*17,Math.atan2(dx,dz)+Math.PI); }}
+function makeMandrakeHole(x,z){let ring=mesh(new THREE.TorusGeometry(1.2,.14,8,20),0x201308);ring.rotation.x=Math.PI/2;ring.position.set(x,.12,z);scene.add(ring);let dark=mesh(new THREE.CircleGeometry(1.05,18),0x030201);dark.rotation.x=-Math.PI/2;dark.position.set(x,.13,z);scene.add(dark);holes.push({x,z,used:false})}
+function buildMandrakes(){for(let i=10;i<TRAIL_COUNT-5;i+=7){let p=trailPoints[i],q=trailPoints[i+1],dx=q.x-p.x,dz=q.z-p.z,len=Math.hypot(dx,dz)||1,nx=dz/len,nz=-dx/len;let side=i%2?1:-1;makeMandrakeHole(p.x+nx*side*(10+Math.random()*6),p.z+nz*side*(10+Math.random()*6))}}
+function spawnMandrake(h){h.used=true;let g=new THREE.Group();let body=mesh(new THREE.CapsuleGeometry(.35,1.2,4,8),0x2b1609);body.position.y=.7;g.add(body);let head=mesh(new THREE.SphereGeometry(.34,10,6),0xd1aa7e);head.position.y=1.5;g.add(head);let leaves=cone(.65,1.25,0x1f4b21,8);leaves.position.y=2.1;g.add(leaves);g.position.set(h.x,.05,h.z);g.userData.hole=h;scene.add(g);mandrake=g;scare('WAAAH');show('Mandrake latched on! Follow the vine and press E at its hole.');}
+function makeGroundskeeper(){let g=new THREE.Group();let body=mesh(new THREE.CapsuleGeometry(.5,2.4,4,8),0x19120c);body.position.y=1.5;g.add(body);let head=mesh(new THREE.SphereGeometry(.38,10,6),0x0c0906);head.position.y=2.9;g.add(head);let scythe=box(.12,3.4,.12,0x27180d);scythe.position.set(.8,1.7,.1);scythe.rotation.z=.25;g.add(scythe);let blade=box(1.4,.12,.18,0xb8b8aa,.2);blade.position.set(1.25,3.25,.1);g.add(blade);g.visible=false;scene.add(g);groundskeeper=g;}
+function makeRain(){let geo=new THREE.BufferGeometry(),arr=[];for(let i=0;i<900;i++)arr.push((Math.random()-.5)*120,Math.random()*60,(Math.random()-.5)*120);geo.setAttribute('position',new THREE.Float32BufferAttribute(arr,3));rain=new THREE.Points(geo,new THREE.PointsMaterial({color:0xbfd2e0,size:.085,transparent:true,opacity:.38}));scene.add(rain)}
+function makeFlashlight(){spot=new THREE.SpotLight(0xfff1cf,36,105,Math.PI/4,.55,.65);spotTarget=new THREE.Object3D();scene.add(spot,spotTarget);nearLight=new THREE.PointLight(0xffd993,4,19,1.6);scene.add(nearLight)}
+function interact(){ if(mandrake){let h=mandrake.userData.hole;if(Math.hypot(player.x-h.x,player.z-h.z)<3){scene.remove(mandrake);mandrake=null;show('You shoved it back into the hole.');return}else{show('Follow the vine back to the hole.');return}}
+ for(const c of crateObjs){if(!c.opened&&Math.hypot(player.x-c.x,player.z-c.z)<3.2){c.opened=true;cratesOpened++;let r=Math.random(); if(r<.45){battery=Math.min(100,battery+45);show('Crate opened: battery.')}else if(r<.75){medkits++;show('Crate opened: medkit.')}else show('Crate opened: nothing but wet rags.'); return}}
+ for(const c of closets){if(Math.hypot(player.x-c.x,player.z-c.z)<4.0){c.inside=!c.inside;show(c.inside?'You hide in the closet.':'You leave the closet.');return}}
+ if(medkits>0&&hp<90){medkits--;hp=Math.min(100,hp+35);show('Used medkit.');return} show('Open crates in houses. Closets hide you from Surge.');}
+function scare(t){jump.textContent=t;jump.style.display='flex';document.body.classList.add('hurt');setTimeout(()=>jump.style.display='none',380);setTimeout(()=>document.body.classList.remove('hurt'),220)}
+function show(t){msg.textContent=t;msgTimer=4.3}
+function tryMove(delta){let np=player.clone().add(delta); for(const o of colliders){let dx=np.x-o.x,dz=np.z-o.z;if(dx*dx+dz*dz<o.r*o.r)return} player.copy(np)}
+function isHiding(){return closets.some(c=>c.inside&&Math.hypot(player.x-c.x,player.z-c.z)<5)}
+function animate(){requestAnimationFrame(animate);let dt=Math.min(.045,clock.getDelta());wind+=dt;camera.rotation.order='YXZ';camera.rotation.y=yaw;camera.rotation.x=pitch;camera.position.copy(player);
+ let forward=new THREE.Vector3();camera.getWorldDirection(forward);forward.y=0;forward.normalize();let right=new THREE.Vector3().crossVectors(forward,new THREE.Vector3(0,1,0)).multiplyScalar(-1).normalize();let move=new THREE.Vector3();if(keys.KeyW)move.add(forward);if(keys.KeyS)move.sub(forward);if(keys.KeyD)move.add(right);if(keys.KeyA)move.sub(right);let running=keys.ShiftLeft&&stamina>0&&!isHiding(); if(move.lengthSq()>0&&!isHiding()){move.normalize().multiplyScalar((running?11.5:7.2)*dt);tryMove(move)} if(running&&move.lengthSq()>0)stamina=Math.max(0,stamina-28*dt);else stamina=Math.min(100,stamina+18*dt);
+ let info=closestTrailInfo(player.x,player.z); lastPathD=info.d; let meters=info.meters;
+ let dir=new THREE.Vector3();camera.getWorldDirection(dir);spot.position.copy(player);spot.position.y-=.1;spotTarget.position.copy(player).addScaledVector(dir,70);spot.target=spotTarget;nearLight.position.copy(player);spot.visible=flashOn&&battery>0&&!isHiding();nearLight.visible=spot.visible;if(spot.visible){battery=Math.max(0,battery-.8*dt);spot.intensity=40*(.65+.35*battery/100);nearLight.intensity=4.4*(.65+.35*battery/100)}
+ if(Math.floor(wind*2)%2===0) updateLanternLights();
+ if(rain){rain.position.set(player.x,player.y+7,player.z);let p=rain.geometry.attributes.position;for(let i=0;i<p.count;i++){let y=p.getY(i)-31*dt;if(y<0)y=60;p.setY(i,y);p.setX(i,p.getX(i)+Math.sin(wind*1.4)*.018)}p.needsUpdate=true}
+ updateMandrake(dt); updateGroundskeeper(dt,meters,info.d); if(msgTimer>0){msgTimer-=dt;if(msgTimer<=0)msg.textContent='Lanterns mark the trail. Houses have crates and closets. Grass is dangerous after 500m.'}
+ hud.innerHTML=`${meters.toFixed(0)}m / ${TOTAL_M}m<br>HP ${hp.toFixed(0)} • Stamina ${stamina.toFixed(0)}<br>Battery ${battery.toFixed(0)} • Medkits ${medkits} • Crates ${cratesOpened}<br>${info.d>8?'OFF PATH':'ON PATH'} ${meters>=500?'• Groundskeeper watches':''}<br>Mouse ${locked?'LOCKED':'CLICK TO LOCK'} • F Flashlight • E Interact`;
+ renderer.render(scene,camera)}
+function updateMandrake(dt){ if(mandrake){let h=mandrake.userData.hole; let to=player.clone().sub(mandrake.position);to.y=0;if(to.length()>1.2){to.normalize();mandrake.position.addScaledVector(to,9*dt)}mandrake.lookAt(player.x,1.3,player.z);hp-=6.5*dt; if(vineLine){scene.remove(vineLine);vineLine.geometry.dispose()}let geo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(h.x,.2,h.z),new THREE.Vector3(mandrake.position.x,.85,mandrake.position.z)]);vineLine=new THREE.Line(geo,new THREE.LineBasicMaterial({color:0x2b5b18}));scene.add(vineLine);return}
+ for(const h of holes){if(h.used)continue;if(Math.hypot(player.x-h.x,player.z-h.z)<2.2){spawnMandrake(h);break}}
+}
+function updateGroundskeeper(dt,meters,off){ if(meters<500){groundskeeper.visible=false;return} let bad=off>10&&!isHiding(); if(bad&&!groundsActive){groundsActive=true;scare('GRASS');show('The Groundskeeper noticed you. Get back to the path!')} if(!bad&&off<7)groundsActive=false; groundskeeper.visible=meters>=500; if(groundsActive){let to=player.clone().sub(groundskeeper.position);to.y=0;if(to.length()>0)to.normalize(); groundskeeper.position.addScaledVector(to,16*dt); groundskeeper.lookAt(player.x,2,player.z); if(groundskeeper.position.distanceTo(player)<2.2){hp=0;scare('CUT');show('The Groundskeeper cut you down for leaving the path.')}} else {let p=trailPoints[Math.min(trailPoints.length-1,Math.max(0,Math.round(meters/STEP_M)+2))]; groundskeeper.position.lerp(new THREE.Vector3(p.x+18,0,p.z),.02); groundskeeper.lookAt(player.x,2,player.z)} if(hp<=0){hp=100;stamina=100;battery=100;player.set(0,2.05,8);groundsActive=false;mandrake=null;show('You woke back at the first lantern.')}}
+init();
+</script></body></html>

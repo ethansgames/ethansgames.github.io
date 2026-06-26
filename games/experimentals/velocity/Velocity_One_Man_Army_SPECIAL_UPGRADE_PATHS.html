@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Velocity: One Man Army — ACTUAL 3D</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#050814;color:white;font-family:Arial,Helvetica,sans-serif;user-select:none}
+  canvas{width:100vw;height:100vh;display:block;cursor:crosshair;background:#78bfff}
+  #hud{position:fixed;left:14px;top:12px;background:rgba(5,10,22,.72);border:1px solid rgba(255,255,255,.22);box-shadow:0 0 28px rgba(0,0,0,.35);border-radius:16px;padding:12px 14px;line-height:1.45;font-weight:800;min-width:310px;backdrop-filter:blur(8px)}
+  #hud b{color:#ffd369}.bar{height:12px;background:#1b2438;border-radius:999px;overflow:hidden;margin:4px 0 8px}.fill{height:100%;width:50%;background:linear-gradient(90deg,#46ff88,#fff06d)}
+  #center{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:10px;height:10px;border:2px solid rgba(255,255,255,.7);border-radius:50%;pointer-events:none}
+  #toast{position:fixed;left:50%;top:20px;transform:translateX(-50%);font-size:26px;font-weight:900;text-shadow:0 3px 8px #000;opacity:0;transition:.25s;pointer-events:none}.show{opacity:1!important}
+  #menu,#upgrade,#gameover{position:fixed;inset:0;background:radial-gradient(circle at 50% 30%,rgba(45,82,140,.88),rgba(3,5,12,.96));display:flex;align-items:center;justify-content:center;z-index:5}.card{width:min(850px,92vw);background:rgba(0,0,0,.52);border:1px solid rgba(255,255,255,.25);border-radius:24px;padding:28px;text-align:center;box-shadow:0 20px 80px #000}.title{font-size:56px;font-weight:1000;letter-spacing:1px}.sub{font-size:20px;color:#d9edff}.btn{display:inline-block;margin:12px 8px;padding:14px 22px;border-radius:16px;background:linear-gradient(180deg,#ffe188,#f39b2e);color:#1a0d00;font-weight:1000;cursor:pointer;box-shadow:0 8px 0 #8d4a00}.btn:active{transform:translateY(5px);box-shadow:0 3px 0 #8d4a00}.choices{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}.choice{width:230px;min-height:155px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.26);border-radius:18px;padding:16px;cursor:pointer}.choice:hover{background:rgba(255,255,255,.2)}
+  #upgrade,#gameover{display:none}.small{font-size:13px;color:#bed6ef}.kbd{background:#111827;border:1px solid #516070;border-radius:6px;padding:2px 6px}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="hud">
+  <div><b>Velocity: One Man Army</b> — ACTUAL 3D</div>
+  <div>Wave <span id="wave">1</span> · Army Left <span id="left">0</span> · Gold <span id="gold">0</span> · Sword Lv <span id="lvl">1</span></div>
+  HP<div class="bar"><div id="hp" class="fill"></div></div>
+  XP<div class="bar"><div id="xp" class="fill"></div></div>
+  <div>Path <span id="path">None</span> · Tier <span id="tier">0</span>/10 · Shield <span id="shield">0</span></div>
+  <div class="small"><span class="kbd">WASD</span> move · <span class="kbd">Mouse</span> rotate · <span class="kbd">Click</span>/<span class="kbd">Space</span> slash · <span class="kbd">Shift</span> dash · <span class="kbd">E</span> ultimate</div>
+</div>
+<div id="center"></div><div id="toast"></div>
+<div id="menu"><div class="card"><div class="title">Velocity:<br>One Man Army</div><p class="sub">A prince with one sword versus entire marching armies. This version uses real WebGL perspective, a third-person camera, 3D models, shadows-ish depth, particles, and upgrade waves.</p><div class="btn" id="start">START BATTLE</div><p class="small">Click the screen after starting for mouse-look.</p></div></div>
+<div id="upgrade"><div class="card"><div class="title" style="font-size:42px">Choose Sword Upgrade</div><div class="choices" id="choices"></div></div></div>
+<div id="gameover"><div class="card"><div class="title" style="font-size:46px">The Army Overran You</div><p class="sub" id="score"></p><div class="btn" onclick="location.reload()">TRY AGAIN</div></div></div>
+<script>
+'use strict';
+const canvas=document.getElementById('gl'), gl=canvas.getContext('webgl',{antialias:true});
+if(!gl){document.body.innerHTML='<h1 style="padding:30px">WebGL not supported in this browser.</h1>';throw 0;}
+const $=id=>document.getElementById(id); let W=0,H=0;
+function resize(){W=canvas.width=innerWidth*devicePixelRatio;H=canvas.height=innerHeight*devicePixelRatio;gl.viewport(0,0,W,H)}addEventListener('resize',resize);resize();
+const vs=`attribute vec3 p;attribute vec3 n;uniform mat4 mvp;uniform mat4 model;varying vec3 N;varying vec3 V;void main(){gl_Position=mvp*vec4(p,1.0);N=mat3(model)*n;V=(model*vec4(p,1.0)).xyz;}`;
+const fs=`precision mediump float;varying vec3 N;varying vec3 V;uniform vec3 color;uniform vec3 sun;uniform float fog;void main(){vec3 nn=normalize(N);float d=max(dot(nn,normalize(sun)),0.0);float rim=pow(1.0-max(dot(normalize(-V),nn),0.0),2.0)*.18;vec3 c=color*(.30+.78*d)+rim;float f=clamp((length(V)-20.0)/150.0,0.0,1.0)*fog;gl_FragColor=vec4(mix(c,vec3(.55,.75,.95),f),1.0);}`;
+function shader(t,s){let sh=gl.createShader(t);gl.shaderSource(sh,s);gl.compileShader(sh);if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))throw gl.getShaderInfoLog(sh);return sh}
+let pr=gl.createProgram();gl.attachShader(pr,shader(gl.VERTEX_SHADER,vs));gl.attachShader(pr,shader(gl.FRAGMENT_SHADER,fs));gl.linkProgram(pr);gl.useProgram(pr);
+const loc={p:gl.getAttribLocation(pr,'p'),n:gl.getAttribLocation(pr,'n'),mvp:gl.getUniformLocation(pr,'mvp'),model:gl.getUniformLocation(pr,'model'),color:gl.getUniformLocation(pr,'color'),sun:gl.getUniformLocation(pr,'sun'),fog:gl.getUniformLocation(pr,'fog')};
+gl.enable(gl.DEPTH_TEST);gl.enable(gl.CULL_FACE);gl.clearColor(.48,.73,.98,1);
+const M={id:()=>[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],mul:(a,b)=>{let r=Array(16).fill(0);for(let c=0;c<4;c++)for(let rr=0;rr<4;rr++)r[c*4+rr]=a[0*4+rr]*b[c*4+0]+a[1*4+rr]*b[c*4+1]+a[2*4+rr]*b[c*4+2]+a[3*4+rr]*b[c*4+3];return r},tr:(x,y,z)=>[1,0,0,0,0,1,0,0,0,0,1,0,x,y,z,1],sc:(x,y,z)=>[x,0,0,0,0,y,0,0,0,0,z,0,0,0,0,1],rx:a=>{let c=Math.cos(a),s=Math.sin(a);return[1,0,0,0,0,c,s,0,0,-s,c,0,0,0,0,1]},ry:a=>{let c=Math.cos(a),s=Math.sin(a);return[c,0,-s,0,0,1,0,0,s,0,c,0,0,0,0,1]},rz:a=>{let c=Math.cos(a),s=Math.sin(a);return[c,s,0,0,-s,c,0,0,0,0,1,0,0,0,0,1]},pers:(f,asp,n,fa)=>{let q=1/Math.tan(f/2),nf=1/(n-fa);return[q/asp,0,0,0,0,q,0,0,0,0,(fa+n)*nf,-1,0,0,2*fa*n*nf,0]},look:(e,c,u)=>{let zx=e.x-c.x,zy=e.y-c.y,zz=e.z-c.z,zl=Math.hypot(zx,zy,zz);zx/=zl;zy/=zl;zz/=zl;let xx=u.y*zz-u.z*zy,xy=u.z*zx-u.x*zz,xz=u.x*zy-u.y*zx,xl=Math.hypot(xx,xy,xz);xx/=xl;xy/=xl;xz/=xl;let yx=zy*xz-zz*xy,yy=zz*xx-zx*xz,yz=zx*xy-zy*xx;return[xx,yx,zx,0,xy,yy,zy,0,xz,yz,zz,0,-(xx*e.x+xy*e.y+xz*e.z),-(yx*e.x+yy*e.y+yz*e.z),-(zx*e.x+zy*e.y+zz*e.z),1]}};
+function mesh(arr){let b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(arr),gl.STATIC_DRAW);return{b,c:arr.length/6}}
+function cube(){let a=[],F=[[[1,0,0],[.5,-.5,-.5],[.5,.5,-.5],[.5,.5,.5],[.5,-.5,.5]],[[-1,0,0],[-.5,-.5,.5],[-.5,.5,.5],[-.5,.5,-.5],[-.5,-.5,-.5]],[[0,1,0],[-.5,.5,-.5],[-.5,.5,.5],[.5,.5,.5],[.5,.5,-.5]],[[0,-1,0],[-.5,-.5,.5],[-.5,-.5,-.5],[.5,-.5,-.5],[.5,-.5,.5]],[[0,0,1],[-.5,-.5,.5],[.5,-.5,.5],[.5,.5,.5],[-.5,.5,.5]],[[0,0,-1],[.5,-.5,-.5],[-.5,-.5,-.5],[-.5,.5,-.5],[.5,.5,-.5]]];for(let f of F){let n=f[0],v=f.slice(1),idx=[0,1,2,0,2,3];for(let i of idx)a.push(...v[i],...n)}return mesh(a)}
+function cyl(seg=18){let a=[];for(let i=0;i<seg;i++){let t=i/seg*6.283,u=(i+1)/seg*6.283,c=Math.cos(t),s=Math.sin(t),d=Math.cos(u),e=Math.sin(u);let v=[[c,-.5,s],[d,-.5,e],[d,.5,e],[c,.5,s]],n=[[c,0,s],[d,0,e],[d,0,e],[c,0,s]];for(let k of [0,1,2,0,2,3])a.push(...v[k],...n[k]);}return mesh(a)}
+const cubeM=cube(), cylM=cyl(20);
+function draw(ms,model,color,fog=1){gl.bindBuffer(gl.ARRAY_BUFFER,ms.b);gl.vertexAttribPointer(loc.p,3,gl.FLOAT,false,24,0);gl.enableVertexAttribArray(loc.p);gl.vertexAttribPointer(loc.n,3,gl.FLOAT,false,24,12);gl.enableVertexAttribArray(loc.n);let mvp=M.mul(M.mul(proj,view),model);gl.uniformMatrix4fv(loc.model,false,new Float32Array(model));gl.uniformMatrix4fv(loc.mvp,false,new Float32Array(mvp));gl.uniform3fv(loc.color,new Float32Array(color));gl.uniform3fv(loc.sun,new Float32Array([-.45,.9,.25]));gl.uniform1f(loc.fog,fog);gl.drawArrays(gl.TRIANGLES,0,ms.c)}
+let keys={},mx=0,my=.35,paused=true;addEventListener('keydown',e=>{keys[e.code]=1;if(e.code==='Space')slash();if(e.code==='KeyE')ultimate()});addEventListener('keyup',e=>keys[e.code]=0);canvas.onclick=()=>{canvas.requestPointerLock?.();slash()};document.addEventListener('mousemove',e=>{if(document.pointerLockElement===canvas){mx-=e.movementX*.003;my=Math.max(.12,Math.min(.82,my+e.movementY*.002))}});
+let player={x:0,z:0,y:1,rot:0,hp:120,max:120,shield:0,xp:0,need:60,gold:0,lvl:1,dmg:25,range:4.2,speed:18,arc:1.25,atk:.35,dash:0,path:null,tier:0,lastDmg:0,ultCd:0,pierce:false,lifeSteal:0,lightning:false};let enemies=[],parts=[],wave=1,last=0,atkT=0,shake=0,proj,view;
+
+const pathData={
+ vampire:[
+  ['Bloodsteel Edge','Damage +10, sword turns red-black.',p=>{p.dmg+=10}],
+  ['Thirsting Guard','Life-steal begins: heal 5% of hit damage.',p=>{p.lifeSteal=.05}],
+  ['Long Crimson Bite','Range +35%.',p=>{p.range*=1.35}],
+  ['Sanguine Speed','Attack cooldown faster.',p=>{p.atk*=.86}],
+  ['Hemomancer Arc','Slash arc wider and blood shriek stores more damage.',p=>{p.arc+=.28;p.dmg+=8}],
+  ['Royal Blood Drain','Life-steal increases to 10%.',p=>{p.lifeSteal=.10}],
+  ['Red Moon Reach','Range +45%, damage +12.',p=>{p.range*=1.45;p.dmg+=12}],
+  ['Crimson Fortress','Max HP +60. Ultimate shield grows from HP.',p=>{p.max+=60;p.hp+=60}],
+  ['Night Prince Saber','Life-steal 16%, attack faster, blade becomes huge.',p=>{p.lifeSteal=.16;p.atk*=.82;p.range*=1.18}],
+  ['VAMPIRE SABER','FINAL: life-steal, long range, HP-to-2x-shield ultimate, blood shriek repeats stored damage.',p=>{p.lifeSteal=.22;p.range*=1.35;p.dmg+=35;p.arc+=.35}]
+ ],
+ power:[
+  ['Charged Copper Edge','Damage +14, lightning texture starts.',p=>{p.dmg+=14}],
+  ['Storm Reach','Range +30%.',p=>{p.range*=1.30}],
+  ['Thunder Weight','Heavy damage +22.',p=>{p.dmg+=22}],
+  ['Static Cleave','Lightning chains to nearby soldiers.',p=>{p.lightning=true}],
+  ['High Voltage Core','Attack sparks harder: damage +24.',p=>{p.dmg+=24}],
+  ['Greatsword Frame','Range +35%, wider arc.',p=>{p.range*=1.35;p.arc+=.22}],
+  ['Skybreaker Current','Lightning chain damage increases.',p=>{p.dmg+=28}],
+  ['Piercing Storm','Slashes pierce through the whole army line.',p=>{p.pierce=true;p.range*=1.25}],
+  ['Royal Thunder Engine','Attack cooldown faster, damage +35.',p=>{p.atk*=.82;p.dmg+=35}],
+  ['SWORD OF POWER','FINAL: lightning strikes, heavy damage, high range, unlimited pierce.',p=>{p.pierce=true;p.lightning=true;p.range*=1.55;p.dmg+=60;p.arc+=.45}]
+ ]
+};
+function spawnWave(){enemies=[];let count=12+wave*5;for(let i=0;i<count;i++){let a=i/count*6.283+Math.random()*.3,r=45+Math.random()*50;let elite=Math.random()<wave*.035;enemies.push({x:Math.cos(a)*r,z:Math.sin(a)*r,y:1,hp:elite?90+wave*18:36+wave*8,max:elite?90+wave*18:36+wave*8,spd:(elite?7:5)+wave*.25,elite,hit:0,rot:0})}}spawnWave();
+function toast(t){let el=$('toast');el.textContent=t;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),1200)}
+function lightningBurst(target,base){
+ let jumps=player.pierce?999:3+Math.floor(player.tier/2), radius=player.pierce?999:13+player.tier*1.5;
+ let hit=0;
+ for(let e of enemies){
+   if(e===target)continue;
+   let d=Math.hypot(e.x-target.x,e.z-target.z);
+   if(d<radius&&hit<jumps){
+     let dmg=base*(player.pierce?.75:.45);
+     e.hp-=dmg; e.hit=.18; hit++;
+     for(let i=0;i<7;i++)parts.push({x:e.x,y:1+Math.random()*2,z:e.z,vx:(Math.random()-.5)*5,vy:Math.random()*12,vz:(Math.random()-.5)*5,t:.38,c:[.45,.80,1]});
+   }
+ }
+}
+function slash(){if(paused||atkT>0)return;atkT=player.atk;shake=.14;let killed=0,totalDamage=0,mainHits=[];
+ for(let e of enemies){
+  let dx=e.x-player.x,dz=e.z-player.z,dist=Math.hypot(dx,dz);let ang=Math.atan2(dx,dz);let diff=Math.atan2(Math.sin(ang-player.rot),Math.cos(ang-player.rot));
+  let ok=dist<player.range&&Math.abs(diff)<player.arc;
+  if(player.pierce&&Math.abs(diff)<player.arc*.72&&dist<player.range*1.45)ok=true;
+  if(ok){
+    let dealt=player.dmg*(keys.ShiftLeft?1.25:1);
+    if(player.path==='power'&&player.tier>=10)dealt*=1.45;
+    e.hp-=dealt;e.hit=.16;totalDamage+=dealt;mainHits.push(e);
+    if(player.lifeSteal>0)player.hp=Math.min(player.max,player.hp+dealt*player.lifeSteal);
+    for(let i=0;i<12;i++)parts.push({x:e.x,y:1+Math.random()*2,z:e.z,vx:(Math.random()-.5)*10,vy:Math.random()*9,vz:(Math.random()-.5)*10,t:.5,c:player.path==='vampire'?[.95,.02,.08]:player.path==='power'?[.45,.8,1]:[1,.82,.25]});
+    if(e.hp<=0)killed++;
+  }
+ }
+ if(player.lightning&&mainHits.length){for(let e of mainHits.slice(0,player.pierce?999:4))lightningBurst(e,player.dmg);}
+ player.lastDmg+=totalDamage;
+ if(killed)toast('+'+(killed*8)+' gold  COMBO x'+killed)
+}
+function ultimate(){
+ if(paused||player.ultCd>0||!player.path||player.tier<10)return;
+ if(player.path==='vampire'){
+   let spend=Math.max(10,Math.floor(player.hp*.45)); player.hp=Math.max(1,player.hp-spend); player.shield+=spend*2;
+   let shriek=Math.max(player.dmg*2,player.lastDmg||0); player.lastDmg=0; shake=.8;
+   for(let e of enemies){
+     let d=Math.hypot(e.x-player.x,e.z-player.z);
+     if(d<player.range*3.1){e.hp-=shriek;e.hit=.45;for(let i=0;i<18;i++)parts.push({x:e.x,y:1+Math.random()*2.8,z:e.z,vx:(Math.random()-.5)*18,vy:Math.random()*15,vz:(Math.random()-.5)*18,t:.75,c:[1,0,0]});}
+   }
+   toast('VAMPIRE SHRIEK: '+Math.floor(shriek)+' damage + '+Math.floor(spend*2)+' shield');
+   player.ultCd=10;
+ } else if(player.path==='power'){
+   shake=1.0;
+   for(let e of enemies){
+     let d=Math.hypot(e.x-player.x,e.z-player.z);
+     if(d<player.range*4.2){let dmg=player.dmg*3.5;e.hp-=dmg;e.hit=.55;for(let i=0;i<16;i++)parts.push({x:e.x,y:1+Math.random()*5,z:e.z,vx:(Math.random()-.5)*7,vy:Math.random()*20,vz:(Math.random()-.5)*7,t:.7,c:[.35,.75,1]});}
+   }
+   toast('SWORD OF POWER: STORM JUDGMENT');
+   player.ultCd=8;
+ }
+}
+function upgrade(){
+ paused=true;let box=$('choices');box.innerHTML='';
+ if(!player.path){
+  [['vampire','Path 1: Vampire Saber','Life-steal, long range, blood shriek, HP-to-2x shield final.'],['power','Path 2: Sword of Power','Lightning strikes, heavy damage, high range, unlimited pierce final.']].forEach(o=>{
+   let d=document.createElement('div');d.className='choice';d.style.width='300px';d.innerHTML=`<h2>${o[1]}</h2><p>${o[2]}</p><p class="small">Locks your sword into this 10-upgrade path.</p>`;
+   d.onclick=()=>{player.path=o[0];player.tier=0;$('upgrade').style.display='none';paused=false;upgrade();};box.appendChild(d);
+  });
+ } else if(player.tier<10){
+  let u=pathData[player.path][player.tier];
+  let d=document.createElement('div');d.className='choice';d.style.width='360px';d.innerHTML=`<h2>${u[0]}</h2><p>${u[1]}</p><p class="small">Upgrade ${player.tier+1}/10 on ${player.path==='vampire'?'Vampire Saber':'Sword of Power'} path.</p>`;
+  d.onclick=()=>{u[2](player);player.tier++;player.lvl++;player.hp=Math.min(player.max,player.hp+25);$('upgrade').style.display='none';paused=false;spawnWave();};box.appendChild(d);
+ } else {
+  let d=document.createElement('div');d.className='choice';d.style.width='300px';d.innerHTML=`<h2>Royal Reinforcement</h2><p>Final sword mastered. Gain damage, HP, and speed.</p>`;
+  d.onclick=()=>{player.dmg+=20;player.max+=25;player.hp+=25;player.speed*=1.05;player.lvl++;$('upgrade').style.display='none';paused=false;spawnWave();};box.appendChild(d);
+ }
+ $('upgrade').style.display='flex'
+}
+$('start').onclick=()=>{$('menu').style.display='none';paused=false;canvas.requestPointerLock?.();upgrade()};
+function step(t){let dt=Math.min(.033,(t-last)/1000||.016);last=t;if(!paused)update(dt);render(t/1000);requestAnimationFrame(step)}requestAnimationFrame(step);
+function update(dt){atkT=Math.max(0,atkT-dt);shake*=.9;let fw=(keys.KeyW?1:0)-(keys.KeyS?1:0),rt=(keys.KeyD?1:0)-(keys.KeyA?1:0);player.rot=mx;let sp=player.speed*(keys.ShiftLeft?1.85:1);if(keys.ShiftLeft)player.dash=.2;player.dash=Math.max(0,player.dash-dt);let sx=Math.sin(mx),cz=Math.cos(mx),rx=Math.cos(mx),rz=-Math.sin(mx);let len=Math.hypot(fw,rt)||1;player.x+=(sx*fw+rx*rt)/len*sp*dt;player.z+=(cz*fw+rz*rt)/len*sp*dt;let rr=Math.hypot(player.x,player.z);if(rr>105){player.x*=105/rr;player.z*=105/rr}
+ for(let e of enemies){let dx=player.x-e.x,dz=player.z-e.z,d=Math.hypot(dx,dz)||1;e.rot=Math.atan2(dx,dz);let speed=e.spd*(e.hit>0?.25:1);e.x+=dx/d*speed*dt;e.z+=dz/d*speed*dt;e.hit=Math.max(0,e.hit-dt);if(d<1.9){let inc=dt*(e.elite?22:12);if(player.shield>0){let s=Math.min(player.shield,inc);player.shield-=s;inc-=s}player.hp-=inc;e.x-=dx/d*dt*8;e.z-=dz/d*dt*8}}
+ enemies=enemies.filter(e=>{if(e.hp<=0){player.gold+=8+(e.elite?25:0);player.xp+=16+(e.elite?34:0);return false}return true});
+ if(enemies.length===0){wave++;player.gold+=50;player.xp+=35;toast('WAVE CLEARED');upgrade()}
+ if(player.xp>=player.need){player.xp-=player.need;player.need=Math.floor(player.need*1.45);toast('LEVEL UP');upgrade()}
+ player.ultCd=Math.max(0,player.ultCd-dt);
+ if(player.hp<=0){paused=true;$('score').textContent=`You reached wave ${wave} with sword level ${player.lvl}.`;$('gameover').style.display='flex'}
+ for(let p of parts){p.t-=dt;p.vy-=18*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt}parts=parts.filter(p=>p.t>0&&p.y>0);
+ $('wave').textContent=wave;$('left').textContent=enemies.length;$('gold').textContent=player.gold;$('lvl').textContent=player.lvl;$('path').textContent=player.path? (player.path==='vampire'?'Vampire Saber':'Sword of Power'):'None';$('tier').textContent=player.tier;$('shield').textContent=Math.floor(player.shield);$('hp').style.width=(player.hp/player.max*100)+'%';$('xp').style.width=(player.xp/player.need*100)+'%'}
+function model(x,y,z,sx,sy,sz,ry=0,rx=0,rz=0){return M.mul(M.tr(x,y,z),M.mul(M.ry(ry),M.mul(M.rx(rx),M.mul(M.rz(rz),M.sc(sx,sy,sz)))))}
+let deco=[];for(let i=0;i<90;i++){let a=Math.random()*6.283,r=18+Math.random()*95;deco.push({x:Math.cos(a)*r,z:Math.sin(a)*r,h:2+Math.random()*8,type:Math.random()<.55?'tree':'rock'})}
+function render(time){gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);proj=M.pers(Math.PI/3,W/H,.1,500);let bob=Math.sin(time*8)*.15,camDist=13,camH=7+my*12;let cx=player.x-Math.sin(mx)*camDist,cz=player.z-Math.cos(mx)*camDist,cy=camH+bob+(shake?Math.random()*shake*5:0);view=M.look({x:cx,y:cy,z:cz},{x:player.x,y:2,z:player.z},{x:0,y:1,z:0});
+ draw(cubeM,model(0,-.08,0,220,.16,220),[.20,.55,.18]);draw(cubeM,model(0,-.03,0,16,.08,16),[.36,.72,.30]);
+ for(let i=-5;i<=5;i++){draw(cubeM,model(i*20,.02,-105,1,.08,210),[.55,.46,.34],1);draw(cubeM,model(-105,.02,i*20,210,.08,1),[.55,.46,.34],1)}
+ for(let d of deco){if(d.type==='tree'){draw(cylM,model(d.x,d.h*.25,d.z,.45,d.h*.5,.45),[.39,.20,.10]);draw(cubeM,model(d.x,d.h+.7,d.z,2.8,2.8,2.8,Math.sin(d.x)*.4),[.08,.36,.10])}else draw(cubeM,model(d.x,.45,d.z,1.8,.9,1.5,Math.sin(d.z)),[.38,.39,.42])}
+ // player prince
+ draw(cubeM,model(player.x,1.05,player.z,.9,1.7,.65,player.rot),[.10,.20,.95]);draw(cubeM,model(player.x,2.25,player.z,.72,.72,.72,player.rot),[.95,.72,.50]);draw(cubeM,model(player.x,2.78,player.z,.86,.22,.86,player.rot),[1,.75,.05]);draw(cubeM,model(player.x+Math.sin(player.rot)*.55,1.1,player.z+Math.cos(player.rot)*.55,.22,1.25,.22,player.rot),[.08,.08,.12]);
+ let swing=atkT>0?Math.sin((player.atk-atkT)/player.atk*Math.PI)*1.65:0;
+let sr=player.rot+swing;
+let fx=Math.sin(sr), fz=Math.cos(sr), rx=Math.cos(sr), rz=-Math.sin(sr);
+let handX=player.x+rx*.72+fx*.62, handZ=player.z+rz*.72+fz*.62;
+let bladeLen=3.35+player.lvl*.24;
+
+// Sword evolves visually by path and tier.
+let tier=player.tier, vamp=player.path==='vampire', pow=player.path==='power';
+let bladeCol=vamp?[.55+.04*tier,.02,.06]:pow?[.45,.72+.025*tier,1.0]:[.86,.93,1.0];
+let glowCol=vamp?[1,.02,.05]:pow?[.25,.75,1]:[1,1,1];
+let guardCol=vamp?[.18,.0,.03]:pow?[1,.88,.15]:[1.0,.78,.12];
+let wide=0.20+tier*.018, thick=0.10+tier*.01;
+// grip
+draw(cubeM,model(handX-rx*.05-fx*.18,1.35,handZ-rz*.05-fz*.18,.18,.78,.18,sr,1.5708,0),vamp?[.08,0,0]:[.20,.10,.035]);
+// pommel
+draw(cubeM,model(handX-fx*.72,1.35,handZ-fz*.72,.34+.02*tier,.34+.02*tier,.34+.02*tier,sr),guardCol);
+// crossguard gets more dramatic
+draw(cubeM,model(handX+fx*.18,1.48,handZ+fz*.18,1.28+tier*.08,.16,.20,sr,0,0),guardCol);
+// main blade
+draw(cubeM,model(handX+fx*(bladeLen*.52),1.55,handZ+fz*(bladeLen*.52),wide,bladeLen,.10+tier*.006,sr,1.5708,0),bladeCol);
+// bright center ridge
+draw(cubeM,model(handX+fx*(bladeLen*.52),1.62,handZ+fz*(bladeLen*.52),.045,bladeLen*.92,.04,sr,1.5708,0),glowCol);
+// final forms add side prongs/aura
+if(tier>=5){
+ draw(cubeM,model(handX+fx*(bladeLen*.35)+rx*.16,1.52,handZ+fz*(bladeLen*.35)+rz*.16,.055,bladeLen*.48,.045,sr,1.5708,0),glowCol);
+ draw(cubeM,model(handX+fx*(bladeLen*.35)-rx*.16,1.52,handZ+fz*(bladeLen*.35)-rz*.16,.055,bladeLen*.48,.045,sr,1.5708,0),glowCol);
+}
+if(tier>=10){
+ let aura=vamp?[1,0,0]:[.3,.75,1];
+ draw(cubeM,model(handX+fx*(bladeLen*.55),1.55,handZ+fz*(bladeLen*.55),wide*2.3,bladeLen*1.08,thick*.7,sr,1.5708,0),aura,.25);
+}
+// tip
+draw(cubeM,model(handX+fx*(bladeLen+0.18),1.55,handZ+fz*(bladeLen+0.18),.12+tier*.01,.48+tier*.03,.08,sr,1.5708,.785),glowCol);
+ if(atkT>0){for(let i=-5;i<=5;i++)draw(cubeM,model(player.x+Math.sin(player.rot+i*.12)*player.range,1.2,player.z+Math.cos(player.rot+i*.12)*player.range,.55,.12,.55,player.rot),player.path==='vampire'?[1,.05,.08]:player.path==='power'?[.35,.75,1]:[.8,.95,1],0)}
+ for(let e of enemies){let col=e.elite?[.75,.05,.9]:[.86,.09,.08];if(e.hit>0)col=[1,.9,.1];draw(cubeM,model(e.x,1,e.z,e.elite?1.4:.9,e.elite?2.3:1.55,e.elite?1.1:.75,e.rot),col);draw(cubeM,model(e.x,2.05+(e.elite?.6:0),e.z,e.elite?.9:.55,e.elite?.9:.55,e.elite?.9:.55,e.rot),[.18,.03,.03]);draw(cubeM,model(e.x+Math.sin(e.rot)*.8,1.3,e.z+Math.cos(e.rot)*.8,.18,1.7,.18,e.rot,0,.8),[.15,.15,.17]);draw(cubeM,model(e.x,3.1,e.z,(e.hp/e.max)*1.4,.08,.12,0),[.1,1,.18],0)}
+ for(let p of parts)draw(cubeM,model(p.x,p.y,p.z,.18,.18,.18),p.c,0);
+}
+</script>
+</body>
+</html>

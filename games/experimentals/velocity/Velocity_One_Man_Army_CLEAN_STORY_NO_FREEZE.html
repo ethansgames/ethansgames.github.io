@@ -1,0 +1,201 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Velocity: One Man Army — Crownfall Stable Story Build</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#79bdf2;color:white;font-family:Arial,Helvetica,sans-serif;user-select:none}
+canvas{display:block;width:100vw;height:100vh;background:linear-gradient(#7fc7ff 0%,#9ee5ff 44%,#78c45a 45%,#3e9a35 100%);cursor:crosshair}
+#hud{position:fixed;left:14px;top:12px;background:rgba(5,12,25,.72);border:1px solid rgba(200,235,255,.5);box-shadow:0 0 25px #0008,inset 0 0 20px #69d4ff22;border-radius:16px;padding:12px 14px;line-height:1.45;font-weight:900;min-width:330px;backdrop-filter:blur(7px);z-index:5}
+.bar{height:12px;background:#162033;border-radius:999px;overflow:hidden;margin:3px 0 8px}.fill{height:100%;width:50%;background:linear-gradient(90deg,#33ff88,#fff06d)}
+#xpfill{background:linear-gradient(90deg,#55a8ff,#b55cff)}#morfill{background:linear-gradient(90deg,#ffd35a,#43ff8d)}
+.kbd{background:#101827;border:1px solid #6f8099;border-radius:6px;padding:2px 6px}.small{font-size:13px;color:#d6edff}
+#menu,#story,#upgrade,#gameover{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 25%,rgba(90,140,210,.92),rgba(3,5,13,.96));z-index:20}
+#story,#upgrade,#gameover{display:none}
+.card{width:min(880px,92vw);background:rgba(0,0,0,.58);border:1px solid rgba(210,240,255,.42);border-radius:24px;padding:28px;text-align:center;box-shadow:0 20px 80px #000, inset 0 0 40px #8ee8ff17}
+.title{font-size:56px;font-weight:1000;letter-spacing:1px;text-shadow:0 0 28px #6df,0 5px 8px #000}
+.sub{font-size:20px;color:#e6f7ff;line-height:1.5}
+.btn{display:inline-block;margin:12px 8px;padding:14px 24px;border-radius:16px;background:linear-gradient(180deg,#ffe998,#f5a135);color:#1a0d00;font-weight:1000;cursor:pointer;box-shadow:0 8px 0 #8d4a00;position:relative;z-index:30}
+.btn:active{transform:translateY(5px);box-shadow:0 3px 0 #8d4a00}
+.choices{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}.choice{width:260px;min-height:170px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.32);border-radius:18px;padding:16px;cursor:pointer;box-shadow:0 0 22px #0008,inset 0 0 18px #fff1}.choice:hover{background:rgba(255,255,255,.23);box-shadow:0 0 30px #78eaff}
+#dialog{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);width:min(900px,88vw);background:rgba(5,10,25,.82);border:1px solid #bcecff99;border-radius:18px;padding:15px 20px;box-shadow:0 0 34px #2bc8ff88;text-align:center;font-weight:900;z-index:8;display:none}.speaker{color:#ffd86a;font-size:18px}.line{font-size:19px;color:#f1fbff}
+#cross{position:fixed;left:50%;top:50%;width:12px;height:12px;transform:translate(-50%,-50%);border:2px solid #fff;border-radius:50%;box-shadow:0 0 8px #000;z-index:4;pointer-events:none}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud">
+  <div><b>Velocity: One Man Army</b> — Crownfall Stable</div>
+  <div>Chapter <span id="chapter">I</span> · Wave <span id="wave">1</span> · Enemies <span id="left">0</span> · Sword Lv <span id="lvl">1</span></div>
+  HP<div class="bar"><div id="hpfill" class="fill"></div></div>
+  XP<div class="bar"><div id="xpfill" class="fill"></div></div>
+  Morale<div class="bar"><div id="morfill" class="fill"></div></div>
+  <div>Path <span id="path">None</span> · Tier <span id="tier">0</span>/10 · Citizens Saved <span id="saved">0</span></div>
+  <div class="small"><span class="kbd">WASD</span> move · <span class="kbd">Mouse</span> aim · <span class="kbd">Click/Space</span> slash · <span class="kbd">Shift</span> dash · <span class="kbd">E</span> ultimate</div>
+</div>
+<div id="cross"></div><div id="dialog"><div class="speaker"></div><div class="line"></div></div>
+<div id="menu"><div class="card">
+  <div class="title">Velocity:<br>One Man Army</div>
+  <p class="sub">King Aurelius has died. You are Rowan, his son, crowned before the kingdom can even finish mourning. Enemy armies invade Veloria because they think one young king cannot protect his people.</p>
+  <div class="btn" id="start">BEGIN STORY</div>
+  <p class="small">Stable clean build. No broken WebGL patch-stack. Better sphere characters, faces, villages, story scenes, and easier combat.</p>
+</div></div>
+<div id="story"><div class="card">
+  <div class="title" id="storyTitle" style="font-size:42px">CROWNFALL</div>
+  <p class="sub" id="storyText"></p>
+  <div class="btn" id="nextStory">CONTINUE</div>
+</div></div>
+<div id="upgrade"><div class="card"><div class="title" style="font-size:40px">Choose the King's Legacy</div><div class="choices" id="choices"></div></div></div>
+<div id="gameover"><div class="card"><div class="title" style="font-size:46px">Veloria Has Fallen</div><p class="sub" id="score"></p><div class="btn" onclick="location.reload()">REWRITE THE LEGEND</div></div></div>
+<script>
+'use strict';
+const c=document.getElementById('game'),ctx=c.getContext('2d');
+const $=id=>document.getElementById(id);
+let W=0,H=0,DPR=1;function resize(){DPR=Math.min(2,devicePixelRatio||1);W=c.width=innerWidth*DPR;H=c.height=innerHeight*DPR;ctx.setTransform(DPR,0,0,DPR,0,0)}addEventListener('resize',resize);resize();
+
+const keys={};let mouse={x:innerWidth/2,y:innerHeight/2,down:false};addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='Space')slash();if(e.code==='KeyE')ultimate()});addEventListener('keyup',e=>keys[e.code]=false);addEventListener('mousemove',e=>{mouse.x=e.clientX;mouse.y=e.clientY});addEventListener('mousedown',()=>{mouse.down=true;slash()});addEventListener('mouseup',()=>mouse.down=false);
+
+let paused=true,storyIndex=0,shake=0,time=0;
+let cam={x:0,z:0};
+let player={x:0,z:0,hp:200,max:200,xp:0,need:80,lvl:1,dmg:34,range:72,atk:.24,atkT:0,speed:245,path:null,tier:0,ult:0,shield:0,life:.0,pierce:false,lightning:false,chrono:false,lastDmg:0,storm:0,freeze:0};
+let enemies=[],parts=[],villages=[],citizens=[],wave=1,morale=100,saved=0,chapter='I';
+
+const story=[
+ ['The Last Night of Aurelius','The old king dies quietly beneath the blue banners of Veloria. No assassin. No battle. Just silence.'],
+ ['The Crown Passes','Rowan, his only son, inherits the throne before he is ready. The people bow, but fear fills the capital.'],
+ ['The Invaders March','Three enemy kingdoms see weakness. Their armies cross the border and march toward villages first.'],
+ ['One King, One Sword','The generals ask Rowan to hide behind walls. Instead, he draws his father’s sword and rides out alone.']
+];
+
+function showDialog(s,l,ms=3600){const d=$('dialog');d.querySelector('.speaker').textContent=s;d.querySelector('.line').textContent=l;d.style.display='block';clearTimeout(showDialog.t);showDialog.t=setTimeout(()=>d.style.display='none',ms)}
+function showStory(){paused=true;$('story').style.display='flex';$('storyTitle').textContent=story[storyIndex][0];$('storyText').textContent=story[storyIndex][1]}
+$('start').addEventListener('click',()=>{$('menu').style.display='none';showStory()});
+$('nextStory').addEventListener('click',()=>{storyIndex++;if(storyIndex<story.length)showStory();else{$('story').style.display='none';paused=false;choosePath();showDialog('Scout','My king! Red banners are approaching Greenhill!',3600)}});
+
+function initWorld(){
+ villages=[{x:-650,z:-180,hp:350,max:350,name:'Greenhill'},{x:620,z:-120,hp:350,max:350,name:'Riverwatch'},{x:0,z:620,hp:350,max:350,name:'Crownroad'}];
+ citizens=[];
+ for(const v of villages)for(let i=0;i<10;i++)citizens.push({x:v.x+(Math.random()-.5)*150,z:v.z+(Math.random()-.5)*120,home:v,phase:Math.random()*9,alive:true});
+ spawnWave();
+}
+function spawnWave(){
+ enemies=[];const alive=villages.filter(v=>v.hp>0);let count=6+wave*3;
+ for(let i=0;i<count;i++){
+   let a=i/count*Math.PI*2+Math.random()*.5,r=950+Math.random()*220,target=alive[i%Math.max(1,alive.length)]||{x:player.x,z:player.z};
+   let elite=Math.random()<wave*.035;
+   enemies.push({x:Math.cos(a)*r,z:Math.sin(a)*r,hp:elite?80+wave*10:30+wave*5,max:elite?80+wave*10:30+wave*5,spd:elite?58+wave*2:42+wave*1.4,elite,hit:0,freeze:0,target,ang:0});
+ }
+ if(wave===3)showDialog('Rowan','Father guarded these fields. Now I will.',3600);
+ if(wave===6){chapter='II';showDialog('Villager','The king is fighting for us! Veloria stands!',3600)}
+ if(wave===10){chapter='III';showDialog('Enemy General','How does one king hold back an army?',3800)}
+}
+initWorld();
+
+const upgrades={
+ vampire:[
+ ['Bloodsteel Edge','Damage +10. Blade turns red.',p=>p.dmg+=10],['Thirsting Guard','Life-steal begins.',p=>p.life=.06],['Crimson Reach','Range +25%.',p=>p.range*=1.25],['Sanguine Speed','Attack faster.',p=>p.atk*=.86],['Blood Arc','Damage +12 and wider swing.',p=>{p.dmg+=12;p.range*=1.12}],['Royal Drain','Life-steal improves.',p=>p.life=.12],['Red Moon','More range and damage.',p=>{p.range*=1.2;p.dmg+=18}],['Crimson Fortress','Max HP +70.',p=>{p.max+=70;p.hp+=70}],['Night Saber','Life-steal 18%, faster.',p=>{p.life=.18;p.atk*=.82}],['VAMPIRE SABER','Final: lifesteal + blood shield shriek.',p=>{p.life=.24;p.dmg+=45;p.range*=1.25}]
+ ],
+ power:[
+ ['Charged Edge','Lightning texture begins. Damage +16.',p=>p.dmg+=16],['Storm Reach','Range +25%.',p=>p.range*=1.25],['Thunder Weight','Heavy damage +24.',p=>p.dmg+=24],['Static Cleave','Lightning chains.',p=>p.lightning=true],['Voltage Core','Damage +28.',p=>p.dmg+=28],['Greatsword Frame','Range +30%.',p=>p.range*=1.30],['Skybreaker','Lightning stronger.',p=>p.dmg+=30],['Piercing Storm','Unlimited pierce style.',p=>p.pierce=true],['Thunder Engine','Faster + damage.',p=>{p.atk*=.82;p.dmg+=35}],['SWORD OF POWER','Final: 10 second storm ultimate.',p=>{p.lightning=true;p.pierce=true;p.dmg+=60;p.range*=1.35}]
+ ],
+ chrono:[
+ ['Clocksteel Needle','Very fast, lower damage style.',p=>{p.atk*=.72;p.dmg-=4}],['Second Edge','Faster + range.',p=>{p.atk*=.78;p.range*=1.12}],['Timeglass Guard','Cyan time glow.',p=>p.dmg+=6],['Rapid Paradox','Much faster.',p=>p.atk*=.72],['Frozen Minute','Hits slow enemies.',p=>p.chrono=true],['Hourglass Reach','Range +25%.',p=>p.range*=1.25],['Temporal Split','Speed up again.',p=>{p.atk*=.76;p.dmg+=8}],['Stasis Royalty','Freeze longer.',p=>p.chrono=true],['Time Prince Blade','Extreme speed.',p=>{p.atk*=.68;p.range*=1.2}],['CHRONO-SWORD','Final: freeze all enemies ultimate.',p=>{p.atk*=.62;p.dmg+=12;p.range*=1.25;p.chrono=true}]
+ ]
+};
+function choosePath(){
+ paused=true;$('upgrade').style.display='flex';const box=$('choices');box.innerHTML='';
+ const opts=[['vampire','Vampire Saber','Lifesteal, long range, blood shield shriek.'],['power','Sword of Power','Lightning texture, heavy damage, storm ultimate.'],['chrono','Chrono-Sword','Insane attack speed, lower damage, freeze ultimate.']];
+ for(const o of opts){let d=document.createElement('div');d.className='choice';d.innerHTML=`<h2>${o[1]}</h2><p>${o[2]}</p><p class="small">10 upgrades to final form.</p>`;d.onclick=()=>{player.path=o[0];$('upgrade').style.display='none';paused=false;levelUp()};box.appendChild(d)}
+}
+function levelUp(){
+ paused=true;$('upgrade').style.display='flex';const box=$('choices');box.innerHTML='';
+ let list=upgrades[player.path]; if(player.tier>=10){let d=document.createElement('div');d.className='choice';d.innerHTML='<h2>Royal Reinforcement</h2><p>Damage, HP, speed improved.</p>';d.onclick=()=>{player.dmg+=18;player.max+=30;player.hp=Math.min(player.max,player.hp+60);player.speed*=1.04;player.lvl++;$('upgrade').style.display='none';paused=false;spawnWave()};box.appendChild(d);return}
+ let u=list[player.tier];let d=document.createElement('div');d.className='choice';d.style.width='360px';d.innerHTML=`<h2>${u[0]}</h2><p>${u[1]}</p><p class="small">Upgrade ${player.tier+1}/10</p>`;d.onclick=()=>{u[2](player);player.tier++;player.lvl++;player.hp=Math.min(player.max,player.hp+50);$('upgrade').style.display='none';paused=false;spawnWave()};box.appendChild(d)
+}
+
+function slash(){if(paused||player.atkT>0)return;player.atkT=player.atk;shake=10;let hits=0,damage=0;let aim=screenToWorld(mouse.x,mouse.y);let ang=Math.atan2(aim.z-player.z,aim.x-player.x);
+ for(const e of enemies){
+   let dx=e.x-player.x,dz=e.z-player.z,dist=Math.hypot(dx,dz);let ea=Math.atan2(dz,dx);let diff=Math.atan2(Math.sin(ea-ang),Math.cos(ea-ang));
+   if(dist<player.range && Math.abs(diff)<1.25 || (player.pierce&&dist<player.range*1.5&&Math.abs(diff)<.75)){
+     let dmg=player.dmg*(keys.ShiftLeft?1.22:1);e.hp-=dmg;e.hit=.16;hits++;damage+=dmg;
+     if(player.life)player.hp=Math.min(player.max,player.hp+dmg*player.life);
+     if(player.chrono)e.freeze=Math.max(e.freeze,.8);
+     burst(e.x,e.z,player.path==='vampire'?'#ff174d':player.path==='power'?'#42e8ff':player.path==='chrono'?'#8fffff':'#ffd86a',16);
+     if(player.lightning)chainLightning(e,dmg*.45);
+   }
+ }
+ player.lastDmg+=damage;if(hits)showDialog('Rowan',`Strike true! ${hits} invaders hit.`,900)
+}
+function chainLightning(src,dmg){let jumped=0;for(const e of enemies){if(e===src)continue;if(Math.hypot(e.x-src.x,e.z-src.z)<150&&jumped<4){e.hp-=dmg;e.hit=.2;burst(e.x,e.z,'#35dfff',10);jumped++}}}
+function ultimate(){if(paused||player.ult>0||player.tier<10)return;
+ if(player.path==='power'){player.storm=10;player.ult=16;showDialog('Sword of Power','Storm Judgment: lightning strikes around you for 10 seconds.',2600)}
+ else if(player.path==='chrono'){for(const e of enemies)e.freeze=7;player.ult=14;showDialog('Chrono-Sword','Time stops. The army becomes statues.',2600)}
+ else if(player.path==='vampire'){let spend=Math.max(20,player.hp*.4);player.hp=Math.max(1,player.hp-spend);player.shield+=spend*2;let dmg=Math.max(player.lastDmg,player.dmg*3);player.lastDmg=0;for(const e of enemies)if(Math.hypot(e.x-player.x,e.z-player.z)<player.range*2.5){e.hp-=dmg;burst(e.x,e.z,'#ff0033',24)}player.ult=12;showDialog('Vampire Saber','Blood Shriek converts pain into a shield.',2600)}
+}
+
+function update(dt){
+ player.atkT=Math.max(0,player.atkT-dt);player.ult=Math.max(0,player.ult-dt);
+ let fw=(keys.KeyW?1:0)-(keys.KeyS?1:0),rt=(keys.KeyD?1:0)-(keys.KeyA?1:0);let len=Math.hypot(fw,rt)||1;let sp=player.speed*(keys.ShiftLeft?1.45:1);
+ player.x+=(rt/len)*sp*dt;player.z-=(fw/len)*sp*dt;
+ let bound=900,rr=Math.hypot(player.x,player.z);if(rr>bound){player.x*=bound/rr;player.z*=bound/rr}
+ cam.x+=(player.x-cam.x)*.08;cam.z+=(player.z-cam.z)*.08;
+ if(player.storm>0){player.storm-=dt;for(let i=0;i<7*dt;i+=1){for(const e of enemies)if(Math.hypot(e.x-player.x,e.z-player.z)<170){e.hp-=player.dmg*.55;burst(e.x,e.z,'#35dfff',5)}}}
+ for(const e of enemies){
+   e.freeze=Math.max(0,e.freeze-dt);e.hit=Math.max(0,e.hit-dt);if(e.freeze>0){if(Math.random()<.2)burst(e.x,e.z,'#bfffff',1);continue}
+   let target=(e.target&&e.target.hp>0)?e.target:player;let dx=target.x-e.x,dz=target.z-e.z,d=Math.hypot(dx,dz)||1;e.ang=Math.atan2(dz,dx);e.x+=dx/d*e.spd*dt;e.z+=dz/d*e.spd*dt;
+   if(target!==player&&d<55){target.hp-=dt*(e.elite?5:2.3);morale-=dt*(e.elite?.25:.11);if(Math.random()<dt*2)burst(target.x+(Math.random()-.5)*80,target.z+(Math.random()-.5)*70,'#ff6a00',3)}
+   let pd=Math.hypot(player.x-e.x,player.z-e.z);if(pd<42){let inc=dt*(e.elite?12:6);if(player.shield>0){let s=Math.min(player.shield,inc);player.shield-=s;inc-=s}player.hp-=inc;e.x-=dx/d*40*dt;e.z-=dz/d*40*dt}
+ }
+ enemies=enemies.filter(e=>{if(e.hp<=0){saved+=e.elite?2:1;player.xp+=e.elite?34:16;return false}return true});
+ if(enemies.length===0){wave++;morale=Math.min(100,morale+12);for(const v of villages)if(v.hp>0)v.hp=Math.min(v.max,v.hp+70);showDialog('Veloria','Wave cleared. Villages repaired. Morale rises.',2200);levelUp()}
+ if(player.xp>=player.need){player.xp-=player.need;player.need=Math.floor(player.need*1.45);levelUp()}
+ if(player.hp<=0||morale<=0){paused=true;$('score').textContent=`You protected Veloria until wave ${wave}. Citizens saved: ${saved}.`;$('gameover').style.display='flex'}
+ for(const p of parts){p.t-=dt;p.x+=p.vx*dt;p.z+=p.vz*dt;p.y+=p.vy*dt;p.vy-=380*dt}parts=parts.filter(p=>p.t>0);
+ updateHUD();
+}
+function updateHUD(){$('chapter').textContent=chapter;$('wave').textContent=wave;$('left').textContent=enemies.length;$('lvl').textContent=player.lvl;$('path').textContent=player.path?player.path==='vampire'?'Vampire Saber':player.path==='power'?'Sword of Power':'Chrono-Sword':'None';$('tier').textContent=player.tier;$('saved').textContent=saved;$('hpfill').style.width=Math.max(0,player.hp/player.max*100)+'%';$('xpfill').style.width=Math.max(0,player.xp/player.need*100)+'%';$('morfill').style.width=Math.max(0,morale)+'%'}
+
+function burst(x,z,color,n){for(let i=0;i<n;i++)parts.push({x,z,y:20+Math.random()*30,vx:(Math.random()-.5)*180,vz:(Math.random()-.5)*180,vy:80+Math.random()*180,t:.35+Math.random()*.45,color})}
+function worldToScreen(x,z,y=0){let scale=0.72, sx=(x-cam.x)*scale+innerWidth/2, sy=(z-cam.z)*scale+innerHeight/2-y; return {x:sx,y:sy}}
+function screenToWorld(x,y){let scale=0.72;return{x:(x-innerWidth/2)/scale+cam.x,z:(y-innerHeight/2)/scale+cam.z}}
+function circleGrad(x,y,r,c1,c2){let g=ctx.createRadialGradient(x-r*.35,y-r*.45,r*.1,x,y,r);g.addColorStop(0,c1);g.addColorStop(1,c2);return g}
+function sphere(x,y,r,c1,c2,face='happy',ang=0,crown=false){
+ ctx.save();ctx.shadowColor='rgba(0,0,0,.35)';ctx.shadowBlur=16;ctx.shadowOffsetY=10;ctx.fillStyle='rgba(0,0,0,.22)';ctx.beginPath();ctx.ellipse(x,y+r*.72,r*.95,r*.28,0,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+ ctx.fillStyle=circleGrad(x,y,r,c1,c2);ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=2;ctx.stroke();
+ let ex=Math.cos(ang),ey=Math.sin(ang);let ox=ex*r*.25,oy=ey*r*.12;ctx.fillStyle=face==='enemy'?'#fffbf0':'#07111d';ctx.beginPath();ctx.arc(x-r*.28+ox,y-r*.14+oy,r*.09,0,7);ctx.arc(x+r*.28+ox,y-r*.14+oy,r*.09,0,7);ctx.fill();
+ ctx.strokeStyle='#07111d';ctx.lineWidth=Math.max(2,r*.07);ctx.beginPath();if(face==='sad')ctx.arc(x+ox,y+r*.28+oy,r*.28,Math.PI*1.1,Math.PI*1.9);else if(face==='enemy'){ctx.moveTo(x-r*.28,y+r*.25);ctx.lineTo(x+r*.28,y+r*.16)}else ctx.arc(x+ox,y+r*.08+oy,r*.32,0,Math.PI);ctx.stroke();
+ if(crown){ctx.fillStyle='#ffd64a';ctx.beginPath();ctx.moveTo(x-r*.55,y-r*.82);ctx.lineTo(x-r*.32,y-r*1.25);ctx.lineTo(x,y-r*.88);ctx.lineTo(x+r*.32,y-r*1.25);ctx.lineTo(x+r*.55,y-r*.82);ctx.closePath();ctx.fill();ctx.strokeStyle='#fff3a3';ctx.stroke()}
+ ctx.restore();
+}
+function drawSword(px,py,ang){
+ let len=player.range*.8,w=8+player.tier*.8;let col=player.path==='vampire'?'#cf002b':player.path==='power'?'#63e7ff':player.path==='chrono'?'#9fffff':'#e8f6ff';
+ ctx.save();ctx.translate(px,py);ctx.rotate(ang);ctx.shadowColor=col;ctx.shadowBlur=18+player.tier*2;ctx.fillStyle='#5a3218';ctx.fillRect(14,-5,35,10);ctx.fillStyle='#ffd24d';ctx.fillRect(42,-18,8,36);ctx.fillStyle=col;ctx.fillRect(50,-w/2,len,w);ctx.fillStyle='white';ctx.fillRect(58,-1,len*.82,2);
+ if(player.path==='power'||player.path==='chrono'){ctx.strokeStyle=col;ctx.lineWidth=3;ctx.beginPath();for(let i=0;i<8;i++){let x=58+i*len/8,y=(i%2?1:-1)*(9+player.tier);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}ctx.stroke()}
+ ctx.restore();
+}
+function render(){
+ time+=.016;ctx.clearRect(0,0,innerWidth,innerHeight);
+ // sky/sun
+ let sky=ctx.createLinearGradient(0,0,0,innerHeight);sky.addColorStop(0,'#6bbdff');sky.addColorStop(.42,'#c6f4ff');sky.addColorStop(.43,'#7ccf5a');sky.addColorStop(1,'#2f8d36');ctx.fillStyle=sky;ctx.fillRect(0,0,innerWidth,innerHeight);
+ ctx.fillStyle='rgba(255,235,130,.85)';ctx.beginPath();ctx.arc(innerWidth-130,105,58,0,7);ctx.fill();
+ ctx.fillStyle='rgba(255,255,255,.45)';for(let i=0;i<8;i++){ctx.beginPath();ctx.ellipse((i*210+time*8)% (innerWidth+240)-120,85+i%3*48,80,22,0,0,7);ctx.fill()}
+ // world grid/grass
+ for(let gx=-1200;gx<=1200;gx+=120){let a=worldToScreen(gx,-1200),b=worldToScreen(gx,1200);ctx.strokeStyle='rgba(255,255,255,.05)';ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}
+ for(let gz=-1200;gz<=1200;gz+=120){let a=worldToScreen(-1200,gz),b=worldToScreen(1200,gz);ctx.strokeStyle='rgba(0,80,0,.07)';ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}
+ // villages
+ for(const v of villages){let s=worldToScreen(v.x,v.z);ctx.fillStyle=v.hp>0?'rgba(255,230,150,.16)':'rgba(70,20,10,.20)';ctx.beginPath();ctx.arc(s.x,s.y,95,0,7);ctx.fill();for(let i=0;i<5;i++){let p=worldToScreen(v.x+(i-2)*34,v.z+(i%2-.5)*42);ctx.fillStyle=v.hp>0?'#be7a39':'#2a211d';ctx.fillRect(p.x-18,p.y-22,36,34);ctx.fillStyle=v.hp>0?'#d94128':'#120b08';ctx.beginPath();ctx.moveTo(p.x-24,p.y-22);ctx.lineTo(p.x,p.y-45);ctx.lineTo(p.x+24,p.y-22);ctx.fill();if(v.hp/v.max<.45){ctx.fillStyle='#ff5a0a';ctx.beginPath();ctx.arc(p.x+12,p.y-44,8+Math.sin(time*8+i)*3,0,7);ctx.fill()}}ctx.fillStyle='white';ctx.font='bold 14px Arial';ctx.textAlign='center';ctx.fillText(v.name,s.x,s.y+72);ctx.fillStyle='#111';ctx.fillRect(s.x-45,s.y+78,90,8);ctx.fillStyle='#52ff7d';ctx.fillRect(s.x-45,s.y+78,90*Math.max(0,v.hp/v.max),8)}
+ for(const ci of citizens){if(ci.home.hp<=0)continue;let p=worldToScreen(ci.x+Math.sin(time*2+ci.phase)*9,ci.z+Math.cos(time*1.8+ci.phase)*9);sphere(p.x,p.y,12,'#fff59a','#e9a820','happy',0,false)}
+ // particles behind entities
+ for(const p of parts){let s=worldToScreen(p.x,p.z,p.y);ctx.fillStyle=p.color;ctx.globalAlpha=Math.max(0,p.t*2);ctx.shadowColor=p.color;ctx.shadowBlur=14;ctx.beginPath();ctx.arc(s.x,s.y,4+8*p.t,0,7);ctx.fill();ctx.globalAlpha=1;ctx.shadowBlur=0}
+ // enemies/player sorted by z
+ let items=[];for(const e of enemies)items.push({z:e.z,type:'e',e});items.push({z:player.z,type:'p'});items.sort((a,b)=>a.z-b.z);
+ for(const it of items){if(it.type==='p'){let p=worldToScreen(player.x,player.z);let aim=screenToWorld(mouse.x,mouse.y);let ang=Math.atan2(aim.z-player.z,aim.x-player.x);drawSword(p.x,p.y,ang);sphere(p.x,p.y,28,'#45b6ff','#1253d6','happy',ang,true);if(player.shield>0){ctx.strokeStyle='rgba(95,220,255,.7)';ctx.lineWidth=4;ctx.beginPath();ctx.arc(p.x,p.y,42+Math.sin(time*6)*3,0,7);ctx.stroke()}}else{let e=it.e,p=worldToScreen(e.x,e.z);let target=e.target||player;let ang=Math.atan2(target.z-e.z,target.x-e.x);sphere(p.x,p.y,e.elite?28:20,e.elite?'#cf57ff':'#ff4a3d',e.elite?'#5f087b':'#9d1010','enemy',ang,e.elite);ctx.fillStyle='#111';ctx.fillRect(p.x-22,p.y-38,44,5);ctx.fillStyle='#52ff7d';ctx.fillRect(p.x-22,p.y-38,44*Math.max(0,e.hp/e.max),5);if(e.freeze>0){ctx.strokeStyle='#bfffff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(p.x,p.y,32,0,7);ctx.stroke()}}}
+ if(player.atkT>0){let p=worldToScreen(player.x,player.z);ctx.strokeStyle=player.path==='vampire'?'rgba(255,0,60,.65)':player.path==='power'?'rgba(40,220,255,.65)':player.path==='chrono'?'rgba(160,255,255,.65)':'rgba(255,240,130,.65)';ctx.lineWidth=10;ctx.beginPath();ctx.arc(p.x,p.y,player.range*.72,-.8,.8);ctx.stroke()}
+ // vignette
+ let vg=ctx.createRadialGradient(innerWidth/2,innerHeight/2,100,innerWidth/2,innerHeight/2,innerWidth*.75);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.35)');ctx.fillStyle=vg;ctx.fillRect(0,0,innerWidth,innerHeight)
+}
+function loop(ts){let dt=.016;if(!paused)update(dt);render();requestAnimationFrame(loop)}requestAnimationFrame(loop);updateHUD();
+</script>
+</body>
+</html>

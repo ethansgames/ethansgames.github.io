@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Legends of the World - Forward TD v3</title>
+<style>
+:root{--bg:#070a18;--panel:#121832;--panel2:#1b2448;--gold:#ffd86b;--cyan:#66f3ff;--red:#ff5e6c;--green:#6bff95;--purple:#b77cff;--white:#eef5ff}
+*{box-sizing:border-box;user-select:none}body{margin:0;overflow:hidden;background:#050816;font-family:Verdana,Arial,sans-serif;color:var(--white)}canvas{display:block;width:100vw;height:100vh;background:radial-gradient(circle at 50% 0%,#17275a,#070a18 70%)}
+.ui{position:fixed;inset:0;pointer-events:none;z-index:10}.panel{pointer-events:auto;background:linear-gradient(180deg,rgba(22,31,68,.95),rgba(9,13,31,.92));border:2px solid rgba(102,243,255,.22);box-shadow:0 0 24px rgba(0,0,0,.45),inset 0 0 30px rgba(102,243,255,.05);border-radius:14px;padding:12px}.top{position:absolute;top:10px;left:10px;right:10px;display:flex;gap:10px;align-items:stretch}.stat{min-width:105px;text-align:center}.big{font-size:20px;font-weight:900;color:var(--gold)}.small{font-size:11px;opacity:.82;line-height:1.35}.left{position:absolute;left:10px;top:92px;width:315px;max-height:calc(100vh - 110px);overflow:auto}.right{position:absolute;right:10px;top:92px;width:335px;max-height:calc(100vh - 110px);overflow:auto}.bottom{position:absolute;left:50%;transform:translateX(-50%);bottom:12px;width:min(980px,calc(100vw - 30px));text-align:center}.title{font-weight:900;color:var(--cyan);font-size:18px;margin-bottom:8px}.btn{display:inline-block;margin:4px;padding:9px 12px;border:1px solid rgba(255,255,255,.2);border-radius:10px;background:linear-gradient(#29376f,#17214c);color:white;font-weight:800;cursor:pointer;box-shadow:0 4px 0 #070b1f}.btn:hover{filter:brightness(1.18)}.btn:active{transform:translateY(3px);box-shadow:0 1px 0 #070b1f}.btn.disabled{opacity:.35;pointer-events:none}.towerCard,.relicCard,.curseCard,.nodeCard{border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:8px;margin:6px 0;background:rgba(255,255,255,.045);cursor:pointer}.towerCard:hover,.nodeCard:hover{background:rgba(255,255,255,.09)}.towerCard.selected{outline:2px solid var(--gold);background:rgba(255,216,107,.12)}.towerCard.used{opacity:.55}.rarityCommon{color:#d9e4ff}.rarityUncommon{color:#6bff95}.rarityRare{color:#66f3ff}.rarityEpic{color:#b77cff}.rarityLegendary{color:#ffd86b}.rarityMythic{color:#ff7cf7}.screen{position:fixed;inset:0;background:radial-gradient(circle at 50% 10%,rgba(54,80,160,.93),rgba(5,8,20,.97) 65%);display:flex;align-items:center;justify-content:center;z-index:10}.menu{width:min(930px,94vw);text-align:center}.logo{font-size:52px;font-weight:1000;letter-spacing:1px;text-shadow:0 0 20px rgba(102,243,255,.45),0 8px 0 rgba(0,0,0,.25);color:#fff;margin-bottom:6px}.subtitle{opacity:.85;margin-bottom:18px}.hidden{display:none!important}.choiceGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}.toast{position:absolute;top:95px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.62);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:9px 16px;font-weight:800;color:#fff;opacity:0;transition:.25s}.toast.show{opacity:1}.danger{color:var(--red)}.ok{color:var(--green)}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div class="ui">
+  <div class="top">
+    <div class="panel stat"><div class="big" id="modeTxt">Campaign</div><div class="small">MODE</div></div>
+    <div class="panel stat"><div class="big" id="livesTxt">5</div><div class="small">LIVES</div></div>
+    <div class="panel stat"><div class="big" id="goldTxt">160</div><div class="small">GOLD</div></div>
+    <div class="panel stat"><div class="big" id="actTxt">1</div><div class="small">ACT</div></div>
+    <div class="panel stat"><div class="big" id="waveTxt">Map</div><div class="small">STATE</div></div>
+    <div class="panel" style="flex:1"><div class="title" id="storyTitle">Legends of the World</div><div class="small" id="storyText">Forward-only campaign map. Pick a glowing next tile, then fight in a real open tower-defense arena.</div></div>
+  </div>
+  <div class="panel left" id="leftPanel"></div>
+  <div class="panel right" id="rightPanel"></div>
+  <div class="panel bottom" id="bottomPanel"></div>
+  <div class="toast" id="toast"></div>
+</div>
+<div class="screen" id="menuScreen"><div class="panel menu">
+  <div class="logo">Legends of the World</div>
+  <div class="subtitle">v3: branching 80+ tile stages + actual roomy TD fights</div>
+  <button class="btn" onclick="startCampaign()">Start Campaign</button>
+  <button class="btn disabled" id="endlessBtn" onclick="openCurseMenu()">Endless Locked</button>
+  <div style="margin-top:18px;text-align:left;line-height:1.55;opacity:.9">Map is no longer a cramped hex blob. Each act has 88 forward-only tiles arranged into multiple lanes with battles, chests, shops, shrines, elites, and bosses. In combat, select a tower, place it in open build zones, then press Auto Waves.</div>
+</div></div>
+<div class="screen hidden" id="rewardScreen"><div class="panel menu"><div class="logo" style="font-size:34px" id="rewardTitle">Reward</div><div class="choiceGrid" id="rewardChoices"></div></div></div>
+<div class="screen hidden" id="curseScreen"><div class="panel menu"><div class="logo" style="font-size:34px">Endless Curses</div><div class="subtitle">Add pain, earn bigger rewards.</div><div class="choiceGrid" id="curseChoices"></div><div class="big" id="multTxt">Reward x1.00</div><button class="btn" onclick="startEndless()">Begin Endless</button><button class="btn" onclick="closeCurseMenu()">Back</button></div></div>
+<script>
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');let W=innerWidth,H=innerHeight;function resize(){W=canvas.width=innerWidth;H=canvas.height=innerHeight}addEventListener('resize',resize);resize();
+const $=id=>document.getElementById(id); const rand=(a,b)=>a+Math.random()*(b-a); const randi=(a,b)=>Math.floor(rand(a,b+1));
+function toast(s){const t=$('toast');t.textContent=s;t.classList.add('show');clearTimeout(toast.to);toast.to=setTimeout(()=>t.classList.remove('show'),1700)}
+const towerNames=['Swordsman','Archer','Mage','Ice Mage','Fire Mage','Storm Mage','Engineer','Cannon Crew','Sniper','Necromancer','Paladin','Cleric','Ninja','Samurai','Musketeer','Tesla Engineer','Alchemist','Beastmaster','Falconer','Dragon Rider','Viking','Gladiator','Crossbowman','Time Wizard','Gravity Monk','Oracle','Spirit Caller','Crystal Sage','Golem Builder','Artillery Commander','Machine Gunner','Rocket Trooper','Alien Blaster','Laser Engineer','Robot Defender','Void Mage','Sun Priest','Moon Priestess','Phoenix Keeper','Demon Hunter','Angel Guardian','Star Sorcerer','Reality Bender','Pirate','Spearman','Knight','Ranger','Chemist','World Guardian','Lancer','Ballista','Boomer Mage','Plasma Monk','Frost Archer','Meteor Caller','Rune Knight'];
+const relics=[['Curvy Projectiles','Shots gently curve into enemies.'],['Rubber Shots','Projectiles bounce once.'],['Giant Ammo','Tower damage +20%.'],['Blood Crystal','Kills give +1 gold.'],['Lucky Coin','Chests give better rewards.'],['Mirror Prism','10% chance to double shoot.'],['Timepiece','Enemies move 10% slower.'],['World Fragment','Start battles with +40 gold.'],['Vampire Banner','Win battles heal +1 extra life.'],['Tiny Planet','Shots orbit before striking.'],['Chain Core','Lightning towers chain farther.'],['Black Hole Jar','Boss kills grant bonus relic.']];
+const curses=[['Weak Purse','Start gold -50',.15],['Tower Tax','Max placed towers -1',.25],['Fragile World','Start lives -1',.2],['Thick Skulls','Enemies +25% HP',.25],['No Mercy','No life regen after battles',.5],['Elite Flood','More elite fights',.35]];
+let game={mode:'campaign',state:'map',act:1,lives:5,gold:160,unlockedEndless:false,stageLen:88,nodes:[],current:null,visited:new Set(),crew:[],relics:[],selectedTower:0,placed:[],enemies:[],projectiles:[],wave:0,waveLive:false,spawnTimer:0,spawnLeft:0,path:[],crystal:20,maxPlaced:10,cameraX:0,curses:[],rewardMult:1,mouse:{x:0,y:0},bonusWaves:0};
+function makeTower(i){let rarity=['Common','Common','Uncommon','Rare','Epic','Legendary','Mythic'][Math.min(6,Math.floor(i/9))]||'Common';let cost=45+Math.floor(i*2.8);return {id:crypto.randomUUID(),name:towerNames[i%towerNames.length],rarity,cost,range:95+i%8*9,dmg:9+i%11*3,rate:42-Math.min(24,i%20),kind:i%6,level:1,used:false}}
+function startCampaign(){Object.assign(game,{mode:'campaign',state:'map',act:1,lives:5,gold:160,relics:[],crew:[],selectedTower:0,curses:[],rewardMult:1,bonusWaves:0});for(let i=0;i<8;i++)game.crew.push(makeTower(i));newStage();$('menuScreen').classList.add('hidden');renderUI()}
+function newStage(){game.nodes=[];game.visited=new Set();let lanes=5,lastLane=2;for(let d=0;d<game.stageLen;d++){let count=d==0||d==game.stageLen-1?1:randi(2,4);let used=new Set();if(d==0)used.add(2);else if(d==game.stageLen-1)used.add(2);else while(used.size<count)used.add(randi(0,lanes-1));for(const lane of used){let type='battle';let roll=Math.random();if(d==0)type='start';else if(d==game.stageLen-1)type='boss';else if(d%17==0)type='shop';else if(d%13==0)type='elite';else if(roll<.16)type='chest';else if(roll<.27)type='event';else if(roll<.34)type='shrine';game.nodes.push({d,lane,type,id:d+'_'+lane,x:0,y:0})}}
+ // connect each node to nearest next-depth nodes, always forward only
+ for(const n of game.nodes){n.next=[];let ns=game.nodes.filter(m=>m.d==n.d+1).sort((a,b)=>Math.abs(a.lane-n.lane)-Math.abs(b.lane-n.lane));for(let i=0;i<Math.min(2,ns.length);i++)n.next.push(ns[i].id)}
+ game.current=game.nodes.find(n=>n.d==0).id;game.visited.add(game.current);game.cameraX=0;toast('Act '+game.act+': 88-tile branching world generated')}
+function currentNode(){return game.nodes.find(n=>n.id==game.current)}function available(){let c=currentNode();return c?c.next.filter(id=>!game.visited.has(id)):[]}
+function chooseNode(id){if(game.state!='map')return;if(!available().includes(id)){toast('Only glowing forward tiles can be picked');return}game.current=id;game.visited.add(id);let n=currentNode();if(n.type=='battle')startBattle(false);else if(n.type=='elite')startBattle(true);else if(n.type=='boss')startBattle('boss');else if(n.type=='chest')openReward('Chest Reward');else if(n.type=='shop'){game.gold+=80;toast('Merchant gift: +80 gold');}else if(n.type=='shrine'){game.lives=Math.min(10,game.lives+1);toast('Shrine: +1 life');}else if(n.type=='event'){Math.random()<.5?(game.gold+=60,toast('Event: found +60 gold')):(game.crew.push(makeTower(randi(0,40))),toast('Event: a soldier joins!'));}renderUI()}
+function makeBattlePath(){
+ let left=130,right=W-130,top=185,bottom=H-145,mid=H*.52;
+ let theme=randi(0,4), pts=[];
+ if(theme===0){pts=[{x:left,y:mid},{x:W*.25,y:mid-120},{x:W*.43,y:mid+110},{x:W*.61,y:mid-70},{x:W*.78,y:mid+90},{x:right,y:mid-10}];}
+ else if(theme===1){pts=[{x:left,y:top+30},{x:W*.22,y:top+30},{x:W*.22,y:bottom-20},{x:W*.42,y:bottom-20},{x:W*.42,y:top+70},{x:W*.65,y:top+70},{x:W*.65,y:bottom-60},{x:right,y:bottom-60}];}
+ else if(theme===2){pts=[{x:left,y:bottom-50},{x:W*.23,y:bottom-130},{x:W*.37,y:top+60},{x:W*.53,y:top+150},{x:W*.68,y:bottom-80},{x:W*.82,y:top+80},{x:right,y:mid}];}
+ else if(theme===3){pts=[{x:left,y:mid},{x:W*.2,y:top+80},{x:W*.33,y:top+80},{x:W*.46,y:bottom-60},{x:W*.6,y:bottom-60},{x:W*.72,y:top+115},{x:W*.86,y:top+115},{x:right,y:mid+60}];}
+ else{pts=[{x:left,y:top+70},{x:W*.18,y:mid+100},{x:W*.34,y:mid+100},{x:W*.47,y:top+45},{x:W*.61,y:top+45},{x:W*.75,y:bottom-70},{x:right,y:bottom-70}];}
+ return pts.map(p=>({x:Math.max(110,Math.min(W-110,p.x)),y:Math.max(170,Math.min(H-130,p.y))}));
+}
+function startBattle(kind){game.state='battle';game.wave=0;game.waveLive=false;game.enemies=[];game.projectiles=[];game.placed=[];game.path=makeBattlePath();game.totalWaves=5+(game.bonusWaves||0);game.crystal=kind==='boss'?60:kind?45:36;game.battleKind=kind;game.gold+=game.relics.some(r=>r[0]=='World Fragment')?40:0;renderUI();toast('Place towers. Waves auto-run.')}
+function startWave(){if(game.state!='battle'){toast('Not in battle');return}if(game.waveLive){toast('Wave already running');return}if(game.wave>=5){toast('Battle already won');return}game.wave++;game.waveLive=true;game.spawnLeft=game.battleKind==='boss'?18+game.wave*8:game.battleKind?13+game.wave*6:10+game.wave*5;game.spawnTimer=0;toast('Wave '+game.wave+' started') ;renderUI()}
+function finishBattle(){game.bonusWaves=(game.bonusWaves||0)+2;game.state='map';let regen=game.curses.includes('No Mercy')?0:1;if(game.relics.some(r=>r[0]=='Vampire Banner'))regen++;game.lives=Math.min(10,game.lives+regen);game.gold+=Math.floor((game.battleKind==='boss'?180:game.battleKind?95:55)*game.rewardMult);if(game.battleKind==='boss'){if(game.act>=3&&game.mode==='campaign'){game.unlockedEndless=true;$('endlessBtn').classList.remove('disabled');$('endlessBtn').textContent='Endless Mode';openReward('Campaign Complete! Pick a Boss Relic');}else{game.act++;openReward('Boss Relic');newStage();}}else if(game.battleKind)openReward('Elite Reward');toast('Battle won!');renderUI()}
+function spawnEnemy(){let hp=(35+game.act*10+game.wave*18)*(game.battleKind==='boss'?2.2:game.battleKind?1.5:1)*(game.curses.includes('Thick Skulls')?1.25:1);game.enemies.push({x:game.path[0].x,y:game.path[0].y,hp,max:hp,speed:1.15+game.wave*.08,seg:0,boss:false})}
+function updateBattle(){if(game.state!='battle')return;if(game.waveLive){game.spawnTimer--;if(game.spawnLeft>0&&game.spawnTimer<=0){spawnEnemy();game.spawnLeft--;game.spawnTimer=34-Math.min(16,game.wave*3)}}
+ for(const e of game.enemies){let t=game.path[e.seg+1];if(!t){game.crystal--;e.dead=true;continue}let dx=t.x-e.x,dy=t.y-e.y,dist=Math.hypot(dx,dy);let sp=e.speed*(game.relics.some(r=>r[0]=='Timepiece')?.9:1);if(dist<sp){e.x=t.x;e.y=t.y;e.seg++}else{e.x+=dx/dist*sp;e.y+=dy/dist*sp}}
+ game.enemies=game.enemies.filter(e=>!e.dead&&e.hp>0);
+ for(const tw of game.placed){tw.cd=(tw.cd||0)-1;if(tw.cd<=0){let target=game.enemies.find(e=>Math.hypot(e.x-tw.x,e.y-tw.y)<tw.range);if(target){tw.cd=Math.max(8,tw.rate);let dmg=tw.dmg*tw.level*(game.relics.some(r=>r[0]=='Giant Ammo')?1.2:1);game.projectiles.push({x:tw.x,y:tw.y,t:target,dmg,kind:tw.kind,life:90})}}}
+ for(const p of game.projectiles){if(!p.t||p.t.hp<=0){p.dead=true;continue}let dx=p.t.x-p.x,dy=p.t.y-p.y,d=Math.hypot(dx,dy)||1;p.x+=dx/d*7;p.y+=dy/d*7;p.life--;if(d<9){p.t.hp-=p.dmg;if(p.t.hp<=0){game.gold+=game.relics.some(r=>r[0]=='Blood Crystal')?3:2}p.dead=true}if(p.life<=0)p.dead=true}
+ game.projectiles=game.projectiles.filter(p=>!p.dead);
+ if(game.crystal<=0){game.lives--;game.state='map';toast('Crystal broke! -1 life');if(game.lives<=0){$('menuScreen').classList.remove('hidden');$('menuSub').textContent='Run ended. Try again.'}renderUI();return}
+ if(game.waveLive&&game.spawnLeft<=0&&game.enemies.length==0){game.waveLive=false;if(game.wave>=5)finishBattle();else{toast('Wave clear. Place/upgrade, then start next wave.');renderUI()}}
+}
+function distToPath(x,y){let best=9999;for(let i=0;i<game.path.length-1;i++){let a=game.path[i],b=game.path[i+1],dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy,t=Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/l));let px=a.x+dx*t,py=a.y+dy*t;best=Math.min(best,Math.hypot(x-px,y-py))}return best}
+function canPlace(x,y){if(game.state!='battle')return false;if(x<20||x>W-20||y<105||y>H-70)return false;if(x<395&&y<360)return false;if(x>W-430&&y<300)return false;if(distToPath(x,y)<54)return false;if(game.placed.some(t=>Math.hypot(t.x-x,t.y-y)<42))return false;let max=game.maxPlaced-(game.curses.includes('Tower Tax')?1:0);return game.placed.length<max}
+canvas.addEventListener('mousemove',e=>{game.mouse.x=e.clientX;game.mouse.y=e.clientY});
+canvas.addEventListener('click',e=>{let x=e.clientX,y=e.clientY;if(game.state=='map'){for(const n of game.nodes){if(Math.hypot(x-n.x,y-n.y)<24)chooseNode(n.id)}}else if(game.state=='battle'){let tw=game.crew[game.selectedTower];if(!tw)return;if(canPlace(x,y)&&game.gold>=tw.cost){game.gold-=tw.cost;game.placed.push({...tw,x,y,cd:0});toast('Placed '+tw.name);renderUI()}else if(game.gold<tw.cost)toast('Need more gold');else toast('Cannot place there — keep towers off road/UI')}});
+addEventListener('keydown',e=>{let k=parseInt(e.key);if(k>=1&&k<=9&&game.crew[k-1]){game.selectedTower=k-1;renderUI()}if(e.code==='Space')startWave()});
+function openReward(title){$('rewardTitle').textContent=title;$('rewardScreen').classList.remove('hidden');let box=$('rewardChoices');box.innerHTML='';let opts=[['Relic',relics[randi(0,relics.length-1)]],['Soldier',makeTower(randi(8,55))],['Gold',Math.floor(120*game.rewardMult)]];for(const o of opts){let div=document.createElement('div');div.className='relicCard';div.innerHTML=o[0]=='Relic'?`<b>${o[1][0]}</b><br><span class="small">${o[1][1]}</span>`:o[0]=='Soldier'?`<b>${o[1].name}</b><br><span class="small">${o[1].rarity} tower joins your crew</span>`:`<b>${o[1]} Gold</b><br><span class="small">Instant money</span>`;div.onclick=()=>{if(o[0]=='Relic')game.relics.push(o[1]);if(o[0]=='Soldier')game.crew.push(o[1]);if(o[0]=='Gold')game.gold+=o[1];$('rewardScreen').classList.add('hidden');renderUI()};box.appendChild(div)}}
+function openCurseMenu(){if(!game.unlockedEndless)return;document.getElementById('curseScreen').classList.remove('hidden');let b=$('curseChoices');b.innerHTML='';for(const c of curses){let div=document.createElement('div');div.className='curseCard';div.innerHTML=`<b>${c[0]}</b><br><span class="small">${c[1]}<br>Reward +${Math.round(c[2]*100)}%</span>`;div.onclick=()=>{if(game.curses.includes(c[0]))game.curses=game.curses.filter(x=>x!=c[0]);else game.curses.push(c[0]);game.rewardMult=1+game.curses.reduce((s,n)=>s+(curses.find(c=>c[0]==n)?.[2]||0),0);$('multTxt').textContent='Reward x'+game.rewardMult.toFixed(2);div.style.outline=game.curses.includes(c[0])?'2px solid var(--gold)':'none'};b.appendChild(div)}}
+function closeCurseMenu(){$('curseScreen').classList.add('hidden')}function startEndless(){startCampaign();game.mode='endless';game.act=1;closeCurseMenu()}
+function renderUI(){ $('modeTxt').textContent=game.mode; $('livesTxt').textContent=game.lives; $('goldTxt').textContent=game.gold; $('actTxt').textContent=game.act; $('waveTxt').textContent=game.state=='battle'?`Wave ${game.wave}/${game.totalWaves||5}`:`${game.visited.size}/${game.stageLen}`;
+ let left=$('leftPanel'),right=$('rightPanel'),bottom=$('bottomPanel');
+ if(game.state=='map'){left.innerHTML='<div class="title">Next Choices</div>'+available().map(id=>{let n=game.nodes.find(x=>x.id==id);return `<div class="nodeCard" onclick="chooseNode('${id}')"><b>${icon(n.type)} ${cap(n.type)}</b><br><span class="small">Depth ${n.d+1}/88 · Lane ${n.lane+1}</span></div>`}).join('')+'<div class="small">You cannot go backward or replay visited tiles.</div>';right.innerHTML='<div class="title">Crew / Relics</div><b>Crew:</b> '+game.crew.length+' towers<br><b>Relics:</b> '+game.relics.length+'<br><br>'+game.relics.map(r=>`<div class="relicCard"><b>${r[0]}</b><br><span class="small">${r[1]}</span></div>`).join('');bottom.innerHTML='Click a glowing forward node on the map, or use the cards on the left.';}
+ else{left.innerHTML='<div class="title">Crew Towers</div>'+game.crew.map((t,i)=>`<div class="towerCard ${i==game.selectedTower?'selected':''}" onclick="selectTower(${i})"><b>${i<9?i+1+'. ':''}${t.name}</b> <span class="rarity${t.rarity}">${t.rarity}</span><br><span class="small">Cost ${t.cost} · Damage ${t.dmg} · Range ${t.range}</span></div>`).join('');right.innerHTML=`<div class="title">Battle Controls</div><button class="btn" onclick="skipBattleForLife()">Sacrifice 1 Life: Skip Battle</button><br><b>Crystal:</b> ${game.crystal}<br><b>Placed:</b> ${game.placed.length}/${game.maxPlaced-(game.curses.includes('Tower Tax')?1:0)}<br><b>Enemies:</b> ${game.enemies.length}<br><br><div class="small">Place towers in open ground. You cannot build on the road or under UI panels. Click any tower card or press 1-9.</div><br>`+game.placed.map((t,i)=>`<div class="towerCard"><b>${t.name} Lv.${t.level}</b><br><button class="btn" onclick="upgradeTower(${i})">Upgrade $${70*t.level}</button><button class="btn" onclick="sellTower(${i})">Sell</button></div>`).join('');bottom.innerHTML='TD mode: select tower → click open ground → Auto Waves. The path is intentionally roomy now.';}}
+function selectTower(i){game.selectedTower=i;renderUI()}
+function upgradeTower(i){let t=game.placed[i],cost=70*t.level;if(game.gold>=cost){game.gold-=cost;t.level++;t.dmg=Math.floor(t.dmg*1.25);toast('Upgraded '+t.name);renderUI()}else toast('Need more gold')}function sellTower(i){let t=game.placed.splice(i,1)[0];game.gold+=Math.floor(t.cost*.55);renderUI()}
+function icon(t){return {start:'🏠',battle:'⚔️',elite:'💀',boss:'👑',chest:'🎁',shop:'🛒',shrine:'🔮',event:'❔'}[t]||'•'}function cap(s){return s.charAt(0).toUpperCase()+s.slice(1)}
+function draw(){ctx.clearRect(0,0,W,H);drawStars(); if(game.state=='battle')drawBattle(); else if(game.nodes&&game.nodes.length&&game.current)drawMap(); requestAnimationFrame(draw)}
+function drawStars(){ctx.fillStyle='#070a18';ctx.fillRect(0,0,W,H);for(let i=0;i<90;i++){let x=(i*97%W),y=(i*181%H);ctx.fillStyle='rgba(255,255,255,.22)';ctx.fillRect(x,y,2,2)}}
+function drawMap(){let c=currentNode();if(!c||typeof c.d==='undefined'){return;}let spacing=86;game.cameraX+=(c.d*spacing-W*.45-game.cameraX)*.08;let baseY=H*.5;for(const n of game.nodes){n.x=120+n.d*spacing-game.cameraX;n.y=baseY+(n.lane-2)*78+Math.sin(n.d*.33+n.lane)*16}ctx.lineWidth=3;for(const n of game.nodes){for(const id of n.next){let m=game.nodes.find(x=>x.id==id);if(!m)continue;ctx.strokeStyle=game.visited.has(n.id)?'rgba(102,243,255,.45)':'rgba(255,255,255,.09)';ctx.beginPath();ctx.moveTo(n.x,n.y);ctx.lineTo(m.x,m.y);ctx.stroke()}}
+ let av=available();for(const n of game.nodes){if(n.x<-50||n.x>W+50)continue;let isCur=n.id==game.current,can=av.includes(n.id),seen=game.visited.has(n.id);ctx.beginPath();ctx.arc(n.x,n.y,isCur?25:can?22:18,0,Math.PI*2);ctx.fillStyle=isCur?'#ffd86b':can?'#66f3ff':seen?'#6bff95':'#1a2448';ctx.fill();ctx.strokeStyle=can?'#fff':'rgba(255,255,255,.22)';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle='#06101d';ctx.font='18px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(icon(n.type),n.x,n.y+1)}ctx.textAlign='center';ctx.fillStyle='rgba(255,255,255,.8)';ctx.font='16px Verdana';ctx.fillText('Act '+game.act+' — 88 forward-only tiles, branching routes, no repeats',W/2,150)}
+function drawBattle(){ctx.fillStyle='#0d1630';ctx.fillRect(0,0,W,H);ctx.fillStyle='rgba(30,90,60,.35)';ctx.fillRect(330,115,W-690,H-190);ctx.strokeStyle='rgba(107,255,149,.25)';ctx.strokeRect(330,115,W-690,H-190);
+ ctx.lineCap='round';ctx.lineJoin='round';ctx.lineWidth=54;ctx.strokeStyle='rgba(85,67,48,.95)';ctx.beginPath();game.path.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();ctx.lineWidth=34;ctx.strokeStyle='rgba(138,108,67,.95)';ctx.stroke();ctx.lineWidth=4;ctx.strokeStyle='rgba(255,255,255,.16)';ctx.stroke();
+ let ok=canPlace(game.mouse.x,game.mouse.y);if(game.state=='battle'){let t=game.crew[game.selectedTower];if(t){ctx.beginPath();ctx.arc(game.mouse.x,game.mouse.y,t.range,0,Math.PI*2);ctx.fillStyle=ok?'rgba(107,255,149,.08)':'rgba(255,94,108,.08)';ctx.fill();ctx.strokeStyle=ok?'rgba(107,255,149,.55)':'rgba(255,94,108,.55)';ctx.stroke();ctx.beginPath();ctx.arc(game.mouse.x,game.mouse.y,16,0,Math.PI*2);ctx.fillStyle=ok?'#6bff95':'#ff5e6c';ctx.fill();}}
+ for(const t of game.placed){ctx.beginPath();ctx.arc(t.x,t.y,t.range,0,Math.PI*2);ctx.fillStyle='rgba(102,243,255,.035)';ctx.fill();ctx.beginPath();ctx.arc(t.x,t.y,19,0,Math.PI*2);ctx.fillStyle=['#d9e4ff','#66f3ff','#ff9d5e','#b77cff','#ffd86b','#ff7cf7'][t.kind]||'#fff';ctx.fill();ctx.fillStyle='#05101e';ctx.font='13px Verdana';ctx.fillText(t.level,t.x,t.y+4)}
+ for(const e of game.enemies){ctx.beginPath();ctx.arc(e.x,e.y,14,0,Math.PI*2);ctx.fillStyle='#ff5e6c';ctx.fill();ctx.fillStyle='#111';ctx.fillRect(e.x-18,e.y-25,36,5);ctx.fillStyle='#6bff95';ctx.fillRect(e.x-18,e.y-25,36*Math.max(0,e.hp/e.max),5)}for(const p of game.projectiles){ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);ctx.fillStyle='#ffd86b';ctx.fill()}ctx.fillStyle='white';ctx.font='bold 18px Verdana';ctx.textAlign='left';ctx.fillText('START',game.path[0].x-40,game.path[0].y-45);ctx.textAlign='right';ctx.fillText('CRYSTAL '+game.crystal,game.path.at(-1).x+70,game.path.at(-1).y-45)}
+setInterval(updateBattle,1000/60);draw();renderUI();
+</script>
+
+<script>
+/* v6 gameplay patch: deselect towers + no start wave button */
+(function(){
+  window.__LOTW_V6_PATCH__ = true;
+
+  // Make tower selection toggleable when original code uses selectedTower / selectedTowerIndex.
+  const oldClick = HTMLCanvasElement.prototype.addEventListener;
+  // lightweight: global click/keydown patch after page initializes
+  window.addEventListener('load', () => {
+    try {
+      // Hide any DOM start-wave buttons if they exist.
+      document.querySelectorAll('button,.button,.btn').forEach(el => {
+        const t = (el.textContent || '').toLowerCase();
+        if (t.includes('start wave') || t.includes('auto waves')) {
+          el.style.display = 'none';
+          el.disabled = true;
+        }
+      });
+
+      // Auto start waves by repeatedly calling possible wave functions.
+      setInterval(() => {
+        try {
+          if (window.mode === 'battle' || window.screen === 'battle' || window.inBattle || window.battle) {
+            if (window.waveActive === false && typeof window.startWave === 'function') window.startWave();
+            if (window.waveRunning === false && typeof window.startWave === 'function') window.startWave();
+            if (window.runningWave === false && typeof window.startWave === 'function') window.startWave();
+            if (window.waveStarted === false && typeof window.startWave === 'function') window.startWave();
+          }
+        } catch(e){}
+      }, 550);
+
+      // Add ESC/right click deselect for any common selected tower globals.
+      function deselect(){
+        try {
+          if ('selectedTower' in window) window.selectedTower = null;
+          if ('selectedTowerIndex' in window) window.selectedTowerIndex = -1;
+          if ('selected' in window && typeof window.selected !== 'boolean') window.selected = null;
+          if ('placingTower' in window) window.placingTower = null;
+          if ('ghostTower' in window) window.ghostTower = null;
+          if ('selectedCrew' in window) window.selectedCrew = null;
+          if ('selectedCard' in window) window.selectedCard = -1;
+          if (typeof window.setMessage === 'function') window.setMessage('Tower deselected.');
+        } catch(e){}
+      }
+      window.addEventListener('keydown', e => {
+        if (e.key === 'Escape' || e.key === '0') deselect();
+      });
+      window.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        deselect();
+      });
+
+      // Toggle-off duplicate tower card clicks using capture phase.
+      let lastTowerClick = {key:null, time:0};
+      window.addEventListener('click', e => {
+        try {
+          const x = e.clientX, y = e.clientY;
+          // bottom/side card areas tend to be tower UI; if original click selects same tower,
+          // second click quickly clears selection after original handler runs.
+          const now = performance.now();
+          const key = Math.floor(x/70)+','+Math.floor(y/70);
+          if (lastTowerClick.key === key && now - lastTowerClick.time < 500) {
+            setTimeout(deselect, 0);
+            lastTowerClick = {key:null, time:0};
+          } else {
+            lastTowerClick = {key, time:now};
+          }
+        } catch(err){}
+      }, true);
+    } catch(err) {
+      console.warn('LOTW v6 patch failed', err);
+    }
+  });
+})();
+</script>
+
+
+<script>
+/* v7 gameplay patch:
+   - special towers are not just stat sticks
+   - easier balance
+   - varied waves
+   - next battle waves increase by +2 per win
+   - sacrifice 1 life to skip current battle
+*/
+(function(){
+  window.__LOTW_V7_SPECIALS__ = true;
+
+  const SPECIALS = [
+    {tag:'Pierce', desc:'Shots punch through multiple enemies.'},
+    {tag:'Chain', desc:'Hits jump to nearby enemies.'},
+    {tag:'Freeze', desc:'Slows enemies heavily.'},
+    {tag:'Burn', desc:'Damage over time.'},
+    {tag:'Poison', desc:'Stacking damage over time.'},
+    {tag:'Black Hole', desc:'Occasionally pulls enemies together.'},
+    {tag:'Orbit', desc:'Creates orbiting bullets.'},
+    {tag:'Boomerang', desc:'Shots return through enemies.'},
+    {tag:'Splash', desc:'Area explosions.'},
+    {tag:'Summon', desc:'Spawns small blocker minions.'},
+    {tag:'Gold', desc:'Earns bonus gold on kills.'},
+    {tag:'Curvy', desc:'Projectiles bend toward enemies.'},
+    {tag:'Laser', desc:'Instant beam damage.'},
+    {tag:'Clone', desc:'Creates temporary copy shots.'},
+    {tag:'Shield', desc:'Protects lives from leaks sometimes.'},
+    {tag:'Stun', desc:'Briefly stops enemies.'},
+    {tag:'Vampire', desc:'Kills can restore a tiny amount of HP/life power.'},
+    {tag:'Meteor', desc:'Calls down random meteors.'},
+    {tag:'Wind', desc:'Pushes enemies backward.'},
+    {tag:'Hex', desc:'Marks enemies to take extra damage.'}
+  ];
+
+  function hashName(s){
+    s = String(s || '');
+    let h = 0;
+    for(let i=0;i<s.length;i++) h = (h*31 + s.charCodeAt(i)) >>> 0;
+    return h;
+  }
+
+  function pickSpecial(name, i){
+    return SPECIALS[(hashName(name) + (i||0)) % SPECIALS.length];
+  }
+
+  function getTowerName(t, i){
+    return t?.name || t?.title || t?.type || t?.id || t?.label || ('Tower '+((i||0)+1));
+  }
+
+  function applySpecialToTower(t, i){
+    if(!t || t.__specialApplied) return;
+    const sp = pickSpecial(getTowerName(t,i), i);
+    t.special = sp.tag;
+    t.specialDesc = sp.desc;
+    t.__specialApplied = true;
+
+    // Easier baseline, but specials are where fun comes from.
+    t.cost = Math.max(15, Math.floor((t.cost || 45) * 0.65));
+    t.range = (t.range || 95) + 20;
+    t.damage = (t.damage || t.dmg || 8) * 1.2;
+    t.dmg = t.damage;
+    t.cooldown = Math.max(0.18, (t.cooldown || t.rate || 0.75) * 0.88);
+    t.rate = t.cooldown;
+  }
+
+  function patchAllTowers(){
+    const pools = [window.towers, window.towerTypes, window.crew, window.playerCrew, window.availableTowers, window.TOWERS];
+    pools.forEach(pool => {
+      if(Array.isArray(pool)) pool.forEach((t,i)=>applySpecialToTower(t,i));
+    });
+  }
+
+  function addFloatingPanel(){
+    if(document.getElementById('lotw-v7-panel')) return;
+    const div = document.createElement('div');
+    div.id = 'lotw-v7-panel';
+    div.style.cssText = `
+      position:fixed;right:14px;bottom:14px;z-index:99999;
+      background:rgba(7,12,35,.92);border:2px solid #35d4ff;border-radius:14px;
+      color:white;font-family:system-ui,Segoe UI,sans-serif;padding:12px;min-width:260px;
+      box-shadow:0 0 24px rgba(40,220,255,.25);pointer-events:auto`;
+    div.innerHTML = `
+      <div style="font-weight:900;color:#67f7ff;font-size:18px">Battle Options</div>
+      <div id="lotw-v7-info" style="font-size:13px;opacity:.9;margin:5px 0 10px">Special towers enabled.</div>
+      <button id="lotw-v7-skip" style="
+        width:100%;padding:10px;border-radius:10px;border:0;
+        background:#ff5577;color:white;font-weight:900;cursor:pointer">
+        Sacrifice 1 Life: Skip Battle
+      </button>
+      <div style="font-size:12px;margin-top:8px;opacity:.8">Esc / 0 / right-click = deselect</div>
+    `;
+    document.body.appendChild(div);
+    document.getElementById('lotw-v7-skip').onclick = skipBattle;
+  }
+
+  function setMsg(s){
+    try{
+      if(typeof window.setMessage === 'function') window.setMessage(s);
+      const el = document.getElementById('lotw-v7-info');
+      if(el) el.textContent = s;
+    }catch(e){}
+  }
+
+  function inBattle(){
+    return window.mode === 'battle' || window.screen === 'battle' || window.inBattle || window.battle;
+  }
+
+  function getLives(){
+    return Number(window.lives ?? window.playerLives ?? window.hp ?? window.health ?? 5);
+  }
+
+  function setLives(v){
+    if('lives' in window) window.lives = v;
+    if('playerLives' in window) window.playerLives = v;
+    if('hp' in window) window.hp = v;
+    if('health' in window) window.health = v;
+  }
+
+  function winLike(){
+    // Try several common victory functions first.
+    const funcs = ['winBattle','completeBattle','battleWon','endBattle','finishBattle','returnToMap','goMap','showMap'];
+    for(const f of funcs){
+      try{
+        if(typeof window[f] === 'function'){
+          if(f === 'endBattle') window[f](true);
+          else window[f]();
+          return true;
+        }
+      }catch(e){}
+    }
+    // Fallback state flip.
+    try{
+      window.mode = 'map';
+      window.screen = 'map';
+      window.inBattle = false;
+      window.battle = false;
+      if('enemies' in window && Array.isArray(window.enemies)) window.enemies.length = 0;
+      if('projectiles' in window && Array.isArray(window.projectiles)) window.projectiles.length = 0;
+      setMsg('Battle skipped. Choose the next forward tile.');
+      return true;
+    }catch(e){}
+    return false;
+  }
+
+  function increaseFutureWaves(){
+    window.extraWavesPerWin = (window.extraWavesPerWin || 0) + 2;
+    const vars = ['wavesPerBattle','waveCount','totalWaves','maxWaves','battleWaves'];
+    vars.forEach(k=>{
+      if(typeof window[k] === 'number') window[k] += 2;
+    });
+  }
+
+  function skipBattle(){
+    if(!window.game || game.state !== 'battle'){ setMsg('You can only skip during a battle.'); return; }
+    if(game.lives <= 1){ setMsg('You need at least 2 lives to sacrifice one.'); return; }
+    game.lives -= 1;
+    game.bonusWaves = (game.bonusWaves || 0) + 2;
+    game.state = 'map';
+    game.waveLive = false;
+    game.enemies = [];
+    game.projectiles = [];
+    game.placed = [];
+    game.crystal = 0;
+    renderUI();
+    toast('Skipped battle: -1 life. Future battles +2 waves.');
+    setMsg('Skipped battle for -1 life. No reward gained.');
+  }
+  window.skipBattleForLife = skipBattle;
+
+  function easierBalance(){
+    try{
+      // Make the game noticeably less brutal.
+      if(typeof window.gold === 'number' && window.gold < 260) window.gold = 260;
+      if(typeof window.cash === 'number' && window.cash < 260) window.cash = 260;
+      if(typeof window.money === 'number' && window.money < 260) window.money = 260;
+      // v8: do not force lives upward; skip battle intentionally costs a life.
+
+      if(Array.isArray(window.enemies)){
+        for(const e of window.enemies){
+          if(!e.__v7easy){
+            e.hp = (e.hp || e.health || 20) * 0.72;
+            e.health = e.hp;
+            e.speed = (e.speed || 45) * 0.82;
+            e.__v7easy = true;
+          }
+        }
+      }
+    }catch(e){}
+  }
+
+  function varyWaves(){
+    // Mutates newly spawned enemies so waves are visibly different.
+    try{
+      if(!Array.isArray(window.enemies)) return;
+      const wave = Number(window.wave || window.currentWave || 1);
+      for(const e of window.enemies){
+        if(e.__v7varied) continue;
+        const kind = wave % 6;
+        e.__v7varied = true;
+        if(kind === 0){ e.type = 'Swarm'; e.hp *= .55; e.health = e.hp; e.speed *= 1.35; }
+        if(kind === 1){ e.type = 'Brute'; e.hp *= 1.7; e.health = e.hp; e.speed *= .75; }
+        if(kind === 2){ e.type = 'Runner'; e.hp *= .75; e.health = e.hp; e.speed *= 1.65; }
+        if(kind === 3){ e.type = 'Shield'; e.armor = (e.armor || 0) + 3; e.hp *= 1.25; e.health = e.hp; }
+        if(kind === 4){ e.type = 'Regen'; e.regen = .18; }
+        if(kind === 5){ e.type = 'Flyer'; e.flying = true; e.speed *= 1.15; }
+      }
+    }catch(e){}
+  }
+
+  function nearestEnemy(x,y, range=140){
+    if(!Array.isArray(window.enemies)) return null;
+    let best=null, bd=range*range;
+    for(const e of window.enemies){
+      const ex = e.x ?? e.px ?? e.cx ?? 0, ey = e.y ?? e.py ?? e.cy ?? 0;
+      const dx=ex-x, dy=ey-y, d=dx*dx+dy*dy;
+      if(d<bd && (e.hp ?? e.health ?? 1) > 0){bd=d;best=e;}
+    }
+    return best;
+  }
+
+  function damageEnemy(e, amount){
+    if(!e) return;
+    amount = Math.max(1, amount || 1);
+    if(e.armor) amount = Math.max(1, amount - e.armor);
+    if('hp' in e) e.hp -= amount;
+    if('health' in e) e.health -= amount;
+  }
+
+  function applySpecialCombat(){
+    try{
+      const placed = window.placedTowers || window.towersPlaced || window.builtTowers || window.defenses;
+      if(!Array.isArray(placed)) return;
+      const now = performance.now();
+
+      placed.forEach((t,i)=>{
+        applySpecialToTower(t,i);
+        const x=t.x ?? t.px ?? t.cx ?? 0, y=t.y ?? t.py ?? t.cy ?? 0;
+        const sp=t.special;
+        if(!t.__specialTimer) t.__specialTimer = now + 800 + (i%5)*120;
+        if(now < t.__specialTimer) return;
+        t.__specialTimer = now + 900;
+
+        const target = nearestEnemy(x,y,(t.range||150)+30);
+        if(!target) return;
+        const dmg = (t.damage || t.dmg || 8);
+
+        if(sp === 'Chain'){
+          damageEnemy(target,dmg*.8);
+          window.enemies?.slice(0,4).forEach(e=>{ if(e!==target) damageEnemy(e,dmg*.35); });
+        } else if(sp === 'Freeze'){
+          target.speed = Math.max(8,(target.speed||40)*.55);
+          target.slowUntil = now + 1700;
+          damageEnemy(target,dmg*.55);
+        } else if(sp === 'Burn'){
+          target.burn = (target.burn||0)+3;
+          damageEnemy(target,dmg*.6);
+        } else if(sp === 'Poison'){
+          target.poison = (target.poison||0)+5;
+          damageEnemy(target,dmg*.45);
+        } else if(sp === 'Black Hole'){
+          const tx=target.x??0, ty=target.y??0;
+          window.enemies?.forEach(e=>{
+            if(e===target) return;
+            if('x' in e) e.x += (tx-e.x)*.08;
+            if('y' in e) e.y += (ty-e.y)*.08;
+            damageEnemy(e,dmg*.15);
+          });
+        } else if(sp === 'Meteor'){
+          window.enemies?.slice(0,3).forEach(e=>damageEnemy(e,dmg*1.2));
+        } else if(sp === 'Wind'){
+          if('progress' in target) target.progress = Math.max(0,target.progress - .035);
+          if('pathIndex' in target) target.pathIndex = Math.max(0,target.pathIndex - 1);
+          damageEnemy(target,dmg*.5);
+        } else if(sp === 'Stun'){
+          target.stunUntil = now + 500;
+          target.speed = Math.max(0,(target.speed||40)*.2);
+          damageEnemy(target,dmg*.4);
+        } else if(sp === 'Gold'){
+          damageEnemy(target,dmg*.75);
+          if((target.hp ?? target.health ?? 1) <= 0){
+            if(typeof window.gold === 'number') window.gold += 3;
+            if(typeof window.cash === 'number') window.cash += 3;
+            if(typeof window.money === 'number') window.money += 3;
+          }
+        } else if(sp === 'Shield'){
+          damageEnemy(target,dmg*.5);
+          window.__shieldChance = true;
+        } else if(sp === 'Splash'){
+          const tx=target.x??0, ty=target.y??0;
+          window.enemies?.forEach(e=>{
+            const dx=(e.x??0)-tx, dy=(e.y??0)-ty;
+            if(dx*dx+dy*dy<80*80) damageEnemy(e,dmg*.7);
+          });
+        } else {
+          damageEnemy(target,dmg*.65);
+        }
+      });
+    }catch(e){}
+  }
+
+  function dotTicks(){
+    try{
+      if(!Array.isArray(window.enemies)) return;
+      for(const e of window.enemies){
+        if(e.burn){ damageEnemy(e,.12*e.burn); e.burn *= .992; }
+        if(e.poison){ damageEnemy(e,.08*e.poison); e.poison *= .996; }
+        if(e.regen){ e.hp = (e.hp||e.health||1) + e.regen; e.health = e.hp; }
+      }
+    }catch(e){}
+  }
+
+  // Wrap likely victory functions to add +2 waves per win and regen life gently.
+  function wrapVictories(){
+    ['winBattle','completeBattle','battleWon','finishBattle'].forEach(name=>{
+      if(typeof window[name] === 'function' && !window[name].__v7wrapped){
+        const old = window[name];
+        window[name] = function(){
+          increaseFutureWaves();
+          const l = getLives();
+          setLives(Math.min(10,l+1));
+          setMsg('Battle won! Future battles gain +2 waves.');
+          return old.apply(this, arguments);
+        };
+        window[name].__v7wrapped = true;
+      }
+    });
+  }
+
+  window.addEventListener('load', () => {
+    addFloatingPanel();
+    patchAllTowers();
+    wrapVictories();
+    setInterval(()=>{
+      patchAllTowers();
+      wrapVictories();
+      easierBalance();
+      varyWaves();
+      applySpecialCombat();
+      dotTicks();
+
+      const extra = window.extraWavesPerWin || 0;
+      const info = document.getElementById('lotw-v7-info');
+      if(info && !inBattle()) info.textContent = `Special towers active. Next battle has +${extra} bonus waves.`;
+    }, 250);
+  });
+})();
+</script>
+
+
+<script>
+/* __LOTW_V8_HARD_SKIP__ v8 hard fix: skip costs life, no reward, auto waves run from game.state */
+(function(){
+  function hardSkip(){
+    if(!window.game || game.state !== 'battle'){
+      if(typeof toast === 'function') toast('You can only skip during a battle.');
+      return;
+    }
+    if(game.lives <= 1){
+      if(typeof toast === 'function') toast('You need at least 2 lives.');
+      return;
+    }
+    game.lives -= 1;
+    game.bonusWaves = (game.bonusWaves || 0) + 2;
+    game.state = 'map';
+    game.waveLive = false;
+    game.enemies = [];
+    game.projectiles = [];
+    game.placed = [];
+    game.crystal = 0;
+    if(typeof renderUI === 'function') renderUI();
+    if(typeof toast === 'function') toast('Skipped: -1 life. Future battles +2 waves.');
+  }
+  window.skipBattleForLife = hardSkip;
+
+  window.addEventListener('load', () => {
+    setInterval(() => {
+      try{
+        const b=document.getElementById('lotw-v7-skip');
+        if(b) b.onclick = hardSkip;
+
+        if(window.game && game.state === 'battle' && !game.waveLive){
+          const total = game.totalWaves || 5;
+          if(game.wave < total && typeof startWave === 'function') startWave();
+        }
+      }catch(e){}
+    }, 600);
+  });
+})();
+</script>
+
+
+<script>
+/* __LOTW_V9_RUN_RESET_PATHS_UPGRADES__
+   - fixes new games keeping last game's gold
+   - higher starting gold
+   - custom route/path styles
+   - custom tower upgrade paths
+*/
+(function(){
+  const START_GOLD = 650;
+
+  const PATH_TYPES = {
+    meadow: {
+      name: "Meadow Spiral",
+      desc: "Easy curved road, huge build space.",
+      goldBonus: 80,
+      livesBonus: 1
+    },
+    canyon: {
+      name: "Canyon Split",
+      desc: "Two-lane canyon path, more enemies but more cash.",
+      goldBonus: 160,
+      livesBonus: 0
+    },
+    ruins: {
+      name: "Ancient Ruins",
+      desc: "Long zigzag road with relic-heavy rewards.",
+      goldBonus: 60,
+      livesBonus: 1
+    },
+    void: {
+      name: "Void Relay",
+      desc: "Harder teleport path, better boss rewards.",
+      goldBonus: 220,
+      livesBonus: 0
+    }
+  };
+
+  const UPGRADE_PATHS = [
+    {
+      id: "pierce",
+      name: "Piercer Path",
+      levels: ["Piercing I", "Piercing II", "Linebreaker"],
+      apply(t,l){ t.pierce = (t.pierce||0)+1+l; t.range=(t.range||120)+10; t.special="Pierce"; }
+    },
+    {
+      id: "storm",
+      name: "Storm Path",
+      levels: ["Spark", "Chain Bolt", "Thunderstorm"],
+      apply(t,l){ t.chain = (t.chain||0)+1; t.special="Chain"; t.damage=(t.damage||t.dmg||10)*(1+.12*l); t.dmg=t.damage; }
+    },
+    {
+      id: "frost",
+      name: "Frost Path",
+      levels: ["Chill", "Deep Freeze", "Absolute Zero"],
+      apply(t,l){ t.slow = .25+.08*l; t.special="Freeze"; t.range=(t.range||120)+15; }
+    },
+    {
+      id: "forge",
+      name: "Forge Path",
+      levels: ["Hot Shot", "Napalm", "Meteor Core"],
+      apply(t,l){ t.burn = 2+l*2; t.special=l>=2?"Meteor":"Burn"; t.damage=(t.damage||t.dmg||10)*1.08; t.dmg=t.damage; }
+    },
+    {
+      id: "gravity",
+      name: "Gravity Path",
+      levels: ["Pull", "Crush Field", "Black Hole"],
+      apply(t,l){ t.pull = .05+.04*l; t.special="Black Hole"; t.cooldown=Math.max(.18,(t.cooldown||.8)*.93); }
+    },
+    {
+      id: "summon",
+      name: "Summoner Path",
+      levels: ["Tiny Ally", "Battle Spirit", "Guardian Legion"],
+      apply(t,l){ t.summon = (t.summon||0)+1; t.special="Summon"; t.damage=(t.damage||t.dmg||10)*.92; t.dmg=t.damage; }
+    }
+  ];
+
+  function resetRunFresh(mode){
+    if(!window.game) return;
+    const pathKey = game.customPath || "meadow";
+    const p = PATH_TYPES[pathKey] || PATH_TYPES.meadow;
+
+    game.gold = START_GOLD + p.goldBonus;
+    game.cash = game.gold;
+    game.money = game.gold;
+    game.lives = 5 + p.livesBonus;
+    game.hp = game.lives;
+    game.health = game.lives;
+    game.bonusWaves = 0;
+    game.wave = 0;
+    game.totalWaves = 5;
+    game.waveLive = false;
+    game.enemies = [];
+    game.projectiles = [];
+    game.placed = [];
+    game.relics = [];
+    game.visited = {};
+    game.dead = false;
+    game.state = "map";
+    game.modeName = mode || game.modeName || "Campaign";
+
+    if(!Array.isArray(game.crew) || game.crew.length < 8){
+      game.crew = [];
+      if(typeof makeTower === "function"){
+        for(let i=0;i<10;i++) game.crew.push(makeTower(i));
+      }
+    }
+
+    game.crew.forEach((t,i)=>{
+      t.upgradePath = t.upgradePath || UPGRADE_PATHS[i % UPGRADE_PATHS.length].id;
+      t.upgradeLevel = 0;
+      t.customXP = t.customXP || 0;
+    });
+  }
+
+  function patchStartFunctions(){
+    ["newRun","startGame","startCampaign","restart","resetGame"].forEach(name=>{
+      if(typeof window[name] === "function" && !window[name].__v9wrapped){
+        const old = window[name];
+        window[name] = function(){
+          const r = old.apply(this, arguments);
+          resetRunFresh(name);
+          if(typeof renderUI === "function") renderUI();
+          if(typeof toast === "function") toast("Fresh run started with " + game.gold + " gold.");
+          return r;
+        };
+        window[name].__v9wrapped = true;
+      }
+    });
+  }
+
+  function choosePath(key){
+    if(!PATH_TYPES[key]) key = "meadow";
+    if(!window.game) window.game = {};
+    game.customPath = key;
+    if(typeof toast === "function") toast("Path selected: " + PATH_TYPES[key].name);
+    const el = document.getElementById("lotw-v9-path-current");
+    if(el) el.textContent = PATH_TYPES[key].name + " — " + PATH_TYPES[key].desc;
+  }
+  window.chooseCustomPath = choosePath;
+
+  function getPathObj(id){
+    return UPGRADE_PATHS.find(p=>p.id===id) || UPGRADE_PATHS[0];
+  }
+
+  function upgradeTowerCustom(index){
+    if(!window.game || !Array.isArray(game.crew)) return;
+    const t = game.crew[index];
+    if(!t) return;
+    const path = getPathObj(t.upgradePath);
+    const level = t.upgradeLevel || 0;
+    if(level >= 3){
+      if(typeof toast === "function") toast("Already maxed.");
+      return;
+    }
+    const cost = 90 + level*90;
+    if(game.gold < cost){
+      if(typeof toast === "function") toast("Need " + cost + " gold.");
+      return;
+    }
+    game.gold -= cost;
+    game.cash = game.gold;
+    game.money = game.gold;
+    t.upgradeLevel = level + 1;
+    path.apply(t, level + 1);
+    if(typeof toast === "function") toast((t.name||"Tower") + " upgraded: " + path.levels[level]);
+    if(typeof renderUI === "function") renderUI();
+    refreshUpgradePanel();
+  }
+  window.upgradeTowerCustom = upgradeTowerCustom;
+
+  function setTowerUpgradePath(index, pathId){
+    if(!window.game || !Array.isArray(game.crew)) return;
+    const t = game.crew[index];
+    if(!t) return;
+    if((t.upgradeLevel||0) > 0){
+      if(typeof toast === "function") toast("Path locked after upgrading.");
+      return;
+    }
+    t.upgradePath = pathId;
+    if(typeof toast === "function") toast((t.name||"Tower") + " chose " + getPathObj(pathId).name);
+    refreshUpgradePanel();
+  }
+  window.setTowerUpgradePath = setTowerUpgradePath;
+
+  function makeCustomBattlePath(){
+    const key = (window.game && game.customPath) || "meadow";
+    const w = innerWidth, h = innerHeight;
+    const pts = [];
+    if(key === "canyon"){
+      for(let i=0;i<11;i++){
+        const x = 80 + i*(w-160)/10;
+        pts.push({x, y: i%2 ? h*.34 : h*.66});
+      }
+    } else if(key === "ruins"){
+      for(let i=0;i<14;i++){
+        const x = 70 + i*(w-140)/13;
+        const y = h*.5 + Math.sin(i*.9)*h*.28;
+        pts.push({x,y});
+      }
+    } else if(key === "void"){
+      pts.push({x:60,y:h*.25},{x:w*.24,y:h*.25},{x:w*.24,y:h*.75},{x:w*.45,y:h*.75},{x:w*.45,y:h*.30},{x:w*.65,y:h*.30},{x:w*.65,y:h*.72},{x:w*.84,y:h*.72},{x:w*.84,y:h*.45},{x:w-70,y:h*.45});
+    } else {
+      for(let i=0;i<16;i++){
+        const t=i/15;
+        pts.push({x:60+t*(w-120), y:h*.5 + Math.sin(t*Math.PI*4)*h*.22});
+      }
+    }
+    return pts;
+  }
+
+  function patchPath(){
+    if(typeof window.makeBattlePath === "function" && !window.makeBattlePath.__v9wrapped){
+      window.makeBattlePath = function(){ return makeCustomBattlePath(); };
+      window.makeBattlePath.__v9wrapped = true;
+    }
+  }
+
+  function buildPanel(){
+    if(document.getElementById("lotw-v9-panel")) return;
+    const div = document.createElement("div");
+    div.id = "lotw-v9-panel";
+    div.style.cssText = `
+      position:fixed;left:14px;bottom:14px;z-index:99998;
+      width:370px;max-height:46vh;overflow:auto;
+      background:rgba(5,10,30,.94);color:white;border:2px solid #8df;
+      border-radius:16px;padding:12px;font-family:system-ui,Segoe UI,sans-serif;
+      box-shadow:0 0 28px rgba(80,220,255,.22);pointer-events:auto`;
+    div.innerHTML = `
+      <div style="font-weight:900;color:#8df;font-size:18px">Custom Paths + Upgrades</div>
+      <div style="font-size:12px;opacity:.85;margin-bottom:8px">New runs reset gold properly. Starting gold is much higher now.</div>
+      <div id="lotw-v9-path-current" style="font-size:13px;margin:6px 0;color:#ffd">Meadow Spiral — Easy curved road, huge build space.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
+        ${Object.entries(PATH_TYPES).map(([k,p])=>`<button onclick="chooseCustomPath('${k}')" style="padding:7px;border-radius:9px;border:0;background:#194cff;color:white;font-weight:800">${p.name}</button>`).join("")}
+      </div>
+      <button onclick="(function(){ resetFreshRunV9(); })()" style="width:100%;padding:9px;border-radius:10px;border:0;background:#30cc78;color:white;font-weight:900;margin-bottom:10px">Start Fresh Run: 650+ Gold</button>
+      <div id="lotw-v9-upgrades"></div>
+    `;
+    document.body.appendChild(div);
+    refreshUpgradePanel();
+  }
+
+  function refreshUpgradePanel(){
+    const el = document.getElementById("lotw-v9-upgrades");
+    if(!el || !window.game || !Array.isArray(game.crew)) return;
+    el.innerHTML = `<div style="font-weight:900;color:#fc8;margin:6px 0">Tower Upgrade Paths</div>` +
+      game.crew.slice(0,10).map((t,i)=>{
+        const path = getPathObj(t.upgradePath);
+        const lvl = t.upgradeLevel || 0;
+        return `
+          <div style="border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:7px;margin:6px 0;background:rgba(255,255,255,.04)">
+            <div style="font-weight:900">${i+1}. ${t.name||"Tower"} <span style="color:#8df">Lv ${lvl}/3</span></div>
+            <div style="font-size:12px;color:#ddd">${path.name}: ${path.levels[Math.min(lvl,2)] || "Maxed"}</div>
+            <select onchange="setTowerUpgradePath(${i}, this.value)" ${lvl>0?"disabled":""} style="width:100%;margin:5px 0;background:#111b3a;color:white;border-radius:7px;padding:4px">
+              ${UPGRADE_PATHS.map(p=>`<option value="${p.id}" ${p.id===t.upgradePath?"selected":""}>${p.name}</option>`).join("")}
+            </select>
+            <button onclick="upgradeTowerCustom(${i})" style="width:100%;padding:7px;border-radius:8px;border:0;background:#7d48ff;color:white;font-weight:900">Upgrade ${90+lvl*90}g</button>
+          </div>
+        `;
+      }).join("");
+  }
+
+  window.resetFreshRunV9 = function(){
+    resetRunFresh("Fresh");
+    if(typeof generateMap === "function") {
+      try { generateMap(); } catch(e){}
+    }
+    if(typeof renderUI === "function") renderUI();
+    refreshUpgradePanel();
+    if(typeof toast === "function") toast("Fresh run: gold reset to " + game.gold + ".");
+  };
+
+  window.addEventListener("load", () => {
+    setTimeout(()=>{
+      patchStartFunctions();
+      patchPath();
+      buildPanel();
+
+      // First-load cleanup in case the previous file carried mutated runtime state.
+      if(window.game && (game.gold > 1500 || game.gold === undefined)){
+        resetRunFresh("Fresh");
+      } else if(window.game && typeof game.gold === "number" && game.gold < START_GOLD){
+        game.gold = START_GOLD + ((PATH_TYPES[game.customPath||"meadow"]||PATH_TYPES.meadow).goldBonus);
+      }
+
+      if(typeof renderUI === "function") renderUI();
+      refreshUpgradePanel();
+    }, 300);
+
+    setInterval(()=>{
+      patchStartFunctions();
+      patchPath();
+      refreshUpgradePanel();
+    }, 1500);
+  });
+})();
+</script>
+
+</body>
+</html>

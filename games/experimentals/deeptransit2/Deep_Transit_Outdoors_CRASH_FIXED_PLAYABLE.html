@@ -1,0 +1,316 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Deep Transit Outdoors - Terminus Actual</title>
+<style>
+html,body{margin:0;overflow:hidden;background:#10151a;color:#fff6d8;font-family:Arial,Helvetica,sans-serif;user-select:none}canvas{display:block}
+#menu{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 35%,#354033,#10151a 70%)}.card{width:min(880px,90vw);padding:32px;border:1px solid #b98747;border-radius:16px;background:rgba(0,0,0,.66);box-shadow:0 0 70px #000}.card h1{margin:0 0 8px;font-size:42px}.card p{font-size:17px;line-height:1.4}.card button{padding:14px 32px;border:0;border-radius:12px;background:#ffd481;color:#17100a;font-weight:900;font-size:22px;cursor:pointer}
+#hud{position:fixed;left:10px;top:10px;padding:10px 12px;border:1px solid rgba(255,214,130,.4);background:rgba(0,0,0,.38);border-radius:10px;font-weight:800;line-height:1.38;text-shadow:0 2px 5px #000;pointer-events:none;min-width:300px;z-index:5}
+#tele{position:fixed;right:10px;top:10px;padding:9px 11px;border:1px solid rgba(255,214,130,.38);background:rgba(0,0,0,.32);border-radius:10px;font-weight:800;line-height:1.35;pointer-events:none;z-index:5}
+#msg{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);max-width:980px;text-align:center;padding:12px 18px;border-radius:10px;border:1px solid rgba(255,220,150,.28);background:rgba(0,0,0,.56);font-size:18px;font-weight:900;text-shadow:0 2px 5px #000;pointer-events:none;z-index:6}
+#cross{position:fixed;left:50%;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;pointer-events:none;z-index:5}#cross:before,#cross:after{content:"";position:absolute;background:#fff0c0;box-shadow:0 0 8px #ffc66f}#cross:before{left:6px;top:0;width:2px;height:14px}#cross:after{left:0;top:6px;width:14px;height:2px}
+#jump{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:30;background:rgba(0,0,0,.16);font-size:66px;font-weight:900;color:#fff1a8;text-shadow:0 0 28px #ffcc5f;letter-spacing:5px;pointer-events:none}
+#cut{position:fixed;inset:0;display:none;align-items:center;justify-content:center;text-align:center;z-index:35;color:#ffe5a5;font-size:32px;font-weight:900;text-shadow:0 0 22px #000;background:rgba(0,0,0,.24);pointer-events:none;padding:42px}
+#top,#bot{position:fixed;left:0;width:100%;height:0;background:#000;z-index:34;transition:height .25s;pointer-events:none}.cine #top,.cine #bot{height:12vh}#top{top:0}#bot{bottom:0}
+</style></head><body>
+<div id="top"></div><div id="bot"></div><div id="hud"></div><div id="tele">Teleport: 1 Start • 2 740m • 3 1740m • 4 2300m • 5 Final</div><div id="msg">START then click to lock mouse. WASD, Shift, F flashlight, E interact.</div><div id="cross"></div><div id="jump">RUN</div><div id="cut"></div>
+<div id="menu"><div class="card"><h1>DEEP TRANSIT: OUTDOORS</h1><p>2500m lantern trail. Mandrakes, Surge, Groundskeeper, Eyestalk, Brambles, and Terminus.</p><p>Fixed direction: Eyestalk replaces Eyestalk. The final area is now a mossy brick World Lotus labyrinth with lantern courts, guillotines, and root arenas instead of the ugly hedge-wall mess.</p><button id="start" onclick="window.__manualStartGame&&window.__manualStartGame()">START</button></div></div>
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+window.addEventListener('error',e=>{document.getElementById('msg').textContent='JS ERROR: '+e.message+' line '+e.lineno;console.error(e.error||e.message)});
+let scene,camera,renderer,clock=new THREE.Clock();
+let player=new THREE.Vector3(0,2.05,8),yaw=0,pitch=0,locked=false,started=false,keys={},hp=100,stamina=100,battery=100,medkits=0,crates=0,msgTimer=0,flashOn=true,cutscene=false,wind=0;
+const TOTAL=2500, N=110, STEP=TOTAL/(N-1); let trail=[],colliders=[],closets=[],cratesArr=[],holes=[],traps=[],lanterns=[],activeLights=[];
+let spot,spotTarget,nearLight,rain,mandrake=null,vineLine=null,groundskeeper,groundsActive=false,surgeState='idle',surgeTimer=10,surgeMesh;
+let seek,seekActive=false,seekDone=false,brambles,bramblesActive=false,bramblesDone=false,bones=0,graves=[],terminus,termActive=false,termDone=false,roots=0,rootObjs=[],mazeLamps=[],guillotines=[];
+const hud=document.getElementById('hud'),msg=document.getElementById('msg'),jump=document.getElementById('jump'),cut=document.getElementById('cut');
+function mat(c,em=0){let m=new THREE.MeshStandardMaterial({color:c,roughness:.92,metalness:0}); if(em){m.emissive=new THREE.Color(c);m.emissiveIntensity=em} return m}
+function mesh(g,c,em=0){return new THREE.Mesh(g,mat(c,em))} function box(x,y,z,c,em=0){return mesh(new THREE.BoxGeometry(x,y,z),c,em)} function cyl(r,h,c,n=8){return mesh(new THREE.CylinderGeometry(r,r,h,n),c)} function cone(r,h,c,n=9){return mesh(new THREE.ConeGeometry(r,h,n),c)}
+function show(t,s=4){msg.textContent=t;msgTimer=s} function scare(t,ms=420){jump.textContent=t;jump.style.display='flex';setTimeout(()=>jump.style.display='none',ms)} function addCol(x,z,r){colliders.push({x,z,r})}
+function pathAt(i){let t=i;return new THREE.Vector3(Math.sin(t*.24)*50+Math.sin(t*.71)*18,0,-t*24)}
+function init(){scene=new THREE.Scene();scene.background=new THREE.Color(0x1e2930);scene.fog=new THREE.FogExp2(0x313833,.0052);camera=new THREE.PerspectiveCamera(78,innerWidth/innerHeight,.1,780);renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=false;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=2.15;document.body.appendChild(renderer.domElement);
+ scene.add(new THREE.HemisphereLight(0x9aa3a8,0x211a0d,1.1));let moon=new THREE.DirectionalLight(0x9fb8c8,.32);moon.position.set(-80,120,40);scene.add(moon);let ground=mesh(new THREE.PlaneGeometry(1200,2850),0x24301d);ground.rotation.x=-Math.PI/2;scene.add(ground);
+ window.__manualStartGame=()=>{started=true;document.getElementById('menu').style.display='none';lockMouse();show('Follow the lantern path. EYESTALK replaced Eyestalk. START is fixed.');};
+ const startBtn=document.getElementById('start');
+ if(startBtn)startBtn.onclick=window.__manualStartGame;
+ try{
+   buildTrail();buildForest();buildLanterns();buildHouses();buildHazards();buildGroundskeeper();buildSurge();buildSeek();buildCemetery();buildTerminusMaze();makeTerminusBody();makeRain();makeFlashlight();
+ }catch(err){
+   console.error(err);
+   msg.textContent='World build warning: '+err.message+' — START still works.';
+ }
+ addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+ document.body.addEventListener('click',()=>{if(started)lockMouse()});
+ document.addEventListener('pointerlockchange',()=>locked=document.pointerLockElement===renderer.domElement);
+ document.addEventListener('mousemove',e=>{if(!locked)return;yaw-=e.movementX*.0021;pitch-=e.movementY*.0021;pitch=Math.max(-1.32,Math.min(1.32,pitch))});
+ addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='KeyF')flashOn=!flashOn;if(e.code==='KeyE')interact();if(e.code.startsWith('Digit'))tele(e.code)});
+ addEventListener('keyup',e=>keys[e.code]=false);
+ animate()
+}
+function lockMouse(){renderer.domElement.requestPointerLock?.()}
+function buildTrail(){for(let i=0;i<N;i++)trail.push(pathAt(i));for(let i=0;i<N-1;i++){let p=trail[i],q=trail[i+1],dx=q.x-p.x,dz=q.z-p.z,len=Math.hypot(dx,dz);let r=box(12,.08,len+2,0x6a5438);r.position.set((p.x+q.x)/2,.04,(p.z+q.z)/2);r.rotation.y=Math.atan2(dx,dz);scene.add(r); if(i%9===4)makeSplit(p,q,i)}}
+function makeSplit(p,q,i){let dx=q.x-p.x,dz=q.z-p.z,len=Math.hypot(dx,dz)||1,nx=dz/len,nz=-dx/len;for(let s of[-1,1]){let b=box(5,.07,42,0x604b32);b.position.set(p.x+nx*s*10,.05,p.z+nz*s*10);b.rotation.y=Math.atan2(dx,dz)+s*.75;scene.add(b);let num=box(1.8,2.4,.25,0xf2ca79,.25);num.position.set(p.x+nx*s*16,1.2,p.z+nz*s*16);num.rotation.y=Math.atan2(dx,dz);num.userData.label=(s>0?'2':'1');scene.add(num)}}
+function closestInfo(x,z){let b=1e9,idx=0;for(let i=0;i<trail.length;i++){let d=(x-trail[i].x)**2+(z-trail[i].z)**2;if(d<b){b=d;idx=i}}return{d:Math.sqrt(b),idx,meters:Math.min(TOTAL,idx*STEP)}}
+function buildForest(){const tg=new THREE.CylinderGeometry(.5,.75,7,7),pg=new THREE.ConeGeometry(3.2,9,8),bg=new THREE.DodecahedronGeometry(1.15,0);let trunks=new THREE.InstancedMesh(tg,mat(0x2c2115),1400),pines=new THREE.InstancedMesh(pg,mat(0x16341e),1400),bush=new THREE.InstancedMesh(bg,mat(0x20331b),900);scene.add(trunks,pines,bush);let dummy=new THREE.Object3D();for(let i=0;i<1400;i++){let t=Math.random()*(N-1),p=pathAt(t),q=pathAt(Math.min(N-1,t+.4)),dx=q.x-p.x,dz=q.z-p.z,len=Math.hypot(dx,dz)||1,nx=dz/len,nz=-dx/len,side=Math.random()<.5?-1:1,dist=14+Math.random()*90,s=.7+Math.random()*1.3,x=p.x+nx*side*dist+(Math.random()-.5)*16,z=p.z+nz*side*dist+(Math.random()-.5)*24;dummy.position.set(x,3.5*s,z);dummy.scale.set(s,s,s);dummy.rotation.y=Math.random()*6.28;dummy.updateMatrix();trunks.setMatrixAt(i,dummy.matrix);dummy.position.set(x,8*s,z);dummy.updateMatrix();pines.setMatrixAt(i,dummy.matrix);if(i%4===0)addCol(x,z,.85*s)}trunks.instanceMatrix.needsUpdate=pines.instanceMatrix.needsUpdate=true;for(let i=0;i<900;i++){let t=Math.random()*(N-1),p=pathAt(t),q=pathAt(Math.min(N-1,t+.4)),dx=q.x-p.x,dz=q.z-p.z,len=Math.hypot(dx,dz)||1,nx=dz/len,nz=-dx/len,side=Math.random()<.5?-1:1,dist=8+Math.random()*25,s=.8+Math.random()*1.2;dummy.position.set(p.x+nx*side*dist+(Math.random()-.5)*8,.7*s,p.z+nz*side*dist+(Math.random()-.5)*14);dummy.scale.set(s,s,s);dummy.updateMatrix();bush.setMatrixAt(i,dummy.matrix)}bush.instanceMatrix.needsUpdate=true}
+function makeLantern(x,z,strong=true){let post=cyl(.12,3.2,0x2c1d0f);post.position.set(x,1.6,z);scene.add(post);let lamp=mesh(new THREE.SphereGeometry(.42,12,8),0xffbd62,2.8);lamp.position.set(x,2.5,z);scene.add(lamp);lanterns.push({x,z,lamp})}
+function buildLanterns(){for(let i=1;i<N;i+=1){let p=trail[i],q=trail[Math.min(N-1,i+1)],dx=q.x-p.x,dz=q.z-p.z,len=Math.hypot(dx,dz)||1,nx=dz/len,nz=-dx/len,side=i%2?1:-1;makeLantern(p.x+nx*side*5,p.z+nz*side*5,true)}}
+function updateLights(){for(const l of activeLights)scene.remove(l);activeLights.length=0;let near=lanterns.map(o=>({o,d:(o.x-player.x)**2+(o.z-player.z)**2})).sort((a,b)=>a.d-b.d).slice(0,24);for(const n of near){let L=new THREE.PointLight(0xffb45c,10,58,1.25);L.position.set(n.o.x,2.35,n.o.z);scene.add(L);activeLights.push(L)}}
+function makeHouse(x,z,rot=0){let g=new THREE.Group();let sx=10,sz=8;let parts=[[sx,.15,sz,0x3b2b1d,0,.08,0],[sx,3.8,.35,0x33271d,0,1.9,-sz/2], [.35,3.8,sz,0x33271d,-sx/2,1.9,0],[.35,3.8,sz,0x33271d,sx/2,1.9,0],[3.2,3.8,.35,0x33271d,-3.4,1.9,sz/2],[3.2,3.8,.35,0x33271d,3.4,1.9,sz/2]];for(const p of parts){let b=box(p[0],p[1],p[2],p[3]);b.position.set(p[4],p[5],p[6]);g.add(b)}let roof=cone(7.2,2.6,0x1a130e,4);roof.rotation.y=Math.PI/4;roof.position.y=5;g.add(roof);let cl=box(1.6,3,1,0x20150d);cl.position.set(-3.8,1.5,-2.7);g.add(cl);let cr=box(1.2,1,1.2,0x5a3920);cr.position.set(2,.55,-1);g.add(cr);g.position.set(x,0,z);g.rotation.y=rot;scene.add(g);closets.push({x:x+Math.cos(rot)*-3.8+Math.sin(rot)*-2.7,z:z-Math.sin(rot)*-3.8+Math.cos(rot)*-2.7,inside:false});cratesArr.push({x:x+Math.cos(rot)*2+Math.sin(rot)*-1,z:z-Math.sin(rot)*2+Math.cos(rot)*-1,opened:false});addCol(x,z,1.2)}
+function buildHouses(){for(let i=5;i<N-5;i+=5){let p=trail[i],q=trail[i+1],dx=q.x-p.x,dz=q.z-p.z,len=Math.hypot(dx,dz)||1,nx=dz/len,nz=-dx/len,side=i%10<5?1:-1;makeHouse(p.x+nx*side*18,p.z+nz*side*18,Math.atan2(dx,dz)+Math.PI+(Math.random()-.5)*.5)}}
+function buildHazards(){for(let i=8;i<N-8;i+=4){let p=trail[i];let t=mesh(new THREE.TorusGeometry(1.8,.12,8,20),0x3a160e);t.rotation.x=Math.PI/2;t.position.set(p.x+(Math.random()-.5)*8,.08,p.z+(Math.random()-.5)*8);t.userData.trap=true;scene.add(t);traps.push(t)}for(let i=10;i<N-10;i+=7){let p=trail[i],q=trail[i+1],dx=q.x-p.x,dz=q.z-p.z,len=Math.hypot(dx,dz)||1,nx=dz/len,nz=-dx/len,side=Math.random()<.5?-1:1;makeHole(p.x+nx*side*(9+Math.random()*10),p.z+nz*side*(9+Math.random()*10))}}
+function makeHole(x,z){let ring=mesh(new THREE.TorusGeometry(1.35,.13,8,22),0x140b05);ring.rotation.x=Math.PI/2;ring.position.set(x,.1,z);scene.add(ring);holes.push({x,z,used:false})}
+function buildGroundskeeper(){groundskeeper=new THREE.Group();let b=mesh(new THREE.CapsuleGeometry(.55,2.5,4,8),0x1c130c);b.position.y=1.5;groundskeeper.add(b);let h=mesh(new THREE.SphereGeometry(.42,10,8),0x0b0704);h.position.y=2.9;groundskeeper.add(h);let s=box(.13,3.6,.13,0x26170c);s.position.set(.8,1.8,0);s.rotation.z=.3;groundskeeper.add(s);let blade=box(1.6,.12,.2,0xd7d2bb,.2);blade.position.set(1.25,3.35,0);groundskeeper.add(blade);groundskeeper.visible=false;scene.add(groundskeeper)}
+function buildSurge(){surgeMesh=box(3,4,3,0xffef71,2);surgeMesh.visible=false;scene.add(surgeMesh)}
+function buildSeek(){seek=new THREE.Group();let body=mesh(new THREE.SphereGeometry(3.3,18,12),0x315418);body.scale.set(1.1,1.35,1);body.position.y=3.6;seek.add(body);for(let i=0;i<26;i++){let eye=mesh(new THREE.SphereGeometry(.23,8,6),0xffffd0,1.5);let a=Math.random()*6.28,r=2.4+Math.random()*.55;eye.position.set(Math.cos(a)*r,2.2+Math.random()*3.2,Math.sin(a)*r);seek.add(eye)}let arm1=box(.45,.45,9,0x223a10);arm1.position.set(-4,2.7,0);arm1.rotation.z=.45;seek.add(arm1);let arm2=box(.45,.45,9,0x223a10);arm2.position.set(4,2.7,0);arm2.rotation.z=-.45;seek.add(arm2);seek.userData.a1=arm1;seek.userData.a2=arm2;seek.visible=false;scene.add(seek)}
+function makeWall(x,z,rot,len=22){let w=box(len,4,.8,0x514633);w.position.set(x,2,z);w.rotation.y=rot;scene.add(w);for(let i=0;i<4;i++){let moss=box(2+Math.random()*3,.08,.9,0x25451b,.05);moss.position.set(x+(Math.random()-.5)*len,3.7+Math.random()*.5,z);moss.rotation.y=rot;scene.add(moss)}}
+function buildCemetery(){for(let i=73;i<86;i++){let p=trail[i];for(let j=0;j<8;j++){let grave=box(1,.18,1.8,0x6b6b61);grave.position.set(p.x+(Math.random()-.5)*60,.1,p.z+(Math.random()-.5)*38);scene.add(grave);let stone=box(1.1,1.6,.25,0x858575);stone.position.set(grave.position.x,.8,grave.position.z-.8);scene.add(stone);if(Math.random()<.22){grave.userData.bone=true;graves.push(grave)}}makeWall(p.x-34,p.z,0,25);makeWall(p.x+34,p.z,0,25)}brambles=new THREE.Group();let b=mesh(new THREE.CapsuleGeometry(2.0,4.5,6,10),0x1c2a12);b.position.y=3;brambles.add(b);for(let i=0;i<12;i++){let v=box(.3,.3,5+Math.random()*4,0x2a4017);v.position.set((Math.random()-.5)*4,2+Math.random()*3,(Math.random()-.5)*4);v.rotation.set(Math.random(),Math.random(),Math.random());brambles.add(v)}brambles.visible=false;scene.add(brambles)}
+function buildTerminusMaze(){
+ let startIdx=Math.max(0,Math.round(2225/STEP));
+ let madeRoots=0;
+ for(let i=startIdx;i<N;i++){
+   let p=trail[i], q=trail[Math.min(N-1,i+1)];
+   let dx=q.x-p.x,dz=q.z-p.z,len=Math.hypot(dx,dz)||1,nx=dz/len,nz=-dx/len;
+   // Mossy brick garden walls along the route, with visible gaps instead of random hedge blocks.
+   for(let side of[-1,1]){
+     let wall=box(2.4,5.2,19,0x3b3429);
+     wall.position.set(p.x+nx*side*16,2.6,p.z+nz*side*16);
+     wall.rotation.y=Math.atan2(dx,dz);
+     scene.add(wall);
+     addCol(wall.position.x,wall.position.z,3.2);
+     let moss=box(2.55,.45,19.2,0x17351b,.04);
+     moss.position.set(wall.position.x,5.35,wall.position.z);
+     moss.rotation.y=wall.rotation.y;
+     scene.add(moss);
+   }
+   // Close lantern chain so it still feels like Outdoors and not a black maze.
+   if(i%1===0){
+     makeLantern(p.x+nx*5.8,p.z+nz*5.8,true);
+     makeLantern(p.x-nx*5.8,p.z-nz*5.8,true);
+     mazeLamps.push(new THREE.Vector3(p.x+nx*5.8,0,p.z+nz*5.8));
+     mazeLamps.push(new THREE.Vector3(p.x-nx*5.8,0,p.z-nz*5.8));
+   }
+   // Courtyard / split lanes with number stones so it feels like an actual mapped zone.
+   if(i%6===0){
+     for(let side of[-1,1]){
+       let archA=box(.7,6,.7,0x4a4032),archB=box(.7,6,.7,0x4a4032),archT=box(6,.7,.7,0x4a4032);
+       archA.position.set(p.x+nx*side*26,3,p.z+nz*side*26-2);
+       archB.position.set(p.x+nx*side*26,3,p.z+nz*side*26+2);
+       archT.position.set(p.x+nx*side*26,6.1,p.z+nz*side*26);
+       scene.add(archA,archB,archT);
+       let num=box(2.6,1.6,.25,0x1f1b15,.2);
+       num.position.set(p.x+nx*side*21,1.8,p.z+nz*side*21);
+       scene.add(num);
+     }
+   }
+   // Exactly 12 World Lotus roots, each with a guillotine beside it.
+   if(madeRoots<12 && i%4===1){
+     let side=(madeRoots%2===0)?-1:1;
+     let root=mesh(new THREE.CapsuleGeometry(.85,7,5,10),0x3f1c0e);
+     root.position.set(p.x+nx*side*7.8,1.7,p.z+nz*side*7.8);
+     root.rotation.z=Math.PI/2;
+     root.rotation.y=Math.atan2(dx,dz);
+     root.userData.root=true; root.userData.cut=false;
+     scene.add(root); rootObjs.push(root);
+     let guil=new THREE.Group();
+     let a=box(.32,6,.32,0x786c55),b=box(.32,6,.32,0x786c55),top=box(3.4,.35,.35,0x786c55),blade=box(2.8,.22,.45,0xe6e0c8,.35);
+     a.position.set(-1.55,3,0); b.position.set(1.55,3,0); top.position.set(0,5.8,0); blade.position.set(0,4.1,0);
+     guil.add(a,b,top,blade);
+     guil.position.set(root.position.x,0,root.position.z+3.8);
+     scene.add(guil); guillotines.push(guil);
+     madeRoots++;
+   }
+ }
+ // World Lotus centerpiece at the end.
+ let p=trail[N-1];
+ let lotus=new THREE.Group();
+ let stem=mesh(new THREE.CylinderGeometry(2.6,3.8,14,12),0x261106);
+ stem.position.y=7; lotus.add(stem);
+ for(let k=0;k<16;k++){
+   let petal=mesh(new THREE.ConeGeometry(2.2,8,8),0x5a1e3d,.22);
+   petal.position.set(Math.cos(k*.392)*5,14,Math.sin(k*.392)*5);
+   petal.rotation.z=Math.PI/2; petal.rotation.y=k*.392;
+   lotus.add(petal);
+ }
+ lotus.position.set(p.x,0,p.z-22);
+ scene.add(lotus);
+} 
+
+function makeTerminusBody(){terminus=new THREE.Group();let core=mesh(new THREE.CapsuleGeometry(2.4,5.5,8,12),0x22100b);core.position.y=4;terminus.add(core);for(let i=0;i<36;i++){let eye=mesh(new THREE.SphereGeometry(.22,8,6),0xffe0a0,1.8);eye.position.set((Math.random()-.5)*4,2+Math.random()*5,(Math.random()-.5)*4);terminus.add(eye)}for(let i=0;i<10;i++){let r=box(.35,.35,5+Math.random()*5,0x35180d);r.position.set((Math.random()-.5)*5,2+Math.random()*4,(Math.random()-.5)*5);r.rotation.set(Math.random()*3,Math.random()*3,Math.random()*3);terminus.add(r)}terminus.visible=false;scene.add(terminus)}
+function finishTerminus(){termActive=false;termDone=true;endingFinal()}
+function endingFinal(){cutscene=true;document.body.classList.add('cine');let idx=N-2,p=trail[idx];let t0=performance.now();groundskeeper.visible=true;terminus.visible=true;show('Terminus grabs you...');function loop(){let u=(performance.now()-t0)/7600;camera.position.copy(player).add(new THREE.Vector3(0,1.0,0));camera.lookAt(terminus.position.x,4,terminus.position.z);if(u<.25){terminus.position.lerp(player.clone().add(new THREE.Vector3(0,0,-5)),.04);cut.style.display='flex';cut.textContent='TERMINUS GRABS YOU';}else if(u<.45){groundskeeper.position.lerp(player.clone().add(new THREE.Vector3(-8,0,-2)),.08);groundskeeper.lookAt(terminus.position.x,2,terminus.position.z);cut.textContent='THE GROUNDSKEEPER LEAVES THE PATH';}else if(u<.62){terminus.position.x+=.18;cut.textContent='KNUCKLE SANDWICH';scare('POW',180)}else if(u<.78){terminus.position.z-=.28;terminus.rotation.x+=.08;cut.textContent='FOOT SANDWICH';}else if(u<1){terminus.position.y-=.08;cut.textContent='THE WORLD LOTUS COLLAPSES';}if(u<1)requestAnimationFrame(loop);else{cut.textContent='Groundskeeper: Stay on the trail.';setTimeout(()=>{cut.style.display='none';document.body.classList.remove('cine');cutscene=false;show('2500m / 2500m — END. The rain finally stops.',99)},2200)}}loop()}
+function cutCam(text,ms,target){cutscene=true;document.body.classList.add('cine');cut.style.display='flex';cut.textContent=text;let t0=performance.now();function loop(){let u=(performance.now()-t0)/ms;if(target&&target.position){camera.position.copy(target.position).add(new THREE.Vector3(0,5,15));camera.lookAt(target.position.x,3,target.position.z)}if(u<1)requestAnimationFrame(loop);else{cut.style.display='none';document.body.classList.remove('cine');cutscene=false}}loop()}
+
+function makeRain(){
+  let g=new THREE.BufferGeometry(), arr=[];
+  for(let i=0;i<900;i++) arr.push((Math.random()-.5)*90,Math.random()*55,(Math.random()-.5)*90);
+  g.setAttribute('position',new THREE.Float32BufferAttribute(arr,3));
+  rain=new THREE.Points(g,new THREE.PointsMaterial({color:0xb7c5cf,size:.075,transparent:true,opacity:.42}));
+  scene.add(rain);
+}
+function makeFlashlight(){
+  spot=new THREE.SpotLight(0xfff1ca,60,105,Math.PI/3.15,.62,.65);
+  spotTarget=new THREE.Object3D();
+  nearLight=new THREE.PointLight(0xffddb0,6.5,22,1.5);
+  scene.add(spot,spotTarget,nearLight);
+}
+function isHiding(){return closets.some(c=>c.inside)}
+function interact(){
+  for(const c of closets){
+    if(Math.hypot(player.x-c.x,player.z-c.z)<3.2){
+      c.inside=!c.inside;
+      show(c.inside?'Hidden in closet.':'Left closet.');
+      return;
+    }
+  }
+  for(const c of cratesArr){
+    if(!c.opened && Math.hypot(player.x-c.x,player.z-c.z)<3.2){
+      c.opened=true; crates++;
+      if(Math.random()<.5){battery=Math.min(100,battery+30);show('Crate opened: battery.')}
+      else {medkits++;show('Crate opened: medkit.')}
+      return;
+    }
+  }
+  if(bramblesActive){
+    for(const g of graves){
+      if(!g.userData.dug && player.distanceTo(g.position)<3.0){
+        g.userData.dug=true;
+        if(g.userData.bone){bones++; show('Wizard bones found: '+bones+'/5'); scare('BONE',280)}
+        else show('Empty grave.');
+        if(bones>=5){bramblesActive=false;bramblesDone=true;brambles.visible=false;show('Wizard magic breaks Brambles apart.');}
+        return;
+      }
+    }
+  }
+  if(termActive){
+    for(let i=0;i<rootObjs.length;i++){
+      let r=rootObjs[i];
+      if(r && !r.userData.cut && player.distanceTo(r.position)<4.8){
+        r.userData.cut=true; roots++;
+        r.material.color.set(0x140907);
+        scare('CHOP',250);
+        show('World Lotus root severed: '+roots+'/12');
+        if(roots>=12) finishTerminus();
+        return;
+      }
+    }
+  }
+  if(mandrake){
+    let h=mandrake.userData.hole;
+    if(h && Math.hypot(player.x-h.x,player.z-h.z)<3.5){
+      scene.remove(mandrake); mandrake=null; show('Mandrake shoved back into its hole.');
+      if(vineLine){scene.remove(vineLine); vineLine=null}
+      return;
+    }
+  }
+  if(medkits>0&&hp<80){medkits--;hp=Math.min(100,hp+35);show('Used medkit.');return}
+  show('Nothing to interact with.');
+}
+function startSeek(){
+  if(seekDone||seekActive)return;
+  seekActive=true;
+  seek.visible=true;
+  let p=trail[Math.max(0,Math.round(735/STEP))];
+  seek.position.set(p.x,0,p.z+28);
+  cutCam('EYESTALK awakens. Run through the ruins.',1800,seek);
+}
+function updateSeek(dt,meters){
+  if(!seek)return;
+  if(!seekActive && !seekDone && meters>=740 && meters<1080) startSeek();
+  if(!seekActive)return;
+  let p=player.clone(); seek.visible=true;
+  seek.position.lerp(new THREE.Vector3(p.x,0,p.z+13),.028);
+  seek.lookAt(player.x,2,player.z);
+  if(seek.userData.a1)seek.userData.a1.rotation.z=Math.sin(wind*8)*.9;
+  if(seek.userData.a2)seek.userData.a2.rotation.z=-Math.sin(wind*7)*.9;
+  if(seek.position.distanceTo(player)<7){hp-=18*dt; if(Math.random()<.05) scare('WHIP',190)}
+  if(meters>=1080){seekActive=false;seekDone=true;seek.visible=false;show('Groundskeeper slams Eyestalk aside at the broken bridge.');scare('SAVED',500)}
+}
+function updateBrambles(dt,meters){
+  if(!brambles)return;
+  if(!bramblesDone && !bramblesActive && meters>=1740 && meters<1930){
+    bramblesActive=true; brambles.visible=true; bones=0;
+    let p=trail[Math.round(1765/STEP)]; brambles.position.set(p.x+18,0,p.z);
+    cutCam('BRAMBLES rises under the cemetery. Dig wizard graves: 0/5.',1800,brambles);
+  }
+  if(!bramblesActive)return;
+  brambles.visible=true;
+  if(Math.random()<.025){
+    let p=player.clone(); brambles.position.set(p.x+(Math.random()-.5)*35,0,p.z+(Math.random()-.5)*35); scare('BURST',220);
+  }
+  brambles.lookAt(player.x,2,player.z);
+  if(brambles.position.distanceTo(player)<5){hp-=22*dt}
+}
+function updateTerminus(dt,meters){
+  if(!terminus)return;
+  if(!termDone && !termActive && meters>=2300){
+    termActive=true; terminus.visible=true; roots=0;
+    let p=trail[Math.round(2320/STEP)]; terminus.position.set(p.x,0,p.z+25);
+    cutCam('TERMINUS: sever 12 World Lotus roots with guillotines.',2200,terminus);
+  }
+  if(!termActive)return;
+  if(mazeLamps.length && Math.random()<.012){
+    let v=mazeLamps[Math.floor(Math.random()*mazeLamps.length)];
+    if(v)terminus.position.set(v.x,0,v.z);
+  }else{
+    terminus.position.lerp(new THREE.Vector3(player.x,0,player.z+10),.018);
+  }
+  terminus.lookAt(player.x,2,player.z);
+  if(terminus.position.distanceTo(player)<6){hp-=28*dt;if(Math.random()<.04)scare('TERMINUS',220)}
+}
+function updateSurge(dt,meters){
+  if(meters<250||seekActive||bramblesActive||termActive)return;
+  surgeTimer-=dt;
+  if(surgeState==='idle'&&surgeTimer<=0){surgeState='warn';surgeTimer=2.2;scene.background.set(0x5a4d15);show('The sky sparks yellow. Hide.');scare('SURGE',300)}
+  else if(surgeState==='warn'&&surgeTimer<=0){
+    surgeState='rush';surgeTimer=1.15;surgeMesh.visible=true;surgeMesh.position.copy(player).add(new THREE.Vector3(0,1.8,28));
+  }else if(surgeState==='rush'){
+    surgeMesh.position.lerp(player.clone().add(new THREE.Vector3(0,1.8,-4)),.22);
+    if(!isHiding()&&surgeTimer<.5){hp=0;scare('DEAD',500)}
+    if((surgeTimer-=dt)<=0){surgeState='idle';surgeTimer=16+Math.random()*12;surgeMesh.visible=false;scene.background.set(0x1e2930)}
+  }
+}
+function updateMandrake(dt,meters){
+  if(mandrake){
+    let h=mandrake.userData.hole;
+    mandrake.position.lerp(player.clone().add(new THREE.Vector3(0,-1.0,0)),.15);
+    hp-=5*dt;
+    if(vineLine)scene.remove(vineLine);
+    if(h){
+      vineLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(h.x,.2,h.z),mandrake.position.clone().add(new THREE.Vector3(0,.6,0))]),new THREE.LineBasicMaterial({color:0x31501f}));
+      scene.add(vineLine);
+    }
+    return;
+  }
+  if(seekActive||bramblesActive||termActive)return;
+  for(const h of holes){
+    if(!h.used && Math.hypot(player.x-h.x,player.z-h.z)<2.2){
+      h.used=true;
+      mandrake=new THREE.Group();
+      let b=mesh(new THREE.CapsuleGeometry(.35,1.1,4,8),0x3b2112);b.position.y=.6;mandrake.add(b);
+      let head=mesh(new THREE.SphereGeometry(.38,10,8),0xd7b08b);head.position.y=1.35;mandrake.add(head);
+      let leaves=cone(.6,1.1,0x294b1c,8);leaves.position.y=2;mandrake.add(leaves);
+      mandrake.position.set(h.x,0,h.z);mandrake.userData.hole=h;scene.add(mandrake);
+      scare('WAAAH',420);show('Mandrake latched on. Follow the vine to its hole and press E.');
+      break;
+    }
+  }
+}
+function updateGrounds(dt,meters,off){
+  if(!groundskeeper)return;
+  if(meters<500||seekActive||bramblesActive||termActive){groundskeeper.visible=false;groundsActive=false;return}
+  if(off>12&&!isHiding()){
+    groundsActive=true;groundskeeper.visible=true;
+    groundskeeper.position.lerp(player.clone().add(new THREE.Vector3(0,0,8)),.035);
+    groundskeeper.lookAt(player.x,2,player.z);
+    if(groundskeeper.position.distanceTo(player)<4){hp-=34*dt;scare('SCYTHE',220)}
+  }else{
+    groundskeeper.visible=false;groundsActive=false;
+  }
+}
+
+function updateTraps(){for(const t of traps){if(!t.userData.hit&&t.position.distanceTo(player)<2.2){t.userData.hit=true;hp-=14;stamina=Math.max(0,stamina-45);show('Trap! Damaged and slowed.');setTimeout(()=>t.userData.hit=false,4500)}}}
+function tryMove(d){let np=player.clone().add(d);for(const c of colliders){let dx=np.x-c.x,dz=np.z-c.z;if(dx*dx+dz*dz<c.r*c.r)return}player.copy(np)}
+function tele(code){let map={Digit1:0,Digit2:740,Digit3:1740,Digit4:2300,Digit5:2460};if(map[code]!=null){let idx=Math.min(N-1,Math.round(map[code]/STEP));player.set(trail[idx].x,2.05,trail[idx].z);show('Teleported to '+map[code]+'m.')}}
+function reset(){hp=100;stamina=100;battery=100;player.set(0,2.05,8);groundsActive=false;surgeState='idle';surgeTimer=10;show('You woke back at the first lantern.')}
+function animate(){requestAnimationFrame(animate);let dt=Math.min(.045,clock.getDelta());wind+=dt;camera.rotation.order='YXZ';camera.rotation.y=yaw;camera.rotation.x=pitch;if(!cutscene)camera.position.copy(player);let f=new THREE.Vector3();camera.getWorldDirection(f);f.y=0;f.normalize();let r=new THREE.Vector3().crossVectors(f,new THREE.Vector3(0,1,0)).normalize();let m=new THREE.Vector3();if(keys.KeyW)m.add(f);if(keys.KeyS)m.sub(f);if(keys.KeyD)m.add(r);if(keys.KeyA)m.sub(r);let run=keys.ShiftLeft&&stamina>0&&!isHiding();if(m.lengthSq()&&!cutscene&&!isHiding()){m.normalize().multiplyScalar((run?11.5:7.2)*dt);tryMove(m)}if(run&&m.lengthSq())stamina=Math.max(0,stamina-28*dt);else stamina=Math.min(100,stamina+18*dt);let info=closestInfo(player.x,player.z),meters=info.meters;try{updateSeek(dt,meters);updateBrambles(dt,meters);updateTerminus(dt,meters);updateSurge(dt,meters);updateMandrake(dt,meters);updateGrounds(dt,meters,info.d);updateTraps();}catch(e){console.error(e)}
+ let dir=new THREE.Vector3();camera.getWorldDirection(dir);if(!spot)makeFlashlight();spot.position.copy(player);spot.position.y-=.1;spotTarget.position.copy(player).addScaledVector(dir,80);spot.target=spotTarget;nearLight.position.copy(player);spot.visible=flashOn&&battery>0&&!isHiding();nearLight.visible=spot.visible;if(spot.visible){battery=Math.max(0,battery-.55*dt);spot.intensity=52*(.65+.35*battery/100);nearLight.intensity=5.6*(.65+.35*battery/100)}if(Math.floor(wind*2)%2===0)try{updateLights()}catch(e){}if(rain){rain.position.set(player.x,player.y+7,player.z);let a=rain.geometry.attributes.position;for(let i=0;i<a.count;i++){let y=a.getY(i)-30*dt;if(y<0)y=58;a.setY(i,y);a.setX(i,a.getX(i)+Math.sin(wind)*.015)}a.needsUpdate=true}if(msgTimer>0){msgTimer-=dt;if(msgTimer<=0)msg.textContent='Lantern trail. Stay on path. Closets hide from Surge. E opens crates/graves/roots.'}if(hp<=0)reset();hud.innerHTML=`${meters.toFixed(0)}m / ${TOTAL}m<br>HP ${hp.toFixed(0)} • Stamina ${stamina.toFixed(0)} • Battery ${battery.toFixed(0)}<br>Medkits ${medkits} • Crates ${crates}<br>${info.d>8?'OFF PATH':'ON PATH'} ${meters>=500?'• Groundskeeper watches':''}<br>${seekActive?'BOSS: EYESTALK • run to 1080m':''}${bramblesActive?'BOSS: BRAMBLES • bones '+bones+'/5':''}${termActive?'FINAL: TERMINUS • roots '+roots+'/12':''}<br>Mouse ${locked?'LOCKED':'CLICK TO LOCK'} • F • E • 1-5`;renderer.render(scene,camera)}
+init();
+</script></body></html>

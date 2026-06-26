@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>City Tycoon Final</title>
+<style>
+    body { margin:0; overflow:hidden; background:#222; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+const cvs=document.getElementById("game");const ctx=cvs.getContext("2d");
+function resize(){cvs.width=window.innerWidth;cvs.height=window.innerHeight;}resize();window.onresize=resize;
+
+const SIDEBAR=260,mW=40,mS=60,T=40,R=20,C=30;
+let money=5000;
+
+let grid=[...Array(R)].map(()=>[...Array(C)].map(()=>({t:0,fire:false,crime:false})));
+
+let names={
+ 1:"Small House",2:"Road",3:"Tree",4:"Shop",5:"Office",6:"Park",7:"Police Station",8:"Fire Station",9:"Hospital",
+ 10:"Highrise Tower",11:"Factory",12:"Warehouse",13:"School",14:"University",15:"Shopping Mall",16:"Bank",17:"Power Plant",
+ 18:"Farm",19:"Stadium",20:"Airport",21:"Hotel",22:"Library",23:"Subway Station",24:"Cargo Port",25:"Wind Turbine",
+ 26:"Water Treatment Plant",27:"Recycling Center",28:"Apartment Block",29:"Research Laboratory",30:"Supermarket",
+ 31:"Business Tower",32:"Convention Center",33:"Embassy",34:"Observatory",35:"Oil Refinery",36:"Mining Facility",
+ 37:"Transit Hub",38:"Robotics Factory",39:"Chip Plant",40:"Luxury Condo",41:"Theme Park",42:"Prison",43:"Solar Farm",
+ 44:"Telecom Tower",45:"Cargo Terminal",46:"Cruise Port",47:"Coal Power Plant",48:"Botanical Garden",49:"Research HQ",
+ 50:"Nanotech Lab"
+};
+
+let colors={},cost={},baseIncome={};
+for(let i=1;i<=50;i++){colors[i]=`hsl(${(i*20)%360},80%,55%)`;cost[i]=50+i*25;baseIncome[i]=(i%10)*2;}
+colors[2]="#777";cost[2]=5;baseIncome[2]=0;
+colors[7]="#3f51b5";colors[8]="#f44336";colors[9]="#e91e63";
+
+let housingPop={1:2,28:6,10:12,40:10};
+let tempPop={21:4,19:20,20:10};
+let eduBuildings={13:1,14:5};
+
+let mode=1;
+
+let citizens=[];for(let i=0;i<60;i++)citizens.push({x:SIDEBAR+200+Math.random()*C*T,y:Math.random()*R*T,dir:Math.random()*6});
+let policeUnits=[{r:5,c:5}],fireUnits=[{r:10,c:10}];
+
+let crimeLevel=30,fireLevel=30,emergLevel=30;
+
+let sidebarScroll=0;
+window.addEventListener("wheel",e=>{if(e.clientX<SIDEBAR){sidebarScroll+=e.deltaY;sidebarScroll=Math.max(0,Math.min(50*30-(cvs.height-100),sidebarScroll));}});
+
+function connected(st){
+ let starts=[];for(let r=0;r<R;r++)for(let c=0;c<C;c++)if(grid[r][c].t===st)starts.push([r,c]);
+ if(!starts.length)return false;
+ let q=[...starts],vis=new Set();const key=(r,c)=>r+"_"+c;
+ while(q.length){
+  let [r,c]=q.shift();if(vis.has(key(r,c)))continue;vis.add(key(r,c));
+  if(c===0)return true;
+  let dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+  for(let d of dirs){
+    let nr=r+d[0],nc=c+d[1];
+    if(grid[nr]&&grid[nr][nc]&&grid[nr][nc].t===2)q.push([nr,nc]);
+  }
+ }
+ return false;
+}
+
+setInterval(()=>{
+ let crimeRate=0.1,fireRate=0.1;
+ if(connected(7))crimeRate*=0.25;
+ if(connected(8))fireRate*=0.25;
+ if(connected(9))emergLevel*=0.97;
+
+ if(Math.random()<crimeRate){let r=Math.floor(Math.random()*R),c=Math.floor(Math.random()*C);grid[r][c].crime=true;crimeLevel=Math.min(100,crimeLevel+5);}
+ if(Math.random()<fireRate){let r=Math.floor(Math.random()*R),c=Math.floor(Math.random()*C);grid[r][c].fire=true;fireLevel=Math.min(100,fireLevel+4);}
+
+ emergLevel=(crimeLevel+fireLevel)/2;
+},2000);
+
+function countNPCs(){return citizens.length;}
+
+let buildingCount={},educationLevel=0,totalPopulation=0,tempVisitors=0,permanentPop=0;
+for(let i=1;i<=50;i++)buildingCount[i]=0;
+
+function recountBuildings(){
+ for(let i=1;i<=50;i++)buildingCount[i]=0;
+ educationLevel=0;
+ for(let r=0;r<R;r++)for(let c=0;c<C;c++){
+  let t=grid[r][c].t;
+  if(t){buildingCount[t]++;if(eduBuildings[t])educationLevel+=eduBuildings[t];}
+ }
+}
+
+function computePopulation(){
+ permanentPop=0;tempVisitors=0;
+ for(let id=1;id<=50;id++){
+  if(housingPop[id])permanentPop+=buildingCount[id]*housingPop[id];
+  if(tempPop[id])tempVisitors+=buildingCount[id]*tempPop[id];
+ }
+ totalPopulation=permanentPop+tempVisitors+countNPCs();
+}
+
+function scaling(){
+ return{
+  commercial:Math.floor(totalPopulation/12),
+  industrial:Math.floor(totalPopulation/15),
+  office:Math.floor(educationLevel/8)
+ };
+}
+
+let incomeBreakdown={},totalIncomePerTick=0;
+
+function computeIncome(){
+ incomeBreakdown={};totalIncomePerTick=0;
+ let s=scaling();
+ for(let id=1;id<=50;id++){
+  let count=buildingCount[id];if(!count)continue;
+  let inc=baseIncome[id]||0;
+  if([4,15,30,21,23].includes(id))inc+=s.commercial;
+  if([11,17,35,36,38,39,47].includes(id))inc+=s.industrial;
+  if([5,10,16,31,32,40].includes(id))inc+=s.office;
+  incomeBreakdown[id]=inc*count;
+  totalIncomePerTick+=incomeBreakdown[id];
+ }
+}
+
+setInterval(()=>{recountBuildings();computePopulation();computeIncome();money+=totalIncomePerTick;},2000);
+
+cvs.addEventListener("mousedown",e=>{
+ let x=e.clientX,y=e.clientY;
+ if(x<SIDEBAR){
+  let id=Math.floor((y+sidebarScroll-100)/30)+1;
+  if(id>=1&&id<=50)mode=id;
+  return;
+ }
+ let gx=SIDEBAR+mW*3+mS*2;
+ if(x<gx)return;
+ let c=Math.floor((x-gx)/T),r=Math.floor(y/T);
+ if(grid[r]&&grid[r][c]&&grid[r][c].t===0&&money>=cost[mode]){
+  money-=cost[mode];
+  grid[r][c].t=mode;
+ }
+});
+
+function moveCitizens(){
+ let left=SIDEBAR+mW*3+mS*2;
+ for(let p of citizens){
+  if(Math.random()<0.02)p.dir+=Math.random()-.5;
+  p.x+=Math.cos(p.dir)*0.5;p.y+=Math.sin(p.dir)*0.5;
+  p.x=Math.max(left,Math.min(left+C*T,p.x));
+  p.y=Math.max(0,Math.min(R*T,p.y));
+ }
+}
+
+function moveUnits(arr){
+ for(let u of arr){
+  let dirs=[[1,0],[-1,0],[0,1],[0,-1]],good=[];
+  for(let d of dirs){
+   let nr=u.r+d[0],nc=u.c+d[1];
+   if(grid[nr]&&grid[nr][nc]&&grid[nr][nc].t===2)good.push([nr,nc]);
+  }
+  if(good.length){let p=good[Math.floor(Math.random()*good.length)];u.r=p[0];u.c=p[1];}
+ }
+}
+
+function meter(x,y,val,label,color){
+ ctx.fillStyle="#333";ctx.fillRect(x,y,mW,200);
+ ctx.fillStyle=color;ctx.fillRect(x,y+200-(val*2),mW,val*2);
+ ctx.fillStyle="white";ctx.fillText(label+" !",x,y-5);
+}
+
+function drawSidebar(){
+ ctx.fillStyle="#111";ctx.fillRect(0,0,SIDEBAR,cvs.height);
+ ctx.fillStyle="white";ctx.font="22px Arial";ctx.fillText("BUILDINGS",40,40);
+ let y=100-sidebarScroll;ctx.font="16px Arial";
+ for(let id=1;id<=50;id++){
+  if(y>-20&&y<cvs.height){
+   ctx.fillStyle=colors[id];ctx.fillRect(20,y-12,14,14);
+   ctx.fillStyle="white";ctx.fillText(names[id]+" $"+cost[id],50,y);
+   ctx.strokeStyle="white";ctx.strokeRect(180,y-14,60,20);
+   ctx.fillStyle=(mode===id)?"#4caf50":"#333";ctx.fillRect(180,y-14,60,20);
+   ctx.fillStyle="white";ctx.fillText("Select",185,y+2);
+  }
+  y+=30;
+ }
+}
+
+function drawGrid(){
+ let gx=SIDEBAR+mW*3+mS*2;
+ for(let r=0;r<R;r++)for(let c=0;c<C;c++){
+  let x=gx+c*T,y=r*T,t=grid[r][c].t;
+  ctx.strokeStyle="#444";ctx.strokeRect(x,y,T,T);
+  if(t){ctx.fillStyle=colors[t];ctx.fillRect(x+3,y+3,T-6,T-6);}
+  if(grid[r][c].crime){
+   ctx.fillStyle="yellow";ctx.fillRect(x+5,y+5,30,30);
+   ctx.fillStyle="black";ctx.fillText("!",x+15,y+28);
+  }
+  if(grid[r][c].fire){
+   ctx.fillStyle="red";ctx.fillRect(x+5,y+5,30,30);
+   ctx.fillStyle="white";ctx.fillText("!",x+15,y+28);
+  }
+ }
+}
+
+function drawPeople(){
+ for(let p of citizens){ctx.fillStyle="white";ctx.fillRect(p.x-2,p.y-2,4,4);}
+ let gx=SIDEBAR+mW*3+mS*2;
+ ctx.fillStyle="blue";
+ for(let u of policeUnits){
+  let x=gx+u.c*T;
+  ctx.fillRect(x+12,u.r*T+12,16,16);
+ }
+ ctx.fillStyle="orange";
+ for(let u of fireUnits){
+  let x=gx+u.c*T;
+  ctx.fillRect(x+12,u.r*T+12,16,16);
+ }
+}
+
+function drawIncomePanel(){
+ let gx=SIDEBAR+mW*3+mS*2+C*T+20;
+ ctx.fillStyle="#111";ctx.fillRect(gx,0,260,cvs.height);
+ ctx.fillStyle="white";ctx.font="22px Arial";ctx.fillText("Income Breakdown",gx+20,40);
+ let y=80;ctx.font="16px Arial";
+ for(let id=1;id<=50;id++){
+  if(incomeBreakdown[id]){
+   ctx.fillText(names[id]+": +"+incomeBreakdown[id],gx+20,y);
+   y+=20;
+  }
+ }
+ ctx.fillStyle="cyan";ctx.font="20px Arial";
+ ctx.fillText("TOTAL: +"+totalIncomePerTick,gx+20,y+20);
+}
+
+function draw(){
+ ctx.clearRect(0,0,cvs.width,cvs.height);
+ drawSidebar();
+ meter(SIDEBAR+10,50,crimeLevel,"CRIME","yellow");
+ meter(SIDEBAR+10+mS,50,fireLevel,"FIRE","red");
+ meter(SIDEBAR+10+mS*2,50,emergLevel,"EMERG","cyan");
+ drawGrid();
+ drawPeople();
+ let gx=SIDEBAR+mW*3+mS*2;
+ ctx.fillStyle="white";ctx.font="24px Arial";
+ ctx.fillText("Money: $"+money,gx+20,30);
+ drawIncomePanel();
+ moveCitizens();
+ moveUnits(policeUnits);
+ moveUnits(fireUnits);
+ requestAnimationFrame(draw);
+}
+draw();
+
+</script>
+</body>
+</html>

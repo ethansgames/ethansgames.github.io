@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Beast Cards Quest - Packs and Sorted Collection</title>
+<style>
+:root{--bg:#101827;--panel:#172235;--panel2:#22314b;--edge:#324766;--gold:#ffd36b;--good:#7df7a1;--bad:#ff7777;--blue:#75c7ff;--purple:#c586ff;}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:radial-gradient(circle at top,#243756,#0b101a 70%);color:white;min-height:100vh}button{border:0;border-radius:12px;padding:10px 14px;margin:4px;background:#314c77;color:white;font-weight:800;cursor:pointer;box-shadow:0 3px 0 #19283f}.upgradeBtn{display:block!important;width:100%!important;background:#18a957!important;color:white!important;border:3px solid #b9ffd0!important;font-size:18px!important;font-weight:900!important;padding:14px!important;margin:8px 0!important;border-radius:14px!important;box-shadow:0 4px 0 #0b542b!important}.upgradeBtn:hover{filter:brightness(1.2)!important}button:hover{filter:brightness(1.12)}button:active{transform:translateY(2px);box-shadow:0 1px 0 #19283f}button:disabled{opacity:.45;cursor:not-allowed}.danger{background:#8a3040}.good{background:#2f855a}.goldbtn{background:#9b6b1e}.purplebtn{background:#7047a5}.tab{background:#22314b;border:1px solid #435c83}.tab.active{background:#486fa8}.wrap{max-width:1280px;margin:auto;padding:18px}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.stats{display:flex;gap:10px;flex-wrap:wrap}.pill{background:#172235;border:1px solid #3a5377;border-radius:999px;padding:8px 13px}.menu{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:18px 0}.screen{display:none}.screen.active{display:block}.panel{background:rgba(23,34,53,.92);border:1px solid #324766;border-radius:18px;padding:16px;margin:12px 0;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.heroGrid{display:grid;grid-template-columns:1fr 220px 1fr;gap:18px;align-items:center}.fightCircle{width:190px;height:190px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-direction:column;margin:auto;background:radial-gradient(circle,#ffbd4a,#a84418);border:7px solid #ffd36b;box-shadow:0 0 35px rgba(255,166,42,.55);font-size:28px;cursor:pointer;font-weight:900}.fightCircle small{font-size:14px}.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:10px}.card{background:linear-gradient(160deg,#263a58,#151f31);border:1px solid #465f86;border-radius:14px;padding:10px;min-height:170px;position:relative;overflow:hidden}.card.starter{border-color:#88a0be}.card.common{border-color:#aaa}.card.rare{border-color:#75c7ff}.card.epic{border-color:#c586ff}.card.legendary{border-color:#ffd36b;box-shadow:0 0 18px rgba(255,211,107,.28)}.card.mythical{border-color:#ff69d2;box-shadow:0 0 22px rgba(255,105,210,.35)}.beastEmoji{font-size:42px}.name{font-weight:900}.muted{color:#b8c7dd;font-size:13px}.bar{height:9px;background:#0b101a;border-radius:10px;overflow:hidden;margin:4px 0}.fill{height:100%;background:#7df7a1}.atkfill{background:#ff9c72}.teamBadge{position:absolute;right:8px;top:8px;background:#ffd36b;color:#241800;border-radius:999px;padding:3px 8px;font-size:12px;font-weight:900}.selected{outline:3px solid var(--gold)}.packArea{text-align:center;padding:20px}.pack{display:inline-flex;width:150px;height:210px;border-radius:17px;background:linear-gradient(135deg,#6a3fc7,#1e9ad8);align-items:center;justify-content:center;flex-direction:column;font-size:54px;border:4px solid white;box-shadow:0 15px 35px rgba(0,0,0,.4);margin:10px}.results{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}.battleGrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.battleSide{background:#0e1725;border:1px solid #34445e;border-radius:16px;padding:12px}.battleBeasts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.battleBeast{background:#1e2d44;border:1px solid #405b82;border-radius:12px;padding:8px;text-align:center;min-height:130px}.battleBeast.active{outline:3px solid #ffd36b}.battleBeast.dead{opacity:.4;filter:grayscale(1)}.actions{margin-top:12px;text-align:center}.log{height:230px;overflow:auto;background:#0b101a;border:1px solid #34445e;border-radius:12px;padding:10px;font-family:monospace}.island{position:relative;min-height:470px;border-radius:24px;background:linear-gradient(#74c7ff 0 38%,#27a76e 38% 70%,#1b7c55 70%);border:4px solid #75c7ff;overflow:hidden}.water{position:absolute;bottom:-30px;left:-10%;width:120%;height:150px;background:rgba(44,132,255,.55);border-radius:50% 50% 0 0}.slot{position:absolute;width:125px;height:125px;border-radius:18px;background:rgba(255,255,255,.16);border:2px dashed rgba(255,255,255,.65);display:flex;align-items:center;justify-content:center;text-align:center;flex-direction:column}.slot .beastEmoji{font-size:48px}.slot button{font-size:11px;padding:5px 8px}.upgradeBox{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}.tiny{font-size:12px}.eventBox{background:linear-gradient(135deg,#321c55,#132a50);border:1px solid #8f67ff}.frag{display:inline-block;background:#2a1f3d;border:1px solid #7b4dd6;border-radius:999px;padding:6px 10px;margin:3px}.progressOuter{height:18px;background:#0b101a;border-radius:20px;overflow:hidden;border:1px solid #4b5f80}.progressInner{height:100%;background:linear-gradient(90deg,#75c7ff,#ff69d2)}
+
+.card{border-width:4px!important;box-shadow:0 8px 18px rgba(0,0,0,.28);transition:transform .18s ease,box-shadow .18s ease,filter .18s ease;animation:cardPop .32s ease both}.card:hover{transform:translateY(-5px) scale(1.02);box-shadow:0 14px 30px rgba(0,0,0,.38)}.card.legendary{border-width:5px!important;animation:cardPop .32s ease both,legendGlow 1.7s ease-in-out infinite alternate}.card.mythical{border-width:5px!important;animation:cardPop .32s ease both,mythGlow 1.4s ease-in-out infinite alternate}.battleBeast{border-width:4px!important;transition:transform .18s ease,box-shadow .18s ease;animation:idleBob 2.2s ease-in-out infinite}.battleBeast.active{outline:6px solid #ffd36b!important;box-shadow:0 0 22px rgba(255,211,107,.5)}.slot{border-width:5px!important;animation:islandFloat 3s ease-in-out infinite}.slot .beastEmoji,.battleBeast .beastEmoji,.card .beastEmoji{display:inline-block;animation:emojiBounce 2.4s ease-in-out infinite}.fightCircle{animation:fightPulse 1.5s ease-in-out infinite}.pack{animation:packWiggle 2s ease-in-out infinite}.upgradeBtn{animation:upgradePulse 1.2s ease-in-out infinite}.damageFlash{animation:damageFlash .35s ease}.healFlash{animation:healFlash .45s ease}@keyframes cardPop{from{opacity:0;transform:scale(.92) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}@keyframes idleBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}@keyframes islandFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}@keyframes emojiBounce{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-5px) rotate(2deg)}}@keyframes fightPulse{0%,100%{transform:scale(1);box-shadow:0 0 35px rgba(255,166,42,.55)}50%{transform:scale(1.055);box-shadow:0 0 55px rgba(255,211,107,.85)}}@keyframes packWiggle{0%,100%{transform:rotate(-1deg)}50%{transform:rotate(2deg)}}@keyframes upgradePulse{0%,100%{transform:scale(1)}50%{transform:scale(1.025)}}@keyframes legendGlow{from{box-shadow:0 0 12px rgba(255,211,107,.35)}to{box-shadow:0 0 28px rgba(255,211,107,.85)}}@keyframes mythGlow{from{box-shadow:0 0 14px rgba(255,105,210,.4)}to{box-shadow:0 0 32px rgba(255,105,210,.9)}}@keyframes damageFlash{0%{filter:brightness(2) saturate(2);transform:translateX(-4px)}50%{transform:translateX(4px)}100%{filter:none;transform:translateX(0)}}@keyframes healFlash{0%{filter:brightness(1.8)}100%{filter:none}}
+
+.rareReveal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:9999;background:rgba(0,0,0,.72);pointer-events:none;overflow:hidden}.rareReveal.show{display:flex}.revealBox{min-width:340px;max-width:92vw;text-align:center;border-radius:28px;padding:34px;background:#111827;border:8px solid white;box-shadow:0 0 80px rgba(255,255,255,.5);transform:scale(.2);opacity:0}.revealLegendary .revealBox{background:radial-gradient(circle,#fff2a8,#b57913 55%,#221306);border-color:#ffe680;animation:legendRevealBox 2.4s ease forwards}.revealMythical .revealBox{background:radial-gradient(circle,#ffd3ff,#7f2cff 50%,#090015);border-color:#ff8cff;animation:mythRevealBox 3s ease forwards}.revealTitle{font-size:42px;font-weight:1000;text-shadow:0 3px 0 rgba(0,0,0,.35);letter-spacing:2px}.revealEmoji{font-size:90px;margin:12px;animation:revealSpin 1.2s ease-in-out infinite}.revealName{font-size:30px;font-weight:1000}.revealStats{font-size:18px;margin-top:8px}.revealLegendary:before,.revealMythical:before{content:"";position:absolute;inset:-20%;background:conic-gradient(from 0deg,transparent,#fff,transparent,#ffd36b,transparent);animation:revealRays 2s linear infinite}.revealMythical:before{background:conic-gradient(from 0deg,transparent,#ff7cff,transparent,#7df7ff,transparent,#ffffff,transparent);animation-duration:1.1s}.sparkle{position:absolute;font-size:28px;animation:sparkleFly 1.8s ease-out forwards}.revealLegendary .sparkle{color:#ffe680}.revealMythical .sparkle{color:#ff9cff}@keyframes legendRevealBox{0%{transform:scale(.15) rotate(-18deg);opacity:0;filter:brightness(4)}22%{transform:scale(1.25) rotate(6deg);opacity:1;filter:brightness(3)}48%{transform:scale(.96) rotate(0);filter:brightness(1.3)}100%{transform:scale(1) rotate(0);opacity:1;filter:brightness(1)}}@keyframes mythRevealBox{0%{transform:scale(.05) rotate(30deg);opacity:0;filter:hue-rotate(0deg) brightness(5)}18%{transform:scale(1.35) rotate(-12deg);opacity:1;filter:hue-rotate(120deg) brightness(3)}38%{transform:scale(.88) rotate(5deg);filter:hue-rotate(240deg) brightness(2)}70%{transform:scale(1.08) rotate(0);filter:hue-rotate(360deg) brightness(1.4)}100%{transform:scale(1);opacity:1;filter:none}}@keyframes revealSpin{0%,100%{transform:translateY(0) rotate(-4deg) scale(1)}50%{transform:translateY(-12px) rotate(7deg) scale(1.12)}}@keyframes revealRays{to{transform:rotate(360deg)}}@keyframes sparkleFly{0%{transform:translate(0,0) scale(.3);opacity:1}100%{transform:translate(var(--x),var(--y)) scale(1.8);opacity:0}}
+
+@media(max-width:850px){.heroGrid,.battleGrid{grid-template-columns:1fr}.fightCircle{width:150px;height:150px}.island{min-height:620px}.battleBeasts{grid-template-columns:1fr}}
+
+/* PERFORMANCE PATCH: cheaper visuals, fewer endless animations, smoother on low-end browsers */
+body{background:#101827!important}
+.card,.battleBeast,.slot,.pack,.fightCircle,.upgradeBtn,.beastEmoji{animation:none!important;transition:transform .08s ease,filter .08s ease!important}
+.card:hover{transform:translateY(-2px)!important;box-shadow:0 8px 16px rgba(0,0,0,.32)!important}
+.card.legendary,.card.mythical{box-shadow:0 0 10px rgba(255,255,255,.18)!important}
+.battleBeast.active{box-shadow:0 0 10px rgba(255,211,107,.38)!important}
+.revealLegendary:before,.revealMythical:before{display:none!important}
+.sparkle{animation:sparkleFly .9s ease-out forwards!important;font-size:18px!important}
+.panel,.pack,.fightCircle,.card{box-shadow:none!important}
+@media (prefers-reduced-motion: no-preference){
+  .fightCircle{animation:fightPulse 2.8s ease-in-out infinite!important}
+  .revealLegendary .revealBox{animation:legendRevealBox 1.15s ease forwards!important}
+  .revealMythical .revealBox{animation:mythRevealBox 1.25s ease forwards!important}
+}
+
+
+.card.eventancestral{border-color:#00ffd5!important;box-shadow:0 0 24px rgba(0,255,213,.55)!important;background:linear-gradient(160deg,#062e2a,#151f31)!important}.card.ancestral{border-color:#ff3030!important;box-shadow:0 0 18px rgba(255,48,48,.42)!important;background:linear-gradient(160deg,#3b1010,#151f31)!important}
+.ancestorState{outline:6px solid #ff3030!important;box-shadow:0 0 25px rgba(255,48,48,.75)!important}
+.revealAncestral .revealBox{background:radial-gradient(circle,#ffffff,#ff3030 38%,#210000 76%);border-color:#ff3030;animation:ancestorRevealBox 3.4s ease forwards}
+.revealAncestral .revealTitle{font-size:38px;color:#fff;text-shadow:0 0 12px #000,0 4px 0 #630000}
+.revealAncestral .revealEmoji{animation:ancestorThrone 1s ease-in-out infinite}
+.revealAncestral:before{content:"";position:absolute;inset:-30%;background:conic-gradient(from 0deg,#ff3030,transparent,#ffffff,transparent,#ff3030);animation:ancestralRays .8s linear infinite}
+@keyframes ancestorRevealBox{0%{transform:scale(.03) rotate(35deg);opacity:0;filter:brightness(8)}18%{transform:scale(1.5) rotate(-18deg);opacity:1;filter:brightness(4)}38%{transform:scale(.78) rotate(9deg);filter:brightness(2)}65%{transform:scale(1.14) rotate(-2deg)}100%{transform:scale(1) rotate(0);opacity:1;filter:none}}
+@keyframes ancestorThrone{0%,100%{transform:scale(1) translateY(0)}50%{transform:scale(1.18) translateY(-14px)}}
+@keyframes ancestralRays{to{transform:rotate(360deg)}}
+
+
+.revealPhobos .revealBox{background:radial-gradient(circle,#d9c7ff,#3b146e 42%,#02000c 78%);border-color:#9d72ff;animation:phobosRevealBox 3.4s ease forwards}
+.revealPhobos .revealTitle{font-size:38px;color:#efe6ff;text-shadow:0 0 14px #000,0 4px 0 #24004a}
+.revealPhobos .revealEmoji{animation:phobosMoon 1s ease-in-out infinite}
+.revealPhobos:before{content:"";position:absolute;inset:-30%;background:conic-gradient(from 0deg,#7b2cff,transparent,#ffffff,transparent,#1b0057);animation:ancestralRays .7s linear infinite}
+@keyframes phobosRevealBox{0%{transform:scale(.04) rotate(-35deg);opacity:0;filter:brightness(8) blur(4px)}18%{transform:scale(1.42) rotate(20deg);opacity:1;filter:brightness(4)}38%{transform:scale(.82) rotate(-8deg);filter:brightness(2)}65%{transform:scale(1.12) rotate(2deg)}100%{transform:scale(1) rotate(0);opacity:1;filter:none}}
+@keyframes phobosMoon{0%,100%{transform:scale(1) translateY(0) rotate(-8deg)}50%{transform:scale(1.2) translateY(-15px) rotate(8deg)}}
+
+
+
+.pullCardAnim{position:relative;animation:pullCardSwirl .75s ease both}
+.pullCardAnim:before{content:"";position:absolute;inset:-8px;border-radius:18px;
+background:conic-gradient(from 0deg,transparent,#75c7ff,transparent,#ffd36b,transparent);
+opacity:.55;animation:pullAuraSpin .8s linear both;z-index:0}
+.pullCardAnim>*{position:relative;z-index:1}
+.pullCardAnim.legendary:before{background:conic-gradient(from 0deg,transparent,#ffd36b,#fff,transparent,#ffd36b)}
+.pullCardAnim.mythical:before{background:conic-gradient(from 0deg,transparent,#ff69d2,#75c7ff,#fff,transparent)}
+.pullCardAnim.ancestral:before{background:conic-gradient(from 0deg,transparent,#ff3030,#fff,#ff3030,transparent)}
+@keyframes pullCardSwirl{
+ 0%{opacity:0;transform:scale(.2) rotate(-45deg)}
+ 55%{opacity:1;transform:scale(1.08) rotate(8deg)}
+ 100%{opacity:1;transform:scale(1) rotate(0)}
+}
+@keyframes pullAuraSpin{
+ 0%{transform:rotate(0deg) scale(.6);opacity:.9}
+ 100%{transform:rotate(360deg) scale(1.05);opacity:0}
+}
+
+
+.eventCutscene{position:fixed;inset:0;display:none;z-index:20000;background:#000;color:white;overflow:hidden;align-items:center;justify-content:center;text-align:center;pointer-events:auto}
+.eventCutscene.show{display:flex}
+.cutsceneSky{position:absolute;inset:0;background:radial-gradient(circle at center,#1b345f,#02030a 70%);animation:cutSkyPulse 4s ease-in-out infinite}
+.cutsceneGround{position:absolute;left:0;right:0;bottom:0;height:30%;background:linear-gradient(#1a1a1a,#050505)}
+.cutsceneTitle{position:absolute;top:7%;left:0;right:0;font-size:44px;font-weight:1000;letter-spacing:3px;text-shadow:0 0 18px #fff;animation:cutTitleDrop 1.1s ease both}
+.cutsceneBeast{position:relative;font-size:150px;z-index:4;animation:cutBeastRise 2.6s ease both}
+.cutsceneName{position:absolute;bottom:14%;left:0;right:0;font-size:48px;font-weight:1000;z-index:5;text-shadow:0 0 20px #fff;animation:cutNameFlash 1.5s ease both 1.4s}
+.cutsceneText{position:absolute;bottom:7%;left:8%;right:8%;font-size:20px;color:#d7e7ff;z-index:5;animation:cutNameFlash 1.5s ease both 2s}
+.cutsceneSkip{position:absolute;right:18px;top:18px;z-index:6;background:#ffffff22;border:1px solid #fff;color:#fff;border-radius:12px;padding:9px 14px;font-weight:900}
+.cutsceneBeam{position:absolute;width:28%;height:130%;top:-15%;left:36%;background:linear-gradient(transparent,#fff,transparent);opacity:.28;filter:blur(8px);animation:cutBeam 1.2s ease-in-out infinite alternate}
+.cutsceneParticle{position:absolute;font-size:30px;z-index:3;animation:cutParticle 2.2s ease-out forwards}
+.eventCutscene.torog .cutsceneSky{background:radial-gradient(circle,#7a3100,#160500 68%)}
+.eventCutscene.torog .cutsceneGround{background:linear-gradient(#4a2100,#050100)}
+.eventCutscene.torog .cutsceneBeam{background:linear-gradient(transparent,#ff8b2e,transparent)}
+.eventCutscene.primerion .cutsceneSky{background:radial-gradient(circle,#ff6620,#210400 70%)}
+.eventCutscene.primerion .cutsceneGround{background:linear-gradient(#5a1500,#080000)}
+.eventCutscene.primerion .cutsceneBeam{background:linear-gradient(transparent,#ffea6b,transparent)}
+.eventCutscene.botox .cutsceneSky{background:radial-gradient(circle,#e8fbff,#154b58 55%,#02080a 76%)}
+.eventCutscene.botox .cutsceneGround{background:linear-gradient(#8eddea,#02080a)}
+.eventCutscene.botox .cutsceneBeam{background:linear-gradient(transparent,#dfffff,transparent)}
+.eventCutscene.evaris .cutsceneSky{background:radial-gradient(circle,#254fff,#020018 70%)}
+.eventCutscene.evaris .cutsceneGround{background:linear-gradient(#000e3d,#000)}
+.eventCutscene.evaris .cutsceneBeam{background:linear-gradient(transparent,#8ee7ff,transparent)}
+@keyframes cutSkyPulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.55)}}
+@keyframes cutTitleDrop{0%{opacity:0;transform:translateY(-70px) scale(.8)}100%{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes cutBeastRise{0%{opacity:0;transform:translateY(240px) scale(.25) rotate(-8deg);filter:brightness(5)}45%{opacity:1;transform:translateY(-35px) scale(1.25) rotate(4deg)}100%{opacity:1;transform:translateY(0) scale(1) rotate(0);filter:none}}
+@keyframes cutNameFlash{0%{opacity:0;transform:scale(.6);filter:brightness(5)}70%{opacity:1;transform:scale(1.12)}100%{opacity:1;transform:scale(1)}}
+@keyframes cutBeam{0%{transform:rotate(-6deg) scaleX(.7);opacity:.18}100%{transform:rotate(6deg) scaleX(1.25);opacity:.55}}
+@keyframes cutParticle{0%{opacity:1;transform:translate(0,0) scale(.4) rotate(0deg)}100%{opacity:0;transform:translate(var(--x),var(--y)) scale(2.2) rotate(360deg)}}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div><h1>🃏 Beast Cards Quest</h1><div class="muted">120+ beasts • 3 custom abilities each • food factory upgrades • real turn battles</div></div>
+    <div class="stats"><div class="pill">💰 Gold: <b id="gold">0</b></div><div class="pill">🍖 Food: <b id="food">0</b></div><div class="pill">🎫 Card Tokens: <b id="cardTokens">0</b></div><div class="pill">⭐ Stage: <b id="stage">1</b>/500</div><div class="pill">📚 Owned: <b id="ownedCount">0</b></div><div class="pill">🎟️ Event Pts: <b id="eventPoints">0</b></div><div class="pill">🌟 Permanent Boost: <b id="permanentBoost">0%</b></div></div>
+  </div>
+  <div class="menu">
+    <button class="tab active" onclick="showScreen('home')">🏠 Menu</button>
+    <button class="tab" onclick="showScreen('cards')">🃏 Open Cards</button>
+    <button class="tab" onclick="showScreen('battle')">⚔️ Fight</button>
+    <button class="tab" onclick="showScreen('event')">🌌 Event</button>
+    <button class="tab" onclick="showScreen('bossEvent')">☠️ Boss Event</button>
+    <button class="tab" onclick="showScreen('factory')">🍖 Food Factory</button>
+    <button class="tab" onclick="showScreen('fusion')">🧪 Fusion Lab</button>
+    <button class="tab" onclick="showScreen('island')">🏝️ Island</button>
+    <button class="tab" onclick="showScreen('collection')">📚 Collection</button>
+    <button class="tab" onclick="showScreen('market')">🏪 Beast Market</button>
+    
+  </div>
+
+  <section id="home" class="screen active">
+    <div class="panel heroGrid">
+      <div><h2>Your 3 Starter Beasts</h2><p class="muted">They are basic and weak on purpose. Build a 3-beast team, then fight stage by stage.</p><div id="starterCards" class="cards"></div></div>
+      <div onclick="showScreen('battle')" class="fightCircle">⚔️<br>FIGHT<small>deploy 3 beasts</small></div>
+      <div><h2>Modes</h2><button class="goldbtn" onclick="showScreen('cards')">🃏 Open Card Packs</button><br><button class="purplebtn" onclick="showScreen('event')">🌌 2-Hour Event</button><br><button class="goldbtn" onclick="showScreen('factory')">🍖 Food Factory</button><br><button class="good" onclick="showScreen('island')">🏝️ Island Upgrades</button><br><button onclick="saveGame()">💾 Save</button><button onclick="resetGame()" class="danger">Reset</button><br><button onclick="prestigeReset()" class="danger">🌟 Prestige Reset</button><p class="muted">Legendary cards are now very rare from packs. Mythical beasts are unlocked through event fragments.</p><p class="muted"><b>Prestige Reset:</b> wipes progress, but gives permanent boost: +0.1% for each Legendary+ creature owned, plus +0.2% for every Awakening.</p></div>
+    </div>
+  </section>
+
+  <section id="cards" class="screen">
+    <div class="panel packArea">
+      <h2>Card Shop</h2>
+      <div class="pack">🃏<div style="font-size:18px">Beast Pack</div></div>
+      <p>Costs <b>100 gold</b>. Gives <b>1 beast card</b>.</p>
+      <p class="muted">Drop rates: Common 71%, Rare 22%, Epic 6%, Legendary 1%, Mythical 0%.</p>
+      <button class="goldbtn" onclick="buyPack('normal',1)">Open 1 Beast Pack</button><button class="goldbtn" onclick="buyPack('normal',10)">Open 10 Beast Packs</button><button class="goldbtn" onclick="buyPack('normal',35)">Open 35 Beast Packs</button><button class="goldbtn" onclick="buyPack('normal',100)">Open 100 Beast Packs</button><div id="results-normal" class="results"></div>
+      <hr>
+      <div class="pack">✨<div style="font-size:18px">Great Pack</div></div>
+      <p>Costs <b>350 gold</b>. Gives <b>1 beast card</b> with better chances.</p>
+      <p class="muted">Drop rates: Common 45%, Rare 35%, Epic 16%, Legendary 4%, Mythical 0%.</p>
+      <button class="good" onclick="buyPack('great',1)">Open 1 Great Pack</button><button class="good" onclick="buyPack('great',10)">Open 10 Great Packs</button><button class="good" onclick="buyPack('great',35)">Open 35 Great Packs</button><button class="good" onclick="buyPack('great',100)">Open 100 Great Packs</button><div id="results-great" class="results"></div>
+      <hr>
+      
+      <hr>
+      <div class="pack">💎<div style="font-size:18px">Epic Pack</div></div>
+      <p>Costs <b>2,500 gold</b>. Gives <b>1 beast card</b>.</p>
+      <p class="muted">Drop rates: Legendary 1.5%, Epic 15%, Rare/Common otherwise.</p>
+      <button class="good" onclick="buyPack('epicpack',1)">Open 1 Epic Pack</button>
+      <button class="good" onclick="buyPack('epicpack',10)">Open 10 Epic Packs</button>
+      <button class="good" onclick="buyPack('epicpack',35)">Open 35 Epic Packs</button>
+      <button class="good" onclick="buyPack('epicpack',100)">Open 100 Epic Packs</button>
+      <div id="results-epicpack" class="results"></div>
+
+      <div class="pack">🌟<div style="font-size:18px">Legendary Pack</div></div>
+      <p>Costs <b>900 gold</b>. Gives <b>1 beast card</b>.</p>
+      <p class="muted">Drop rates: Common 37.7%, Rare 40%, Epic 20%, Legendary 2%, Mythical 0.3%.</p>
+      <button class="purplebtn" onclick="buyPack('legendary',1)">Open 1 Legendary Pack</button><button class="purplebtn" onclick="buyPack('legendary',10)">Open 10 Legendary Packs</button><button class="purplebtn" onclick="buyPack('legendary',35)">Open 35 Legendary Packs</button><button class="purplebtn" onclick="buyPack('legendary',100)">Open 100 Legendary Packs</button><div id="results-legendary" class="results"></div>
+
+      <hr>
+      <div class="pack">🔱<div style="font-size:18px">Mythic Pack</div></div>
+      <p>Costs <b>2500 gold</b>. Gives <b>1 beast card</b>.</p>
+      <p class="muted">Drop rates: Common 32.92%, Rare 35%, Epic 25%, Legendary 6%, Mythical 1%, Ancestral 0.08%.</p>
+      <button class="danger" onclick="buyPack('mythic',1)">Open 1 Mythic Pack</button><button class="danger" onclick="buyPack('mythic',10)">Open 10 Mythic Packs</button><button class="danger" onclick="buyPack('mythic',35)">Open 35 Mythic Packs</button><button class="danger" onclick="buyPack('mythic',100)">Open 100 Mythic Packs</button><div id="results-mythic" class="results"></div>
+
+
+      <hr>
+      
+      <hr>
+      <div class="pack">🕊️<div style="font-size:18px">Sacred Pack</div></div>
+      <p>Costs <b>8,000,000 gold</b>. Gives <b>1 beast card</b>.</p>
+      <p class="muted">Drop rates: Ancestral 10%, Mythical 20%, Epic 70%.</p>
+      <button class="danger" onclick="buyPack('sacred',1)">Open 1 Sacred Pack</button>
+      <button class="danger" onclick="buyPack('sacred',10)">Open 10 Sacred Packs</button>
+      <button class="danger" onclick="buyPack('sacred',35)">Open 35 Sacred Packs</button>
+      <button class="danger" onclick="buyPack('sacred',100)">Open 100 Sacred Packs</button>
+      <div id="results-sacred" class="results"></div>
+
+      <div class="pack">🦴<div style="font-size:18px">Primal Pack</div></div>
+      <p>Costs <b>5,000,000 gold</b>. Gives <b>1 beast card</b>.</p>
+      <p class="muted">Drop rates: Epic 95%, Ancestral 5%.</p>
+      <button class="danger" onclick="buyPack('primal',1)">Open 1 Primal Pack</button><button class="danger" onclick="buyPack('primal',10)">Open 10 Primal Packs</button><button class="danger" onclick="buyPack('primal',35)">Open 35 Primal Packs</button><button class="danger" onclick="buyPack('primal',100)">Open 100 Primal Packs</button><div id="results-primal" class="results"></div>
+
+      <hr>
+      <h3>🏃 Chase Events</h3>
+      <p class="muted">Only these packs can pull event-exclusive Ancestrals. They are much stronger than normal Ancestrals.</p>
+      <div class="pill">🎫 Card Tokens: <b id="cardTokensShop">0</b></div>
+      <br>
+      <button class="goldbtn" onclick="buyTokensGold(1)">Buy 1 Card Token — 50,000 Gold</button>
+      <button class="goldbtn" onclick="buyTokensGold(10)">Buy 10 Card Tokens — 500,000 Gold</button>
+      <button class="goldbtn" onclick="buyTokensGold(100)">Buy 100 Card Tokens — 5,000,000 Gold</button>
+      <button class="goldbtn" onclick="buyTokensGold(50000)">Buy 50,000 Card Tokens — 2,500,000,000 Gold</button><br>
+      <button class="purplebtn" onclick="buyTokensEvent(1)">Buy 1 Card Token — 25 Event Points</button>
+      <button class="purplebtn" onclick="buyTokensEvent(10)">Buy 10 Card Tokens — 250 Event Points</button>
+      <button class="purplebtn" onclick="buyTokensEvent(100)">Buy 100 Card Tokens — 2,500 Event Points</button>
+      <button class="purplebtn" onclick="buyTokensEvent(50000)">Buy 50,000 Card Tokens — 1,250,000 Event Points</button>
+      <div class="cards" style="margin-top:12px">
+        <div class="card eventancestral"><div class="beastEmoji">🐂</div><div class="name">Torog Chase Event Pack</div><div class="muted">Cost: 10 Card Tokens<br>0.03% Torog • 0.5% normal Ancestral • 3% Mythical • 8% Legendary<br>Pity: <span id='torogPity'>0</span>/1000</div><button class="danger" onclick="buyPack('torogChase',1)">Open Torog Chase Pack</button><button class="danger" onclick="buyPack('torogChase',10)">Open 10</button><button class="danger" onclick="buyPack('torogChase',35)">Open 35</button><button class="danger" onclick="buyPack('torogChase',100)">Open 100</button><button class="danger" onclick="buyPack('torogChase',1000)">Open 1000</button><button class="danger" onclick="buyPack('torogChase',100000)">Open 100,000</button><div id="results-torogChase" class="results"></div></div>
+        <div class="card eventancestral"><div class="beastEmoji">🌋</div><div class="name">Primerion Chase Event Pack</div><div class="muted">Cost: 10 Card Tokens<br>0.03% Primerion • 0.5% normal Ancestral • 3% Mythical • 8% Legendary<br>Pity: <span id='primerionPity'>0</span>/1000</div><button class="danger" onclick="buyPack('primerionChase',1)">Open Primerion Chase Pack</button><button class="danger" onclick="buyPack('primerionChase',10)">Open 10</button><button class="danger" onclick="buyPack('primerionChase',35)">Open 35</button><button class="danger" onclick="buyPack('primerionChase',100)">Open 100</button><button class="danger" onclick="buyPack('primerionChase',1000)">Open 1000</button><button class="danger" onclick="buyPack('primerionChase',100000)">Open 100,000</button><div id="results-primerionChase" class="results"></div></div>
+        <div class="card eventancestral"><div class="beastEmoji">♾️</div><div class="name">Evaris Chase Event Pack</div><div class="muted">Cost: 10 Card Tokens<br>0.03% Evaris • 0.5% normal Ancestral • 3% Mythical • 8% Legendary<br>Pity: <span id='evarisPity'>0</span>/1000</div><button class="danger" onclick="buyPack('evarisChase',1)">Open Evaris Chase Pack</button><button class="danger" onclick="buyPack('evarisChase',10)">Open 10</button><button class="danger" onclick="buyPack('evarisChase',35)">Open 35</button><button class="danger" onclick="buyPack('evarisChase',100)">Open 100</button><button class="danger" onclick="buyPack('evarisChase',1000)">Open 1000</button><button class="danger" onclick="buyPack('evarisChase',100000)">Open 100,000</button><div id="results-evarisChase" class="results"></div></div>
+        <div class="card eventancestral"><div class="beastEmoji">💉</div><div class="name">Botox Chase Event Pack</div><div class="muted">Cost: 10 Card Tokens<br>0.03% Botox • 0.5% normal Ancestral • 3% Mythical • 8% Legendary<br>Pity: <span id='botoxPity'>0</span>/1000</div><button class="danger" onclick="buyPack('botoxChase',1)">Open Botox Chase Pack</button><button class="danger" onclick="buyPack('botoxChase',10)">Open 10</button><button class="danger" onclick="buyPack('botoxChase',35)">Open 35</button><button class="danger" onclick="buyPack('botoxChase',100)">Open 100</button><button class="danger" onclick="buyPack('botoxChase',1000)">Open 1000</button><button class="danger" onclick="buyPack('botoxChase',100000)">Open 100,000</button><div id="results-botoxChase" class="results"></div></div>
+      </div>
+      
+      <div id="packResults" class="results" style="display:none"></div>
+    </div>
+  </section>
+
+  <section id="battle" class="screen">
+    <div class="panel">
+      <h2>Fight Team</h2><p class="muted">This tab only shows your 3 deployed beasts now. Change your team from the Collection tab.</p>
+      <div id="teamLine" class="pill"></div><div id="battlePick" class="cards"></div>
+      <button class="good" onclick="startBattle(false)">Start Stage Battle</button>
+      <div id="battleArea" style="display:none">
+        <div class="battleGrid"><div class="battleSide"><h3>Your Team</h3><div id="playerBattle" class="battleBeasts"></div></div><div class="battleSide"><h3>Enemies</h3><div id="enemyBattle" class="battleBeasts"></div></div></div>
+        <div class="actions"><button id="attackBtn" onclick="playerAction('attack')">Basic Attack</button><span id="abilityButtons"></span><button onclick="switchActive()">Switch Beast</button></div>
+        <div id="turnText" class="pill" style="text-align:center;margin:10px 0"></div><div id="log" class="log"></div>
+      </div>
+    </div>
+  </section>
+
+
+  <section id="bossEvent" class="screen">
+    <div class="panel eventBox">
+      <h2>☠️ Boss Event: Test #D34TH</h2>
+      <p class="muted">A boss spawns with 9,000 HP and 200 ATK. Every time you defeat him, he respawns forever with +35% HP and +35% ATK. Defeat him as many times as possible.</p>
+      <div class="pill">Boss Defeats: <b id="bossWins">0</b></div>
+      <div class="pill">Current Boss HP: <b id="bossHpText">9000</b></div>
+      <div class="pill">Current Boss ATK: <b id="bossAtkText">200</b></div>
+      <br>
+      <button class="danger" onclick="startBossBattle()">Fight Test #D34TH</button><button class="goldbtn" onclick="resetBossEvent()">Reset Boss Event</button>
+      <p class="muted">Rewards per win: gold, event points, and card tokens scale with streak.</p>
+    </div>
+  </section>
+
+  <section id="event" class="screen">
+    <div class="panel eventBox">
+      <h2>🌌 Rift Beast Event</h2>
+      <p>Every 2 hours, a new grind event appears. Fight event battles to earn points. Points give fragments, and fragments unlock a legendary or mythical beast.</p>
+      <div class="pill">Current Event: <b id="eventName"></b></div><div class="pill">Time Left: <b id="eventTimer"></b></div>
+      
+
+
+      <p><span class="frag">Legendary Fragments: <b id="legendFrags">0</b>/60</span><span class="frag">Mythical Fragments: <b id="mythFrags">0</b>/100</span><span class="frag">Ancestral Fragments: <b id="ancestralFrags">0</b>/500</span></p>
+      <div class="progressOuter"><div class="progressInner" id="eventProgress" style="width:0%"></div></div>
+      <p class="muted">Every 100 event points gives +4 legendary fragments, +2 mythical fragments, and +0.1 ancestral fragments.</p>
+      <button class="good" onclick="startBattle(true)">Fight Event Battle</button><button class="goldbtn" onclick="claimEventBeast('legendary')">Unlock Legendary Beast</button><button class="purplebtn" onclick="claimEventBeast('mythical')">Unlock Mythical Beast</button><button class="danger" onclick="claimEventBeast('ancestral')">Unlock Ancestral Beast — 500 Fragments</button>
+    </div>
+  </section>
+
+  <section id="factory" class="screen">
+    <div class="panel">
+      <h2>🍖 Food Factory</h2>
+      <p class="muted">Generate food, upgrade the factory, then spend food on Beast Island upgrades.</p>
+      <div class="pill">Factory Level: <b id="factoryLevel">1</b></div>
+      <div class="pill">Food per harvest: <b id="foodPerHarvest">35</b></div>
+      <div class="pill">Upgrade Cost: <b id="factoryUpgradeCost">250</b> gold</div>
+      <br><button class="good" onclick="harvestFood()">Harvest Food</button>
+      <button class="goldbtn" onclick="upgradeFactory()">Upgrade Factory</button>
+      <p class="muted">Tip: event battles and stage battles give gold, but beast growth now mainly needs food.</p>
+    </div>
+  </section>
+
+
+  <section id="fusion" class="screen">
+    <div class="panel">
+      <h2>🧪 Fusion Lab</h2>
+      <p class="muted">Fuse 2 beasts of the exact same kind to awaken one of them. Awakening gives a moderate HP and ATK boost. The second copy is consumed.</p>
+      <div class="pill">Rule: 2 same beasts → Awaken +1</div>
+      <div class="pill">Boost: +15% HP and +12% ATK each awakening</div>
+      <div id="fusionList" class="upgradeBox"></div>
+    </div>
+  </section>
+
+  <section id="island" class="screen">
+    <div class="panel"><h2>Beast Island</h2><p class="muted">Put beasts on display slots. Upgrade beasts here using food from the factory.</p><div class="island" id="islandMap"><div class="slot" style="left:8%;top:12%" data-slot="0"></div><div class="slot" style="left:35%;top:20%" data-slot="1"></div><div class="slot" style="left:65%;top:12%" data-slot="2"></div><div class="slot" style="left:18%;top:53%" data-slot="3"></div><div class="slot" style="left:52%;top:57%" data-slot="4"></div><div class="water"></div></div><h3>Pick Beasts to Display / Upgrade</h3><div id="islandList" class="upgradeBox"></div></div>
+  </section>
+
+  <section id="market" class="screen">
+    <div class="panel">
+      <h2>🏪 Beast Market</h2>
+      <p class="muted">Buy guaranteed copies of beasts you have obtained before. Prices are much higher than normal packs, but you always get the exact beast.</p>
+      <div id="marketList" class="cards"></div>
+    </div>
+  </section>
+
+  <section id="collection" class="screen">
+  <div class="panel">
+    <h2>Full Collection</h2>
+    <p class="muted">Sorted by rarity: Event Ancestral → Ancestral → Mythical → Legendary → Epic → Rare → Common → Starter. Deploy your 3-beast team here.</p>
+    <div class="panel" style="background:#111827">
+      <h3>Cleanup / Discard</h3>
+      <p class="muted">Use this if too many creatures are causing lag. Discarding gives event points. Double confirmation is required. Team beasts, island display beasts, Starter beasts, and Ancestrals are protected.</p>
+      <button class="danger" onclick="discardRarity('common')">Discard All Common</button>
+      <button class="danger" onclick="discardRarity('rare')">Discard All Rare</button>
+      <button class="danger" onclick="discardRarity('epic')">Discard All Epic</button>
+      <button class="danger" onclick="discardRarity('legendary')">Discard All Legendary</button>
+      <button class="danger" onclick="discardRarity('mythical')">Discard All Mythical</button>
+      <p class="tiny muted">Rewards: Common +0.1, Rare +0.5, Epic +1, Legendary +3, Mythical +100 event points each. Ancestral and Starter beasts cannot be discarded by this button.</p>
+    </div>
+    <div id="collectionList" class="cards"></div>
+  </div>
+</section>
+</div>
+<div id="rareReveal" class="rareReveal" onclick="hideReveal()"><div class="revealBox"><div class="revealTitle" id="revealTitle"></div><div class="revealEmoji" id="revealEmoji"></div><div class="revealName" id="revealName"></div><div class="revealStats" id="revealStats"></div></div></div>
+
+<div id="eventCutscene" class="eventCutscene" onclick="hideEventCutscene()">
+  <button class="cutsceneSkip" onclick="hideEventCutscene();event.stopPropagation()">Skip</button>
+  <div class="cutsceneSky"></div>
+  <div class="cutsceneBeam"></div>
+  <div class="cutsceneGround"></div>
+  <div class="cutsceneTitle" id="cutsceneTitle">EVENT EXCLUSIVE ANCESTRAL</div>
+  <div class="cutsceneBeast" id="cutsceneBeast">🐂</div>
+  <div class="cutsceneName" id="cutsceneName">TOROG</div>
+  <div class="cutsceneText" id="cutsceneText">The chase has begun.</div>
+</div>
+
+<script>
+let gold=350, food=80, cardTokens=0, factoryLevel=1, stage=1, selectedId=null, uidNext=4;
+let permanentBoost=0;
+let team=[1,2,3], islandSlots=[null,null,null,null,null];
+let eventPoints=0, legendFrags=0, mythFrags=0, ancestralFrags=0, lastFragMilestone=0;
+let chasePity={torogChase:0,primerionChase:0,evarisChase:0,botoxChase:0};
+let battle=null;
+let ownedDex=[];
+let bossWins=0;
+
+const abilityWords=["Flame","Frost","Heal","Spark","Shield","Poison","Leaf","Bubble","Rage","Double","Shadow","Sun","Meteor","Moon","Time","Bite","Claw","Roar","Web","Quake"];
+function makeAbilityKit(seed,rarity){
+ const power=rarity==='ancestral'?42:rarity==='mythical'?24:rarity==='legendary'?18:rarity==='epic'?13:rarity==='rare'?9:5;
+ const types=[
+  {n:'Ember Fang',t:'damage',v:10+power,desc:'heavy fire damage'},
+  {n:'Frost Lock',t:'damage',v:8+power,slow:1,desc:'damage and weaken next enemy hit'},
+  {n:'Snack Heal',t:'heal',v:16+power,desc:'heal this beast'},
+  {n:'Spark Chain',t:'damageAll',v:5+Math.floor(power/2),desc:'hit all enemies'},
+  {n:'Stone Guard',t:'shield',v:18+power,desc:'gain shield HP'},
+  {n:'Venom Puff',t:'poison',v:7+Math.floor(power/2),desc:'damage plus poison burst'},
+  {n:'Leaf Cutter',t:'damage',v:12+power,desc:'sharp nature strike'},
+  {n:'Bubble Cage',t:'damage',v:9+power,desc:'damage and soften enemy'},
+  {n:'Rage Howl',t:'buff',v:3+Math.floor(power/5),desc:'raise attack'},
+  {n:'Twin Peck',t:'double',v:7+Math.floor(power/2),desc:'two quick hits'},
+  {n:'Shadow Bite',t:'drain',v:10+power,desc:'damage and heal half'},
+  {n:'Sun Beam',t:'damage',v:15+power,desc:'big light blast'},
+  {n:'Meteor Crash',t:'damageAll',v:9+power,desc:'rare area smash'},
+  {n:'Moon Mend',t:'heal',v:22+power,desc:'large heal'},
+  {n:'Time Crack',t:'double',v:11+power,desc:'warped double hit'},
+  {n:'Web Snare',t:'poison',v:8+power,desc:'sticky damage'},
+  {n:'Quake Stomp',t:'damageAll',v:7+power,desc:'ground shock to all'}
+ ];
+ return [0,1,2].map(k=>{let a={...types[(seed*7+k*5)%types.length]}; a.name=abilityWords[(seed+k)%abilityWords.length]+' '+a.n; return a;});
+}
+
+function ancestralKit(name){
+ if(name.includes('Oberon')){
+  return [
+   {name:'Crown of Wilds',t:'damageAll',v:85,desc:'royal nature blast to all enemies'},
+   {name:'Forest Emperor Guard',t:'shield',v:140,desc:'huge living armor shield'},
+   {name:'Root Throne Crush',t:'poison',v:70,desc:'crush and bind enemies'},
+   {name:'Ancestor Bloom',t:'heal',v:120,desc:'massive ancient healing'}
+  ];
+ }
+ if(name.includes('Phobos')){
+  return [
+   {name:'Dread Moon Impact',t:'damage',v:155,desc:'colossal moon strike'},
+   {name:'Fear Eclipse',t:'damageAll',v:95,desc:'terror wave hits all enemies'},
+   {name:'Phobos Rift Drain',t:'drain',v:110,desc:'steal life through a rift'},
+   {name:'Ancestor Terror Form',t:'buff',v:35,desc:'gain terrifying attack'}
+  ];
+ }
+ if(name.includes('Deimos')){
+  return [
+   {name:'Panic Comet',t:'damage',v:145,desc:'panic-charged comet strike'},
+   {name:'Terror Pulse',t:'damageAll',v:88,desc:'fear wave hits all enemies'},
+   {name:'Dread Armor',t:'shield',v:125,desc:'fear-made shield armor'},
+   {name:'Cowardice Curse',t:'poison',v:82,desc:'curse damage that keeps biting'}
+  ];
+ }
+ if(name.includes('Sycorax')){
+  return [
+   {name:'Sycorax Star Hex',t:'damageAll',v:102,desc:'ancient witch-star blast'},
+   {name:'Moonroot Bind',t:'poison',v:86,desc:'bind and corrode enemies'},
+   {name:'Witchlight Mend',t:'heal',v:132,desc:'ancestral moon healing'},
+   {name:'Caliban Breaker',t:'double',v:115,desc:'two brutal enchanted hits'}
+  ];
+ }
+ if(name.includes('Kurosa')){
+  return [
+   {name:'Black Rose Eclipse',t:'damageAll',v:112,desc:'dark rose eclipse hits all enemies'},
+   {name:'Void Petal Drain',t:'drain',v:128,desc:'drain life with void petals'},
+   {name:'Obsidian Bloom Guard',t:'shield',v:165,desc:'black bloom shield'},
+   {name:'Kurosa Final Thorn',t:'damage',v:175,desc:'single-target annihilation thorn'}
+  ];
+ }
+ if(name.includes('Sah Panthera')){
+  return [
+   {name:'Royal Night Pounce',t:'damage',v:190,desc:'shadow panther strike'},
+   {name:'Panthera Eclipse Roar',t:'damageAll',v:124,desc:'eclipse roar hits all enemies'},
+   {name:'Sah Shadow Mend',t:'heal',v:150,desc:'heal through royal shadows'},
+   {name:'Black Claw Frenzy',t:'double',v:135,desc:'two fast panther slashes'}
+  ];
+ }
+ if(name.includes('Leyak')){
+  return [
+   {name:'Leyak Spirit Bite',t:'drain',v:155,desc:'haunted spirit drain'},
+   {name:'Cursed Smoke Spiral',t:'damageAll',v:118,desc:'curse smoke hits all enemies'},
+   {name:'Floating Dread Guard',t:'shield',v:175,desc:'ghostly shield'},
+   {name:'Witchfire Curse',t:'poison',v:140,desc:'burning curse damage'}
+  ];
+ }
+ if(name.includes('Botox')){
+  return [
+   {name:'Toxin Smile Beam',t:'damage',v:285,desc:'event-exclusive toxic beam'},
+   {name:'Paralyze Burst',t:'damageAll',v:210,desc:'freezing toxin hits all enemies'},
+   {name:'Immortal Facelift',t:'heal',v:390,desc:'absurd event healing'},
+   {name:'Needle Storm Ascension',t:'double',v:270,desc:'two brutal needle storms'}
+  ];
+ }
+ if(name.includes('Torog')){
+  return [
+   {name:'Chasebreaker Ram',t:'damage',v:260,desc:'event-exclusive charging smash'},
+   {name:'Stampede Shockline',t:'damageAll',v:180,desc:'stampede hits all enemies'},
+   {name:'Titan Hide Wall',t:'shield',v:310,desc:'giant shield wall'},
+   {name:'Huntlord Rage',t:'buff',v:80,desc:'massive attack growth'}
+  ];
+ }
+ if(name.includes('Primerion')){
+  return [
+   {name:'First Flame Genesis',t:'damageAll',v:220,desc:'first-world firestorm'},
+   {name:'Origin Rewrite',t:'heal',v:340,desc:'reset wounds with primal origin'},
+   {name:'Prime Spearfall',t:'double',v:250,desc:'two origin spear impacts'},
+   {name:'Event Core Ascension',t:'buff',v:95,desc:'exclusive ascension attack boost'}
+  ];
+ }
+ if(name.includes('Evaris')){
+  return [
+   {name:'Everlasting Nova',t:'damageAll',v:245,desc:'eternal nova blast'},
+   {name:'Timeless Drain',t:'drain',v:280,desc:'steals life across time'},
+   {name:'Evaris Sanctuary',t:'shield',v:360,desc:'eternal protective field'},
+   {name:'Infinity Pierce',t:'damage',v:390,desc:'single target infinite strike'}
+  ];
+ }
+ return [
+  {name:'Triple Gate Maul',t:'double',v:140,desc:'three-headed brutal attack'},
+  {name:'Underworld Fire',t:'damageAll',v:108,desc:'hellfire hits all enemies'},
+  {name:'Soul Chain Drain',t:'drain',v:120,desc:'chains enemies and drains life'},
+  {name:'Guardian of the Gate',t:'shield',v:155,desc:'massive underworld guard shield'}
+ ];
+}
+
+function ensureKit(b){if(b.rarity==='ancestral'||b.rarity==='eventancestral')b.abilities=ancestralKit(b.name||'Phobos');else if(!b.abilities)b.abilities=makeAbilityKit(b.id||1,b.rarity||'common'); if(!b.ability)b.ability=b.abilities[0].name; return b;}
+function tierMultiplier(r){return r==='eventancestral'?16:r==='ancestral'?8.5:r==='mythical'?4.8:r==='legendary'?3.2:r==='epic'?1.9:r==='rare'?1.35:1;}
+function applyTierPower(b){
+ if(!b||b.tierPowerApplied||b.rarity==='starter'||b.rarity==='common')return b;
+ let m=tierMultiplier(b.rarity);
+ b.maxHp=Math.round(b.maxHp*m);
+ b.hp=b.maxHp;
+ b.atk=Math.round(b.atk*m);
+ if(b.abilities){b.abilities=b.abilities.map(a=>({...a,v:Math.round((a.v||1)*m)}));}
+ b.tierPowerApplied=true;
+ return b;
+}
+
+function applyPermanentBoost(b){
+ if(!b)return b;
+ let applied=b.permBoostApplied||0;
+ let extra=permanentBoost-applied;
+ if(extra>0){
+  b.maxHp=Math.round(b.maxHp*(1+extra));
+  b.hp=b.maxHp;
+  b.atk=Math.max(1,Math.round(b.atk*(1+extra)));
+  if(b.abilities)b.abilities=b.abilities.map(a=>({...a,v:Math.max(1,Math.round((a.v||1)*(1+extra)))}));
+  b.permBoostApplied=permanentBoost;
+ }
+ return b;
+}
+
+function prepBeast(b){ensureKit(b);applyTierPower(b);applyPermanentBoost(b);return b;}
+const emojis=["🐺","🦊","🐸","🐢","🦎","🐉","🦅","🦇","🐍","🦀","🐙","🦖","🦕","🐲","🦌","🐗","🐝","🦋","🦈","🐋","🦄","🔥","❄️","⚡","🌙","🦁","🐯","🐊","🦏","🦍","🦂","🦑","🦜","🦚","🦣","🦫","🐆","🦝","🐿️","🦔","🦥","🦦","🦨","🦡","🦃","🦤","🪲","🪼","🦞","🦐"];
+const names=["Spriggle","Pebblecub","Mossmite","Flarrow","Frostrat","Voltfin","Thornox","Shellmunk","Batzap","Duskhorn","Glimmeroo","Clawber","Snailord","Puffernix","Emberlyn","Iceshard","Stormlet","Rootfang","Aqualisk","Sunmoth","Riftmane","Starclaw","Mythwyrm","Novafox","Ironmaw","Crystalynx","Blazehorn","Tundrake","Vortexel","Gloomcat","Solaraptor","Mistbuck","Fangloom","Thunderscale","Razorfin","Glowmole","Ashwing","Brambleox","Cinderpup","Frostjaw","Voidhare","Stormyak","Venomrook","Pearlscale","Magmawisp","Nightgriff","Aurorabbit","Terraclaw"];
+let owned=[
+ {uid:1,id:1,name:"Spriggle",emoji:"🐸",rarity:"starter",level:1,maxHp:32,hp:32,atk:5,ability:"Tiny Heal",abilities:makeAbilityKit(1,"starter")},
+ {uid:2,id:2,name:"Pebblecub",emoji:"🐢",rarity:"starter",level:1,maxHp:40,hp:40,atk:4,ability:"Pebble Shield",abilities:makeAbilityKit(2,"starter")},
+ {uid:3,id:3,name:"Flarrow",emoji:"🦊",rarity:"starter",level:1,maxHp:28,hp:28,atk:7,ability:"Tiny Flame",abilities:makeAbilityKit(3,"starter")}
+];
+owned.forEach(registerObtained);
+const beasts=[];
+for(let i=1;i<=630;i++){
+ let rarity=i>610?'mythical':i>560?'legendary':i>430?'epic':i>230?'rare':'common';
+ let hp=42+i*2+(rarity==='mythical'?150:rarity==='legendary'?90:rarity==='epic'?45:rarity==='rare'?20:0);
+ let atk=7+(i%18)+(rarity==='mythical'?24:rarity==='legendary'?15:rarity==='epic'?8:rarity==='rare'?4:0);
+ let b={id:i,name:names[i%names.length]+" #"+i,emoji:emojis[i%emojis.length],rarity,level:1,maxHp:hp,hp,atk};
+ prepBeast(b);beasts.push(b);
+}
+[
+ {id:331,name:"Oberon",emoji:"👑",rarity:"ancestral",level:1,maxHp:2600,hp:2600,atk:260},
+ {id:332,name:"Phobos",emoji:"🌑",rarity:"ancestral",level:1,maxHp:2300,hp:2300,atk:310},
+ {id:333,name:"Deimos",emoji:"☄️",rarity:"ancestral",level:1,maxHp:2400,hp:2400,atk:285},
+ {id:334,name:"Sycorax",emoji:"🧙",rarity:"ancestral",level:1,maxHp:2550,hp:2550,atk:250},
+ {id:335,name:"Kerberos",emoji:"🐕‍🦺",rarity:"ancestral",level:1,maxHp:2700,hp:2700,atk:275},
+ {id:336,name:"Kurosa",emoji:"🥀",rarity:"ancestral",level:1,maxHp:2500,hp:2500,atk:330},
+ {id:340,name:"Sah Panthera",emoji:"🐈‍⬛",rarity:"ancestral",level:1,maxHp:2650,hp:2650,atk:340},
+ {id:341,name:"Leyak",emoji:"👹",rarity:"ancestral",level:1,maxHp:2550,hp:2550,atk:355},
+ {id:337,name:"Torog",emoji:"🐂",rarity:"eventancestral",level:1,maxHp:5200,hp:5200,atk:680,eventPack:"torog"},
+ {id:338,name:"Primerion",emoji:"🌋",rarity:"eventancestral",level:1,maxHp:4800,hp:4800,atk:760,eventPack:"primerion"},
+ {id:339,name:"Evaris",emoji:"♾️",rarity:"eventancestral",level:1,maxHp:5600,hp:5600,atk:720,eventPack:"evaris"},
+ {id:342,name:"Botox",emoji:"💉",rarity:"eventancestral",level:1,maxHp:5900,hp:5900,atk:780,eventPack:"botox"}
+].forEach(b=>{prepBeast(b);beasts.push(b);});
+
+function clone(o){return JSON.parse(JSON.stringify(o))}
+let currentScreen='home';
+function showScreen(id){currentScreen=id;document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));[...document.querySelectorAll('.tab')].find(t=>t.textContent.toLowerCase().includes(id==='home'?'menu':id))?.classList.add('active');render();}
+function teamPos(uid){return team.indexOf(uid)}
+const rarityOrder={eventancestral:0,ancestral:1,mythical:2,legendary:3,epic:4,rare:5,common:6,starter:7};
+function sortedOwned(){return [...owned].sort((a,b)=>(rarityOrder[a.rarity]??9)-(rarityOrder[b.rarity]??9)||b.level-a.level||b.maxHp-a.maxHp||a.name.localeCompare(b.name));}
+function cardHTML(b,extra=''){let badge=teamPos(b.uid)>=0?`<div class="teamBadge">TEAM ${teamPos(b.uid)+1}</div>`:'';return `<div class="card ${b.rarity} ${b.pullAnim?'pullCardAnim':''} ${selectedId===b.uid?'selected':''}">${badge}<div class="beastEmoji">${b.emoji}</div><div class="name">${b.name}</div><div class="muted">${b.rarity.toUpperCase()} • Lv ${b.level} • Awaken ${b.awaken||0}</div><div>HP ${fmt(b.maxHp)}</div><div class="bar"><div class="fill" style="width:${Math.min(100,b.maxHp/3)}%"></div></div><div>ATK ${fmt(b.atk)}</div><div class="bar"><div class="fill atkfill" style="width:${Math.min(100,b.atk*4)}%"></div></div><div class="muted">Abilities:<br>${(b.abilities||[]).map(a=>'• '+a.name).join('<br>')}</div>${extra}</div>`;}
+function render(){
+ owned.forEach(prepBeast);
+ document.getElementById('gold').textContent=gold;
+ document.getElementById('food').textContent=food;
+ document.getElementById('cardTokens').textContent=fmt(cardTokens);
+ document.getElementById('stage').textContent=stage;
+ document.getElementById('ownedCount').textContent=owned.length;
+ document.getElementById('eventPoints').textContent=eventPoints;
+ let pb=document.getElementById('permanentBoost');if(pb)pb.textContent=(permanentBoost*100).toFixed(1)+'%';
+ document.getElementById('teamLine').innerHTML='Current team: '+team.map(id=>owned.find(b=>b.uid===id)?.name||'Empty').join(' / ');
+ // Only render the visible screen. This stops huge collection/island lists from rebuilding after every attack.
+ if(currentScreen==='home'){
+   document.getElementById('starterCards').innerHTML=owned.slice(0,3).map(b=>cardHTML(b)).join('');
+ }
+ if(currentScreen==='market'){renderMarket();}
+ if(currentScreen==='collection'){
+   document.getElementById('collectionList').innerHTML=sortedOwned().map(b=>cardHTML(b,`<button onclick="toggleTeam(${b.uid})">${team.includes(b.uid)?'Remove From Team':'Deploy To Team'}</button><button onclick="selectBeast(${b.uid})">Select</button>`)).join('');
+ }
+ if(currentScreen==='battle'){
+   let teamBeasts=team.map(id=>owned.find(b=>b.uid===id)).filter(Boolean);
+   document.getElementById('battlePick').innerHTML=teamBeasts.length?teamBeasts.map(b=>cardHTML(b,`<button onclick="showScreen('collection')">Change Team In Collection</button>`)).join(''):'<p class="muted">No beasts deployed. Go to Collection and deploy 3 beasts.</p>';
+   if(battle)renderBattle();
+ }
+ if(currentScreen==='island'){renderIsland();}
+ if(currentScreen==='factory'){renderFactory();}
+ if(currentScreen==='fusion'){renderFusion();}
+ if(currentScreen==='event'){renderEvent();}
+ if(currentScreen==='bossEvent'){renderBossEvent();}
+ if(currentScreen==='cards'){
+   let cts=document.getElementById('cardTokensShop');if(cts)cts.textContent=fmt(cardTokens);
+   let tp=document.getElementById('torogPity');if(tp)tp.textContent=chasePity.torogChase||0;
+   let pp=document.getElementById('primerionPity');if(pp)pp.textContent=chasePity.primerionChase||0;
+   let ep=document.getElementById('evarisPity');if(ep)ep.textContent=chasePity.evarisChase||0;
+   let bp=document.getElementById('botoxPity');if(bp)bp.textContent=chasePity.botoxChase||0;
+ }
+}
+function selectBeast(uid){selectedId=uid;render();}
+function toggleTeam(uid){if(team.includes(uid))team=team.filter(x=>x!==uid);else{if(team.length>=3){alert('Only 3 beasts can be deployed. Remove one first.');return}team.push(uid)}render();}
+function rollRarity(pack='normal'){
+ let r=Math.random();
+ if(pack==='epicpack'){
+  if(r<0.015)return'legendary';
+  if(r<0.165)return'epic';
+  if(r<0.55)return'rare';
+  return'common';
+ }
+ if(pack==='sacred'){
+  if(r<0.10)return'ancestral';
+  if(r<0.30)return'mythical';
+  return'epic';
+ }
+ if(pack==='great'){
+  if(r<.45)return'common';
+  if(r<.80)return'rare';
+  if(r<.96)return'epic';
+  return'legendary';
+ }
+ if(pack==='mythic'){
+  if(r<.0008)return'ancestral';
+  if(r<.0108)return'mythical';
+  if(r<.0708)return'legendary';
+  if(r<.3208)return'epic';
+  if(r<.6708)return'rare';
+  return'common';
+ }
+ if(isChasePack(pack)){
+  if(r<.0003)return'eventancestral';
+  if(r<.0053)return'ancestral';
+  if(r<.0353)return'mythical';
+  if(r<.1153)return'legendary';
+  if(r<.4153)return'epic';
+  if(r<.7153)return'rare';
+  return'common';
+ }
+ if(pack==='primal'){
+  if(r<.05)return'ancestral';
+  return'epic';
+ }
+ if(pack==='legendary'){
+  if(r<.003)return'mythical';
+  if(r<.023)return'legendary';
+  if(r<.223)return'epic';
+  if(r<.623)return'rare';
+  return'common';
+ }
+ if(r<.71)return'common';
+ if(r<.93)return'rare';
+ if(r<.99)return'epic';
+ return'legendary';
+}
+
+function pickBeastFromPool(rarity){
+ let pool=beasts.filter(b=>b.rarity===rarity);
+ if(!pool.length)return null;
+ if(rarity==='ancestral'){
+  let ancestralNames=['Oberon','Phobos','Deimos','Sycorax','Kerberos','Kurosa','Sah Panthera','Leyak'];
+  let ownedNames=owned.filter(b=>b.rarity==='ancestral').map(b=>b.name);
+  let missing=ancestralNames.filter(n=>!ownedNames.includes(n));
+  if(missing.length){
+   let target=missing[Math.floor(Math.random()*missing.length)];
+   let found=pool.find(b=>b.name===target);
+   if(found)return found;
+  }
+  let realPool=pool.filter(b=>ancestralNames.includes(b.name));
+  return realPool[Math.floor(Math.random()*realPool.length)]||pool[Math.floor(Math.random()*pool.length)];
+ }
+ return pool[Math.floor(Math.random()*pool.length)];
+}
+
+
+
+function packResultId(pack){return 'results-'+pack;}
+function showPackResults(pack,html){
+ document.querySelectorAll('[id^="results-"]').forEach(el=>{el.innerHTML='';});
+ let box=document.getElementById(packResultId(pack))||document.getElementById('packResults');
+ if(box){
+  box.style.display='flex';
+  box.innerHTML=html;
+  box.scrollIntoView({behavior:'smooth',block:'nearest'});
+ }
+}
+
+function buyTokensGold(amount=1){
+ amount=Math.max(1,Number(amount)||1);
+ let cost=50000*amount;
+ if(gold<cost){alert('Need '+fmt(cost)+' gold for '+amount+' Card Token'+(amount>1?'s':'')+'.');return}
+ gold-=cost;
+ cardTokens+=amount;
+ toast('+'+amount+' Card Token'+(amount>1?'s':''));
+ render();saveGame(false);
+}
+function buyTokensEvent(amount=1){
+ amount=Math.max(1,Number(amount)||1);
+ let cost=25*amount;
+ if(eventPoints<cost){alert('Need '+fmt(cost)+' event points for '+amount+' Card Token'+(amount>1?'s':'')+'.');return}
+ eventPoints=Math.round((eventPoints-cost)*10)/10;
+ cardTokens+=amount;
+ toast('+'+amount+' Card Token'+(amount>1?'s':''));
+ render();saveGame(false);
+}
+function isChasePack(pack){return pack==='torogChase'||pack==='primerionChase'||pack==='evarisChase'||pack==='botoxChase'}
+function chaseTarget(pack){return pack==='torogChase'?'Torog':pack==='primerionChase'?'Primerion':pack==='evarisChase'?'Evaris':'Botox'}
+
+function buyPack(pack='normal',count=1){
+ const costs={normal:100,great:350,legendary:900,mythic:2500,primal:5000000,torogChase:0,primerionChase:0,evarisChase:0,botoxChase:0,epicpack:2500,sacred:8000000};
+ const names={normal:'Beast Pack',great:'Great Pack',legendary:'Legendary Pack',mythic:'Mythic Pack',primal:'Primal Pack',torogChase:'Torog Chase Pack',primerionChase:'Primerion Chase Pack',evarisChase:'Evaris Chase Pack',botoxChase:'Botox Chase Pack',epicpack:'Epic Pack',sacred:'Sacred Pack'};
+ count=Math.max(1,Math.min(isChasePack(pack)?100000:100,Number(count)||1));
+ let cost=(costs[pack]||0)*count;
+ if(isChasePack(pack)){
+  let tokenCost=10*count;
+  if(cardTokens<tokenCost){alert('Need '+tokenCost+' Card Tokens for '+count+' '+names[pack]+(count>1?'s':'')+'. Open 10 costs 100 Card Tokens, Open 35 costs 350, Open 100 costs 1000, Open 1000 costs 10000, and Open 100,000 costs 1,000,000.');return}
+  cardTokens-=tokenCost;
+ }else{
+  if(gold<cost){alert('Not enough gold for '+count+' '+names[pack]+(count>1?'s':'')+'!');return}
+  gold-=cost;
+ }
+ let pulls=[];
+ for(let i=0;i<count;i++){
+  let rarity=rollRarity(pack);
+  if(isChasePack(pack)){
+   chasePity[pack]=(chasePity[pack]||0)+1;
+   if(chasePity[pack]>=1000){
+    rarity='eventancestral';
+   }
+  }
+  let chosen;
+  if(rarity==='eventancestral'){
+   let target=chaseTarget(pack);
+   chosen=beasts.find(b=>b.name===target)||pickBeastFromPool('ancestral');
+   if(isChasePack(pack))chasePity[pack]=0;
+  }else{
+   chosen=pickBeastFromPool(rarity)||pickBeastFromPool('common');
+  }
+  let base=clone(chosen);
+  base.uid=uidNext++;prepBeast(base);owned.push(base);registerObtained(base);pulls.push(base);
+ }
+ let displayPulls=count>1000?pulls.filter((b,i)=>i<35||['legendary','mythical','ancestral','eventancestral'].includes(b.rarity)).map((b,i)=>({...b,pullAnim:i<35,delay:i})):pulls.map((b,i)=>({...b,pullAnim:count>=10,delay:i}));
+let shownPulls=count>35?displayPulls.filter((b,i)=>i<35||['legendary','mythical','ancestral','eventancestral'].includes(b.rarity)):displayPulls;
+let hiddenCount=pulls.length-shownPulls.length;
+let resultHTML='<h3>'+count+' '+names[pack]+(count>1?'s':'')+' opened</h3>';
+if(hiddenCount>0)resultHTML+='<p class="muted">Showing first 35 pulls plus all high-rarity pulls. Hidden low-rarity pulls: '+hiddenCount+'. They were still added to your collection.</p>';
+resultHTML+=shownPulls.map((b,i)=>cardHTML(b).replace('class="card ','style="animation-delay:'+((i%10)*0.01)+'s" class="card ')).join('');
+showPackResults(pack,resultHTML);
+render();
+showPackResults(pack,resultHTML);
+saveGame(false);
+playRarePulls(pulls);
+}
+
+
+function showEventCutscene(b){
+ let scene=document.getElementById('eventCutscene');
+ if(!scene)return;
+ let key=b.name==='Torog'?'torog':b.name==='Primerion'?'primerion':b.name==='Botox'?'botox':'evaris';
+ scene.className='eventCutscene show '+key;
+ document.getElementById('cutsceneBeast').textContent=b.emoji;
+ document.getElementById('cutsceneName').textContent=b.name.toUpperCase();
+ document.getElementById('cutsceneTitle').textContent='EVENT EXCLUSIVE ANCESTRAL';
+ let lines={
+  Torog:'The arena shakes. A horn splits the sky. Torog has entered the chase.',
+  Primerion:'The first flame opens beneath your feet. Primerion rises from the origin core.',
+  Evaris:'Time freezes. Stars rewind. Evaris breaks through eternity.',
+  Botox:'Reality locks up. Nothing moves. Botox enters with a frozen grin.'
+ };
+ document.getElementById('cutsceneText').textContent=lines[b.name]||'An impossible beast has arrived.';
+ scene.querySelectorAll('.cutsceneParticle').forEach(x=>x.remove());
+ let symbols=b.name==='Torog'?['💥','🔥','🐂']:b.name==='Primerion'?['🌋','🔥','✨']:b.name==='Botox'?['💉','🧊','✨']:['♾️','⭐','💫'];
+ for(let i=0;i<38;i++){
+  let p=document.createElement('div');
+  p.className='cutsceneParticle';
+  p.textContent=symbols[i%symbols.length];
+  p.style.left=(45+Math.random()*10)+'%';
+  p.style.top=(42+Math.random()*16)+'%';
+  p.style.setProperty('--x',(Math.random()*1100-550)+'px');
+  p.style.setProperty('--y',(Math.random()*760-380)+'px');
+  p.style.animationDelay=(Math.random()*1.1)+'s';
+  scene.appendChild(p);
+ }
+ setTimeout(hideEventCutscene,6200);
+}
+function hideEventCutscene(){
+ let scene=document.getElementById('eventCutscene');
+ if(scene)scene.className='eventCutscene';
+}
+
+function playRarePulls(pulls){
+ let eventExclusive=pulls.find(b=>b.rarity==='eventancestral');
+ if(eventExclusive){showEventCutscene(eventExclusive);return}
+ let rares=pulls.filter(b=>b.rarity==='legendary'||b.rarity==='mythical'||b.rarity==='ancestral'||b.rarity==='eventancestral').sort((a,b)=>tierMultiplier(b.rarity)-tierMultiplier(a.rarity));
+ if(rares.length)showRareReveal(rares[0]);
+}
+function showRareReveal(b){
+ let box=document.getElementById('rareReveal');
+ if(!box)return;
+ box.className='rareReveal show '+((b.rarity==='ancestral'||b.rarity==='eventancestral')?(b.name==='Phobos'?'revealPhobos':'revealAncestral'):(b.rarity==='mythical'?'revealMythical':'revealLegendary'));
+ document.getElementById('revealTitle').textContent=(b.rarity==='ancestral'||b.rarity==='eventancestral')?(b.name==='Phobos'?'PHOBOS DEVOURS THE MOON!':b.name==='Deimos'?'DEIMOS SPREADS PANIC!':b.name==='Sycorax'?'SYCORAX CASTS THE STAR HEX!':b.name==='Kerberos'?'KERBEROS GUARDS THE UNDERWORLD!':b.name==='Kurosa'?'KUROSA BLOOMS IN THE VOID!':b.name==='Torog'?'TOROG STARTS THE CHASE!':b.name==='Primerion'?'PRIMERION IGNITES ORIGIN!':b.name==='Evaris'?'EVARIS BREAKS TIME!':b.name==='Botox'?'BOTOX FREEZES REALITY!':b.name==='Sah Panthera'?'SAH PANTHERA STALKS THE NIGHT!':b.name==='Leyak'?'LEYAK HAUNTS THE SKY!':'OBERON CLAIMS THE CROWN!'):(b.rarity==='mythical'?'MYTHICAL AWAKENED!':'LEGENDARY PULL!');
+ document.getElementById('revealEmoji').textContent=b.emoji;
+ document.getElementById('revealName').textContent=b.name;
+ document.getElementById('revealStats').textContent=`${b.rarity.toUpperCase()} • HP ${b.maxHp} • ATK ${b.atk}`;
+ box.querySelectorAll('.sparkle').forEach(x=>x.remove());
+ for(let i=0;i<8;i++){let sp=document.createElement('div');sp.className='sparkle';sp.textContent=b.rarity==='mythical'?(i%2?'✦':'✹'):(i%2?'★':'✧');sp.style.left=(45+Math.random()*10)+'%';sp.style.top=(45+Math.random()*10)+'%';sp.style.setProperty('--x',(Math.random()*900-450)+'px');sp.style.setProperty('--y',(Math.random()*650-325)+'px');sp.style.animationDelay=(Math.random()*.35)+'s';box.appendChild(sp);}
+ setTimeout(hideReveal, (b.rarity==='ancestral'||b.rarity==='eventancestral')?4200:(b.rarity==='mythical'?3200:2600));
+}
+function hideReveal(){let box=document.getElementById('rareReveal'); if(box)box.className='rareReveal';}
+
+function makeBattleBeast(b){let x=clone(ensureKit(b));x.hp=x.maxHp;x.turnsTaken=0;x.ancestorRounds=0;x.ancestorUsed=false;x.baseAtk=x.atk;x.baseMaxHp=x.maxHp;return x;}
+function stageScalePower(target, exponent=3.35){
+ let s=Math.max(1,Math.min(500,stage));
+ return Math.round(target*Math.pow(s/500,exponent));
+}
+function fmt(n){
+ if(n>=1e12)return (n/1e12).toFixed(2)+'T';
+ if(n>=1e9)return (n/1e9).toFixed(2)+'B';
+ if(n>=1e6)return (n/1e6).toFixed(2)+'M';
+ if(n>=1e3)return (n/1e3).toFixed(1)+'K';
+ return ''+Math.round(n);
+}
+
+function bossStats(){
+ let mult=Math.pow(1.35,bossWins);
+ return {hp:Math.round(9000*mult),atk:Math.round(200*mult)};
+}
+function renderBossEvent(){
+ let s=bossStats();
+ let bw=document.getElementById('bossWins');if(bw)bw.textContent=bossWins;
+ let hp=document.getElementById('bossHpText');if(hp)hp.textContent=fmt(s.hp);
+ let atk=document.getElementById('bossAtkText');if(atk)atk.textContent=fmt(s.atk);
+}
+
+function resetBossEvent(){
+ if(!confirm('Reset Boss Event progress? Test #D34TH will go back to 9,000 HP and 200 ATK. Your collection, gold, food, tokens, and stages will stay.'))return;
+ bossWins=0;
+ if(battle&&battle.isBossEvent){battle=null;let area=document.getElementById('battleArea');if(area)area.style.display='none';}
+ toast('Boss Event reset.');
+ render();
+ saveGame(false);
+}
+function startBossBattle(){
+ if(team.length!==3){alert('Deploy exactly 3 beasts first.');showScreen('collection');return}
+ let s=bossStats();
+ let boss={uid:-999,id:999999,name:'Test #D34TH',emoji:'☠️',rarity:'ancestral',level:bossWins+1,maxHp:s.hp,hp:s.hp,atk:s.atk,
+ abilities:[
+  {name:'Death Check',t:'damage',v:Math.round(s.atk*.35),desc:'boss strike'},
+  {name:'Glitch Pulse',t:'damageAll',v:Math.round(s.atk*.18),desc:'hits all'},
+  {name:'Error Shield',t:'shield',v:Math.round(s.hp*.05),desc:'shield'},
+  {name:'D34TH Surge',t:'buff',v:Math.max(5,Math.round(s.atk*.08)),desc:'attack boost'}
+ ]};
+ battle={isEvent:false,isBossEvent:true,players:team.map(id=>makeBattleBeast(owned.find(b=>b.uid===id))).filter(Boolean),enemies:[boss],pIndex:0,eIndex:0,turn:'player',over:false};
+ showScreen('battle');
+ document.getElementById('battleArea').style.display='block';
+ document.getElementById('log').innerHTML='<b>☠️ Test #D34TH appeared. Boss Event battle started!</b><br>';
+ renderBattle();
+}
+
+function makeEnemies(isEvent){
+ let count=3,arr=[];
+ for(let i=0;i<count;i++){
+  let baseHp=stageScalePower(582000000000,isEvent?3.15:3.35);
+  let baseAtk=stageScalePower(950000000,isEvent?3.05:3.25);
+  let hp=Math.max(45,Math.round(baseHp*(0.86+i*0.12)*(isEvent?1.18:1)));
+  let atk=Math.max(7,Math.round(baseAtk*(0.88+i*0.08)*(isEvent?1.12:1)));
+  let eb={uid:-100-i,id:stage*10+i,name:(isEvent?'Rift ':'Stage ')+(stage)+' Beast '+(i+1),emoji:emojis[(stage+i)%emojis.length],rarity:isEvent?'epic':(stage%100===0?'ancestral':stage%25===0?'legendary':'common'),level:stage,maxHp:hp,hp,atk};
+  ensureKit(eb);arr.push(eb);
+ }
+ return arr;
+}
+function startBattle(isEvent){if(team.length!==3){alert('Deploy exactly 3 beasts first.');showScreen('battle');return}battle={isEvent,players:team.map(id=>makeBattleBeast(owned.find(b=>b.uid===id))).filter(Boolean),enemies:makeEnemies(isEvent),pIndex:0,eIndex:0,turn:'player',over:false};showScreen('battle');document.getElementById('battleArea').style.display='block';document.getElementById('log').innerHTML=`<b>${isEvent?'Event':'Stage'} battle started. Your turn!</b><br>`;renderBattle();}
+function living(arr){return arr.filter(x=>x.hp>0)}function firstLiving(arr){return arr.findIndex(x=>x.hp>0)}
+function miniBattleHTML(b,i,active){return `<div class="battleBeast ${active?'active':''} ${b.ancestorRounds>0?'ancestorState':''} ${b.hp<=0?'dead':''}"><div class="beastEmoji">${b.emoji}</div><b>${b.name}</b><div class="tiny">Lv ${b.level} • ${b.rarity==="ancestral"?(b.ancestorRounds>0?"ANCESTOR STATE: "+b.ancestorRounds+" rounds left":"Turns to transform: "+Math.max(0,5-(b.turnsTaken||0))):(b.abilities||[]).map(a=>a.name).join(" / ")}</div><div>HP ${fmt(Math.max(0,b.hp))}/${fmt(b.maxHp)}</div><div class="bar"><div class="fill" style="width:${Math.max(0,Math.min(100,100*b.hp/b.maxHp))}%"></div></div><div>ATK ${fmt(b.atk)}</div></div>`;}
+function renderBattle(){if(!battle)return;document.getElementById('battleArea').style.display='block';if(battle.pIndex<0||battle.players[battle.pIndex]?.hp<=0)battle.pIndex=firstLiving(battle.players);if(battle.eIndex<0||battle.enemies[battle.eIndex]?.hp<=0)battle.eIndex=firstLiving(battle.enemies);document.getElementById('playerBattle').innerHTML=battle.players.map((b,i)=>miniBattleHTML(b,i,i===battle.pIndex)).join('');document.getElementById('enemyBattle').innerHTML=battle.enemies.map((b,i)=>miniBattleHTML(b,i,i===battle.eIndex)).join('');let can=battle.turn==='player'&&!battle.over;document.getElementById('attackBtn').disabled=!can;let ab=document.getElementById('abilityButtons');let p=battle.players[battle.pIndex];ab.innerHTML=(p&&p.abilities?p.abilities:[]).map((a,i)=>`<button class="purplebtn" ${can?'':'disabled'} onclick="playerAction('ability',${i})">${a.name}</button>`).join('');document.getElementById('turnText').textContent=battle.over?'Battle over':(battle.turn==='player'?'Your turn: choose Attack or Ability':'Enemy turn...');}
+function addLog(t){let l=document.getElementById('log');let lines=l.innerHTML.split('<br>');if(lines.length>45){lines=lines.slice(lines.length-35);l.innerHTML=lines.join('<br>');}l.innerHTML+=t+'<br>';l.scrollTop=l.scrollHeight;}
+function useCustomAbility(attacker,defender,slot,strong=true){
+ let a=(attacker.abilities&&attacker.abilities[slot])||ensureKit(attacker).abilities[0];
+ let scale=strong?1:0.75, text='';
+ if(a.t==='damage'){let dmg=Math.floor(attacker.atk+a.v*scale);defender.hp-=dmg;text=`used ${a.name} for ${dmg}`;}
+ else if(a.t==='damageAll'){let dmg=Math.floor(a.v*scale+attacker.atk*.45);battle.enemies.forEach(x=>{if(x.hp>0)x.hp-=dmg});text=`used ${a.name}, hitting all enemies for ${dmg}`;}
+ else if(a.t==='heal'){let heal=Math.floor(a.v*scale+attacker.maxHp*.18);attacker.hp=Math.min(attacker.maxHp,attacker.hp+heal);text=`used ${a.name} and healed ${heal}`;}
+ else if(a.t==='shield'){let heal=Math.floor(a.v*scale);attacker.hp=Math.min(attacker.maxHp+25,attacker.hp+heal);text=`used ${a.name} and gained ${heal} shield HP`;}
+ else if(a.t==='poison'){let dmg=Math.floor(attacker.atk*.8+a.v*scale);defender.hp-=dmg;defender.hp-=Math.floor(a.v*.7);text=`used ${a.name} for ${dmg} plus poison`;}
+ else if(a.t==='buff'){attacker.atk+=a.v;text=`used ${a.name} and gained +${a.v} ATK`;}
+ else if(a.t==='double'){let dmg=Math.floor((attacker.atk*.65+a.v*scale)*2);defender.hp-=dmg;text=`used ${a.name} for two hits totaling ${dmg}`;}
+ else if(a.t==='drain'){let dmg=Math.floor(attacker.atk+a.v*scale);defender.hp-=dmg;let heal=Math.floor(dmg/2);attacker.hp=Math.min(attacker.maxHp,attacker.hp+heal);text=`used ${a.name} for ${dmg} and drained ${heal} HP`;}
+ return text;
+}
+
+function checkAncestorTransform(b){
+ if(!b||b.rarity!=='ancestral'||b.ancestorUsed||b.hp<=0)return;
+ b.turnsTaken=(b.turnsTaken||0)+1;
+ if(b.turnsTaken>=5){
+  b.ancestorUsed=true;
+  b.ancestorRounds=2;
+  b.atk=Math.round(b.atk*3);
+  b.maxHp=Math.round(b.maxHp*1.8);
+  b.hp=Math.min(b.maxHp,b.hp+Math.round(b.maxHp*.55));
+  addLog('🔱 '+b.name+' METAMORPHED INTO ANCESTOR STATE FOR 2 ROUNDS!');
+ }
+}
+function tickAncestorState(b){
+ if(!b||b.rarity!=='ancestral'||!b.ancestorRounds)return;
+ b.ancestorRounds--;
+ if(b.ancestorRounds<=0){
+  b.atk=b.baseAtk||b.atk;
+  b.maxHp=b.baseMaxHp||b.maxHp;
+  b.hp=Math.min(b.hp,b.maxHp);
+  addLog('🔱 '+b.name+' returned from ancestor state.');
+ }
+}
+
+function playerAction(kind,slot=0){if(!battle||battle.turn!=='player'||battle.over)return;let p=battle.players[battle.pIndex],e=battle.enemies[battle.eIndex];if(kind==='ability'){addLog(`${p.emoji} ${p.name} ${useCustomAbility(p,e,slot,true)}.`);}else{let dmg=p.atk;e.hp-=dmg;addLog(`${p.emoji} ${p.name} used basic attack for ${dmg}.`);}checkAncestorTransform(p);tickAncestorState(p);checkBattleEnd();if(!battle.over){battle.turn='enemy';renderBattle();setTimeout(enemyTurn,220);} }
+function enemyTurn(){if(!battle||battle.over)return;let e=battle.enemies[battle.eIndex],p=battle.players[battle.pIndex];if(Math.random()<.45){addLog(`${e.emoji} ${e.name} ${useCustomAbility(e,p,Math.floor(Math.random()*3),false)}.`);}else{let dmg=e.atk;p.hp-=dmg;addLog(`${e.emoji} ${e.name} attacked ${p.name} for ${dmg}.`);}if(p.hp<=0)addLog(`💀 ${p.name} fainted!`);checkBattleEnd();if(!battle.over){battle.turn='player';renderBattle();}}
+function switchActive(){if(!battle||battle.turn!=='player'||battle.over)return;let alive=living(battle.players);if(alive.length<=1){addLog('No other living beast to switch to.');return}let start=battle.pIndex;do{battle.pIndex=(battle.pIndex+1)%battle.players.length}while(battle.players[battle.pIndex].hp<=0&&battle.pIndex!==start);addLog(`Switched to ${battle.players[battle.pIndex].name}.`);renderBattle();}
+function checkBattleEnd(){if(!battle)return;if(firstLiving(battle.enemies)<0){battle.over=true;
+ if(battle.isBossEvent){
+  bossWins++;
+  let reward=1000+bossWins*250;
+  let ep=75+bossWins*5;
+  let tokens=Math.floor(bossWins/5)+1;
+  gold+=reward;
+  gainEventPoints(ep);
+  cardTokens+=tokens;
+  addLog('☠️ Test #D34TH defeated! +'+fmt(reward)+' gold, +'+ep+' event points, +'+tokens+' card tokens. Total defeats: '+bossWins);
+
+  // heal surviving beasts
+  battle.players.forEach(p=>{
+    if(p.hp>0){
+      p.hp=p.maxHp;
+      if(p.baseAtk)p.atk=p.baseAtk;
+      p.ancestorRounds=0;
+    }
+  });
+
+  // instantly spawn stronger boss
+  let s=bossStats();
+  let boss={
+    uid:-999,id:999999,name:'Test #D34TH',emoji:'☠️',
+    rarity:'ancestral',level:bossWins+1,
+    maxHp:s.hp,hp:s.hp,atk:s.atk,
+    abilities:[
+      {name:'Death Check',t:'damage',v:Math.round(s.atk*.35),desc:'boss strike'},
+      {name:'Glitch Pulse',t:'damageAll',v:Math.round(s.atk*.18),desc:'hits all'},
+      {name:'Error Shield',t:'shield',v:Math.round(s.hp*.05),desc:'shield'},
+      {name:'D34TH Surge',t:'buff',v:Math.max(5,Math.round(s.atk*.08)),desc:'attack boost'}
+    ]
+  };
+
+  battle.enemies=[boss];
+  battle.over=false;
+  battle.turn='player';
+  battle.pIndex=0;
+  battle.eIndex=0;
+
+  addLog('🔁 Test #D34TH respawned with +35% stats!');
+  renderBattle();
+  saveGame(false);
+  return;
+ }else{
+  let reward=(battle.isEvent?70:85)+stage*7;gold+=reward;if(!battle.isEvent){stage=Math.min(500,stage+1);gainEventPoints(50);}else gainEventPoints(50);addLog(`✅ Victory! +${reward} gold${battle.isEvent?' and event points!':''}`);saveGame(false);
+ }
+}else if(firstLiving(battle.players)<0){battle.over=true;gold+=25;if(battle.isEvent)gainEventPoints(10);addLog('❌ Defeat! +25 gold consolation.');saveGame(false);}renderBattle();render();}
+function eventCycle(){return Math.floor(Date.now()/7200000)}
+function eventName(){let n=['Riftmane Hunt','Starclaw Storm','Mythwyrm Gate','Novafox Eclipse'];return n[eventCycle()%n.length]}
+function msLeft(){return 7200000-(Date.now()%7200000)}
+function renderEvent(){document.getElementById('eventName').textContent=eventName();let m=msLeft(),h=Math.floor(m/3600000),min=Math.floor((m%3600000)/60000),s=Math.floor((m%60000)/1000);document.getElementById('eventTimer').textContent=`${h}h ${min}m ${s}s`;let ect=document.getElementById('eventCardTokens');if(ect)ect.textContent=fmt(cardTokens); let cts=document.getElementById('cardTokensShop');if(cts)cts.textContent=fmt(cardTokens);
+ document.getElementById('legendFrags').textContent=legendFrags;document.getElementById('mythFrags').textContent=mythFrags;
+ let af=document.getElementById('ancestralFrags');if(af)af.textContent=(Math.round(ancestralFrags*10)/10).toFixed(1);document.getElementById('eventProgress').style.width=Math.min(100,eventPoints%100)+'%';}
+function gainEventPoints(pts){eventPoints+=pts;let milestone=Math.floor(eventPoints/100);while(lastFragMilestone<milestone){lastFragMilestone++;legendFrags+=4;mythFrags+=2;ancestralFrags=Math.round((ancestralFrags+0.1)*10)/10;addLog('🌌 Fragment reward gained: +4 legendary, +2 mythical, +0.1 ancestral.');}}
+function claimEventBeast(type){
+ let need=type==='ancestral'?500:(type==='mythical'?100:60);
+ if(type==='ancestral'&&ancestralFrags<need){alert('Need 500 ancestral fragments.');return}
+ if(type==='mythical'&&mythFrags<need){alert('Need 100 mythical fragments.');return}
+ if(type==='legendary'&&legendFrags<need){alert('Need 60 legendary fragments.');return}
+ if(type==='ancestral')ancestralFrags=Math.round((ancestralFrags-need)*10)/10;
+ else if(type==='mythical')mythFrags-=need;
+ else legendFrags-=need;
+ let pool=beasts.filter(b=>b.rarity===type);
+ if(type==='ancestral')pool=beasts.filter(b=>b.rarity==='ancestral');
+ let b=clone(pool[Math.floor(Math.random()*pool.length)]);
+ b.uid=uidNext++;prepBeast(b);owned.push(b);registerObtained(b);showRareReveal(b);
+ alert(`Unlocked ${type}: ${b.name}!`);
+ render();saveGame(false);
+}
+
+function beastKind(b){return (b.name||'').replace(/\s+#\d+$/,'').trim()+'|'+(b.id||0);}
+function fusionCandidates(){
+ let groups={};
+ owned.forEach(b=>{
+  let k=beastKind(b);
+  if(!groups[k])groups[k]=[];
+  groups[k].push(b);
+ });
+ return Object.values(groups).filter(g=>g.length>=2).map(g=>g.sort((a,b)=>(b.awaken||0)-(a.awaken||0)||b.level-a.level));
+}
+function renderFusion(){
+ let box=document.getElementById('fusionList');
+ if(!box)return;
+ let groups=fusionCandidates();
+ if(!groups.length){
+  box.innerHTML='<p class="muted">No duplicate beasts ready to fuse. Open packs to get 2 of the same kind.</p>';
+  return;
+ }
+ box.innerHTML=groups.map(g=>{
+  let main=g[0], copies=g.length;
+  let next=(main.awaken||0)+1;
+  return `<div class="card ${main.rarity}">
+    <div class="beastEmoji">${main.emoji}</div>
+    <div class="name">${main.name}</div>
+    <div class="muted">${main.rarity.toUpperCase()} • Copies: ${copies} • Current Awaken ${main.awaken||0}</div>
+    <div>Current HP ${main.maxHp} → <b>${Math.round(main.maxHp*1.15)}</b></div>
+    <div>Current ATK ${main.atk} → <b>${Math.round(main.atk*1.12)}</b></div>
+    <button class="purplebtn" onclick="fuseBeast('${beastKind(main).replace(/'/g,"\\'")}')">🧪 FUSE 2 INTO AWAKEN ${next}</button>
+  </div>`;
+ }).join('');
+}
+function fuseBeast(kind){
+ let group=owned.filter(b=>beastKind(b)===kind).sort((a,b)=>(b.awaken||0)-(a.awaken||0)||b.level-a.level);
+ if(group.length<2){toast('Need 2 of the same beast.');return}
+ let main=group[0], consume=group[1];
+ main.awaken=(main.awaken||0)+1;
+ main.maxHp=Math.round(main.maxHp*1.15);
+ main.hp=main.maxHp;
+ main.atk=Math.round(main.atk*1.12);
+ if(main.abilities){main.abilities=main.abilities.map(a=>({...a,v:Math.round((a.v||1)*1.08)}));}
+ owned=owned.filter(b=>b.uid!==consume.uid);
+ team=team.filter(id=>id!==consume.uid);
+ islandSlots=islandSlots.map(id=>id===consume.uid?null:id);
+ toast(main.name+' awakened to '+main.awaken+'!');
+ render();
+ saveGame(false);
+}
+
+
+function discardRarity(rarity){
+ if(rarity==='ancestral'||rarity==='starter'){
+  toast('That rarity is protected.');
+  return;
+ }
+ let protectedIds=new Set([...team,...islandSlots.filter(x=>x!==null)]);
+ let victims=owned.filter(b=>b.rarity===rarity&&!protectedIds.has(b.uid));
+ if(!victims.length){
+  toast('No discardable '+rarity+' beasts.');
+  return;
+ }
+ let msg1='Discard '+victims.length+' '+rarity.toUpperCase()+' beasts? Team and island beasts are protected.';
+ if(!confirm(msg1))return;
+ let msg2='FINAL CONFIRMATION: This permanently deletes '+victims.length+' '+rarity.toUpperCase()+' beasts. Are you absolutely sure?';
+ if(!confirm(msg2))return;
+ let pointValues={common:0.1,rare:0.5,epic:1,legendary:3,mythical:100};
+ let gained=(pointValues[rarity]||0)*victims.length;
+ eventPoints=Math.round((eventPoints+gained)*10)/10;
+ let milestone=Math.floor(eventPoints/100);
+ while(lastFragMilestone<milestone){
+  lastFragMilestone++;
+  legendFrags+=4;
+  mythFrags+=2;
+ }
+ let victimIds=new Set(victims.map(b=>b.uid));
+ owned=owned.filter(b=>!victimIds.has(b.uid));
+ selectedId=null;
+ toast('Discarded '+victims.length+' '+rarity+' beasts. +'+gained+' event points!');
+ render();
+ saveGame(false);
+}
+
+
+function registerObtained(b){
+ if(!b)return;
+ let key=(b.name||'')+'|'+(b.id||0)+'|'+(b.rarity||'common');
+ if(!ownedDex.includes(key))ownedDex.push(key);
+}
+function marketPrice(b){
+ let base={starter:5000,common:25000,rare:125000,epic:750000,legendary:5000000,mythical:75000000,ancestral:1000000000,eventancestral:5000000000}[b.rarity]||100000;
+ return Math.round(base*(1+(b.awaken||0)*0.5));
+}
+function marketBeasts(){
+ let all=[...beasts,...owned];
+ let map={};
+ ownedDex.forEach(key=>{
+  let [name,id,rarity]=key.split('|');
+  let found=all.find(b=>String(b.id)===String(id)&&b.name===name&&b.rarity===rarity);
+  if(found)map[key]=found;
+ });
+ return Object.values(map).sort((a,b)=>(rarityOrder[a.rarity]??9)-(rarityOrder[b.rarity]??9)||a.name.localeCompare(b.name));
+}
+function renderMarket(){
+ let box=document.getElementById('marketList');
+ if(!box)return;
+ let list=marketBeasts();
+ if(!list.length){
+  box.innerHTML='<p class="muted">No beasts unlocked in the market yet. Open packs or earn beasts first.</p>';
+  return;
+ }
+ box.innerHTML=list.map(b=>{
+  let price=marketPrice(b);
+  return cardHTML(b,`<button class="goldbtn" onclick="buyGuaranteedBeast('${b.name.replace(/'/g,"\\'")}',${b.id},'${b.rarity}')">BUY GUARANTEED COPY — ${fmt(price)} GOLD</button>`);
+ }).join('');
+}
+function buyGuaranteedBeast(name,id,rarity){
+ let base=[...beasts,...owned].find(b=>b.name===name&&b.id===id&&b.rarity===rarity);
+ if(!base){toast('Beast not found.');return}
+ let price=marketPrice(base);
+ if(gold<price){alert('Need '+fmt(price)+' gold to buy '+name+'.');return}
+ gold-=price;
+ let b=clone(base);
+ b.uid=uidNext++;
+ b.level=1;
+ b.awaken=0;
+ b.hp=b.maxHp;
+ prepBeast(b);
+ owned.push(b);
+ registerObtained(b);
+ toast('Bought guaranteed '+b.name+'!');
+ render();
+ saveGame(false);
+}
+
+function renderIsland(){
+ document.querySelectorAll('.slot').forEach(el=>{
+  let n=+el.dataset.slot,b=owned.find(x=>x.uid===islandSlots[n]);
+  if(b){
+   let c=upgradeCost(b);
+   el.innerHTML=`<div class="beastEmoji">${b.emoji||'❔'}</div><b>${b.name}</b><span class="tiny">Lv ${b.level}</span><button class="upgradeBtn" onclick="upgrade(${b.uid})">⬆ UPGRADE<br>${c} FOOD</button><button onclick="removeFromIsland(${n})">Remove</button>`;
+  }else{
+   el.innerHTML=`<span>Empty Display<br><button onclick="placeSelected(${n})">Place Selected</button></span>`;
+  }
+ });
+ document.getElementById('islandList').innerHTML=sortedOwned().map(b=>{
+  let c=upgradeCost(b);
+  return cardHTML(b,`<button onclick="selectBeast(${b.uid})">Select</button><button onclick="placeFirstOpen(${b.uid})">Display on Island</button><button class="upgradeBtn" onclick="upgrade(${b.uid})">⬆ UPGRADE THIS BEAST — ${c} FOOD</button><div class="muted">You have ${food} food.</div>`)
+ }).join('');
+}
+function placeSelected(slot){if(!selectedId){alert('Select a beast first.');return}islandSlots[slot]=selectedId;render();saveGame(false)}function placeFirstOpen(uid){let i=islandSlots.findIndex(x=>x===null);if(i<0)i=0;islandSlots[i]=uid;render();saveGame(false)}function removeFromIsland(i){islandSlots[i]=null;render();saveGame(false)}
+function upgradeCost(b){return 45+b.level*30}function upgrade(uid){
+ let b=owned.find(x=>x.uid===uid),cost=upgradeCost(b);
+ if(food<cost){alert('Not enough food. Harvest from the Food Factory.');return}
+ food-=cost;
+ b.level++;
+ b.maxHp=Math.round(b.maxHp*1.005);
+ b.hp=b.maxHp;
+ b.atk=Math.max(1,Math.round(b.atk*1.005));
+ toast('Upgraded '+b.name+' to level '+b.level+'! (+0.5% stats)');
+ render();
+ saveGame(false);
+}function renderFactory(){let a=document.getElementById('factoryLevel');if(!a)return;a.textContent=factoryLevel;document.getElementById('foodPerHarvest').textContent=foodGain();document.getElementById('factoryUpgradeCost').textContent=factoryCost();}function foodGain(){return 35+factoryLevel*15+Math.floor(stage/5)}function factoryCost(){return 250+factoryLevel*180}function harvestFood(){let amt=foodGain();food+=amt;alert('Harvested '+amt+' food!');render();saveGame(false)}function upgradeFactory(){let cost=factoryCost();if(gold<cost){alert('Not enough gold to upgrade factory.');return}gold-=cost;factoryLevel++;render();saveGame(false)}
+function saveGame(pop=true){localStorage.setItem('bcqSave3_originalMenu',JSON.stringify({gold,food,cardTokens,factoryLevel,permanentBoost,stage,owned,islandSlots,uidNext,team,eventPoints,legendFrags,mythFrags,ancestralFrags,lastFragMilestone,chasePity,bossWins,ownedDex}));if(pop)alert('Saved!')}
+function loadGame(){let s=localStorage.getItem('bcqSave3_originalMenu');if(!s)return;try{let d=JSON.parse(s);gold=d.gold??gold;food=d.food??food;cardTokens=d.cardTokens??cardTokens;permanentBoost=d.permanentBoost??0;factoryLevel=d.factoryLevel??factoryLevel;stage=d.stage??stage;owned=(d.owned??owned).map(prepBeast);owned.forEach(registerObtained);islandSlots=d.islandSlots??islandSlots;uidNext=d.uidNext??999;team=d.team??team;eventPoints=d.eventPoints??0;legendFrags=d.legendFrags??0;mythFrags=d.mythFrags??0;ancestralFrags=d.ancestralFrags??0;lastFragMilestone=d.lastFragMilestone??Math.floor(eventPoints/100);chasePity=d.chasePity??chasePity;bossWins=d.bossWins??0;ownedDex=d.ownedDex??ownedDex;owned.forEach(registerObtained)}catch(e){}}
+
+function legendaryPlusCount(){
+ return owned.filter(b=>['legendary','mythical','ancestral','eventancestral'].includes(b.rarity)).length;
+}
+function totalAwakenings(){
+ return owned.reduce((sum,b)=>sum+(b.awaken||0),0);
+}
+function prestigeGain(){
+ return legendaryPlusCount()*0.001 + totalAwakenings()*0.002;
+}
+function freshStarterState(){
+ gold=350;food=80;cardTokens=0;factoryLevel=1;stage=1;selectedId=null;uidNext=4;
+ team=[1,2,3];islandSlots=[null,null,null,null,null];
+ eventPoints=0;legendFrags=0;mythFrags=0;ancestralFrags=0;lastFragMilestone=0;
+ chasePity={torogChase:0,primerionChase:0,evarisChase:0,botoxChase:0};
+ bossWins=0;battle=null;ownedDex=[];
+ owned=[
+  {uid:1,id:1,name:"Spriggle",emoji:"🐸",rarity:"starter",level:1,maxHp:32,hp:32,atk:5,ability:"Tiny Heal",abilities:makeAbilityKit(1,"starter")},
+  {uid:2,id:2,name:"Pebblecub",emoji:"🐢",rarity:"starter",level:1,maxHp:40,hp:40,atk:4,ability:"Pebble Shield",abilities:makeAbilityKit(2,"starter")},
+  {uid:3,id:3,name:"Flarrow",emoji:"🦊",rarity:"starter",level:1,maxHp:28,hp:28,atk:7,ability:"Tiny Flame",abilities:makeAbilityKit(3,"starter")}
+ ];
+ owned.forEach(b=>{b.permBoostApplied=0;prepBeast(b);registerObtained(b);});
+}
+function prestigeReset(){
+ let gain=prestigeGain();
+ let msg='PRESTIGE RESET? This wipes your current game, but gives a permanent +'+(gain*100).toFixed(1)+'% boost. Continue?';
+ if(!confirm(msg))return;
+ if(!confirm('Second confirmation: you will lose your current beasts, stages, packs, food, tokens, fragments, and boss progress. Continue?'))return;
+ if(!confirm('FINAL CONFIRMATION: Prestige reset now? This cannot be undone.'))return;
+ permanentBoost+=gain;
+ freshStarterState();
+ localStorage.removeItem('bcqSave3_originalMenu');
+ saveGame(false);
+ toast('Prestige complete! Permanent boost is now '+(permanentBoost*100).toFixed(1)+'%');
+ showScreen('home');
+ render();
+}
+
+function resetGame(){if(confirm('Reset all progress?')){localStorage.removeItem('bcqSave3_originalMenu');localStorage.removeItem('bcqSave2');location.reload()}}
+loadGame();render();setInterval(renderEvent,1000);
+</script>
+
+<style>
+.toastMsg{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1f8f4d;color:white;
+padding:12px 18px;border-radius:12px;font-weight:bold;z-index:10000}
+
+.card.eventancestral{border-color:#00ffd5!important;box-shadow:0 0 24px rgba(0,255,213,.55)!important;background:linear-gradient(160deg,#062e2a,#151f31)!important}.card.ancestral{border-color:#ff3030!important;box-shadow:0 0 18px rgba(255,48,48,.42)!important;background:linear-gradient(160deg,#3b1010,#151f31)!important}
+.ancestorState{outline:6px solid #ff3030!important;box-shadow:0 0 25px rgba(255,48,48,.75)!important}
+.revealAncestral .revealBox{background:radial-gradient(circle,#ffffff,#ff3030 38%,#210000 76%);border-color:#ff3030;animation:ancestorRevealBox 3.4s ease forwards}
+.revealAncestral .revealTitle{font-size:38px;color:#fff;text-shadow:0 0 12px #000,0 4px 0 #630000}
+.revealAncestral .revealEmoji{animation:ancestorThrone 1s ease-in-out infinite}
+.revealAncestral:before{content:"";position:absolute;inset:-30%;background:conic-gradient(from 0deg,#ff3030,transparent,#ffffff,transparent,#ff3030);animation:ancestralRays .8s linear infinite}
+@keyframes ancestorRevealBox{0%{transform:scale(.03) rotate(35deg);opacity:0;filter:brightness(8)}18%{transform:scale(1.5) rotate(-18deg);opacity:1;filter:brightness(4)}38%{transform:scale(.78) rotate(9deg);filter:brightness(2)}65%{transform:scale(1.14) rotate(-2deg)}100%{transform:scale(1) rotate(0);opacity:1;filter:none}}
+@keyframes ancestorThrone{0%,100%{transform:scale(1) translateY(0)}50%{transform:scale(1.18) translateY(-14px)}}
+@keyframes ancestralRays{to{transform:rotate(360deg)}}
+
+</style>
+<script>
+function toast(msg){
+ const d=document.createElement('div');
+ d.className='toastMsg';
+ d.textContent=msg;
+ document.body.appendChild(d);
+ setTimeout(()=>d.remove(),1500);
+}
+</script>
+
+</body>
+</html>

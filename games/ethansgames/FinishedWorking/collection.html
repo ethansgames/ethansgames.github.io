@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset='UTF-8'>
+<title>Chest Collector — FULL RPG UPGRADED ENGINE</title>
+<style>
+ body { margin:0; background:#111; color:white; font-family:Arial; }
+ #game { width:750px; margin:20px auto; padding:20px; background:#222; border-radius:10px; text-align:center; }
+ button { padding:10px 15px; margin:6px; background:#444; border:none; border-radius:6px; cursor:pointer; color:white; }
+ button:hover{ background:#666; }
+ .section{ background:#333; padding:10px; margin-top:15px; border-radius:8px; }
+ .invSlot{display:inline-block;width:70px;height:70px;border:2px solid #555;margin:4px;border-radius:6px;padding-top:6px;font-size:12px;}
+ .log{ background:#000; padding:10px; height:180px; overflow-y:auto; border-radius:8px; text-align:left; font-size:14px; }
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}} 
+/* === FULL ANIMATION SUITE (HYBRID SUPREME) === */
+.pulse{animation:pulse 1.2s infinite;} @keyframes pulse{0%{transform:scale(1);}50%{transform:scale(1.05);}100%{transform:scale(1);}}
+.glow{animation:glow 1.5s infinite;} @keyframes glow{0%,100%{filter:drop-shadow(0 0 2px #fff);}50%{filter:drop-shadow(0 0 8px #0ff);}}
+.shake{animation:shake .4s;} @keyframes shake{0%{transform:translateX(0);}25%{transform:translateX(-5px);}50%{transform:translateX(5px);}75%{transform:translateX(-3px);}100%{transform:translateX(0);}}
+.fadeSlideIn{animation:fadeSlideIn .5s;} @keyframes fadeSlideIn{from{opacity:0;transform:translateY(40px);}to{opacity:1;transform:translateY(0);}}
+.pop{animation:pop .35s;} @keyframes pop{0%{transform:scale(0);}80%{transform:scale(1.15);}100%{transform:scale(1);}}
+/* Particle container */
+#vfxLayer{position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:99999; overflow:hidden;}
+</style>
+
+</head>
+<body>
+<div id='vfxLayer'></div>
+<div id='game'>
+ <h1>Chest Collector — FULL RPG UPGRADED</h1>
+
+ <div id='stats' class='section'></div>
+
+ <button onclick='mineGold()'>Mine Gold</button>
+ <button onclick="buyPickaxe('common')">Buy Common Pickaxe (500g)</button>
+ <button onclick="buyPickaxe('rare')">Buy Rare Pickaxe (1500g)</button>
+ <button onclick="buyPickaxe('epic')">Buy Epic Pickaxe (5000g)</button>
+ <button onclick="buyPickaxe('legendary')">Buy Legendary Pickaxe (15000g)</button>
+ <button onclick="buyPickaxe('mythic')">Buy Mythic Pickaxe (50000g)</button>
+ <button onclick='equipPickaxe()'>Equip Pickaxe</button>
+ <div id='pickaxeBox'></div>
+ <div id='activePickaxeBox'></div>
+
+ 
+ <button onclick='openSkills()'>Skills</button>
+ <button onclick='openTalents()'>Talents</button>
+ <button onclick='prestige()'>Prestige</button>
+ <button onclick='reincarnate()'>Reincarnate</button>
+ <button onclick='enterTower()'>Enter Tower</button>
+ <button onclick='showAchievements()'>Achievements</button>
+
+ <div class='section'>
+   <h2>Chests</h2>
+   <button onclick='buyChest("common")'>Common (50g)</button>
+   <button onclick='buyChest("rare")'>Rare (150g)</button>
+   <button onclick='buyChest("mythic")'>Mythic (400g)</button>
+   <button onclick='buyChest("legendary")'>Legendary (1000g)</button>
+   <button onclick='buyChest("eternal")'>Eternal (100000g)</button>
+   <button onclick='openChest()'>Open Chest</button>
+ </div>
+
+ <div class='section'>
+   <h2>Pets</h2>
+   <button onclick='buyPet()'>Buy Pet</button>
+   <button onclick='trainPets()'>Train Pets</button>
+   <button onclick='fusePets()'>Fuse Pets</button>
+   <div id='petList'></div>
+ </div>
+
+ <div class='section'>
+   <h2>Weapons</h2>
+   <button onclick='superFusion()'>SUPER-FUSION (100,000 gold)</button>
+   <button onclick="buyRareWeapon('common')">Buy Common Weapon (250g)</button>
+   <button onclick="buyRareWeapon('rare')">Buy Rare Weapon (750g)</button>
+   <button onclick="buyRareWeapon('epic')">Buy Epic Weapon (2000g)</button>
+   <button onclick="buyRareWeapon('legendary')">Buy Legendary Weapon (5000g)</button>
+   <button onclick="buyRareWeapon('mythical')">Buy Mythic Weapon (15000g)</button>
+   <button onclick='buyWeapon()'>Buy Random Weapon (500g)</button>
+   <button onclick='useWeapon()'>Use Weapon</button>
+   <div id='weaponBox'></div>
+   <button onclick='fuseWeapons()'>Fuse Weapons</button>
+ </div>
+
+ <div class='section'>
+   <h2>Mechanical Forge</h2>
+   <button onclick='openForge()'>Open Forge</button>
+   <div id='forgeBox'></div>
+ </div>
+
+ <div class='section'>
+   <h2>Magic</h2>
+   <button onclick='castSpell()'>Cast Spell (50 gold)</button>
+   <div id='magicBox'></div>
+ </div>
+
+ <div class='section'>
+   <h2>Graveyard</h2>
+   <button onclick='reviveSoldier()'>Revive Soldier (100 gold)</button>
+   <button onclick='spawnMiniBoss()'>Summon Mini-Boss (VERY DANGEROUS)</button>
+   <div id='graveyardBox'></div>
+   <button onclick='reviveMage()'>Revive Undead Mage (250g)</button>
+   <button onclick='reviveGiant()'>Revive Undead Giant (500g)</button>
+   <button onclick='reviveGunman()'>Revive Undead Gunman (350g)</button>
+   <button onclick='reviveMiniBossAlly()'>Revive Mini-Boss Ally (5000g)</button>
+ </div>
+
+ <div class='section'>
+   <h2>Altar of Sacrifice</h2>
+   <button onclick='openAltar()'>Open Altar</button>
+   <div id='altarBox'>Souls: 0<br>Skills: 0</div>
+ </div>
+
+ <div class='section'>
+   <h2>Combat</h2>
+   <button onclick='useWeapon()'>Use Weapon</button>
+   <button onclick='petAttack()'>Pet Attack</button>
+ </div>
+
+ <div class='section'>
+   <h2>Enemies</h2>
+   <button onclick='spawnEnemy()'>Spawn Enemy</button>
+   <button onclick='spawnBoss()'>Spawn Boss</button>
+   <button onclick='useItemsOnEnemy()'>Use Item</button>
+   <div id='enemyBox'></div>
+ </div>
+
+ <div class='section'>
+   <h2>Zones</h2>
+   <button onclick='setZone("Forest")'>Forest</button>
+   <button onclick='setZone("Desert")'>Desert</button>
+   <button onclick='setZone("Volcano")'>Volcano</button>
+   <button onclick='setZone("Snow")'>Snow</button>
+   <button onclick='setZone("Swamp")'>Swamp</button>
+   <button onclick='setZone("Ocean")'>Ocean</button>
+   <button onclick='setZone("Sky")'>Sky</button>
+   <button onclick='setZone("Abyss")'>Abyss</button>
+   <button onclick='setZone("Void")'>Void</button>
+   <button onclick='setZone("Celestial")'>Celestial</button>
+   <div id='zoneBox'></div>
+ </div>
+
+ <div class='section'>
+   <h2>Inventory</h2>
+   <div id='inventory'></div>
+ </div>
+
+ <div class='log' id='log'></div>
+</div>
+<div id='gameOver' style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); color:white; font-size:60px; text-align:center; padding-top:200px; z-index:9999;">💀 GAME OVER 💀<br><br><button onclick='restartGame()' style="font-size:30px; padding:15px;">Restart</button></div>
+<script>
+// ================= ANIMATION ENGINE =================
+function spawnParticle(x,y,color,size=8,duration=800){
+  let p=document.createElement('div');
+  p.style=`position:fixed;left:${x}px;top:${y}px;width:${size}px;height:${size}px;background:${color};border-radius:50%;pointer-events:none;opacity:1;transition:all ${duration}ms ease-out;`;
+  document.getElementById('vfxLayer').appendChild(p);
+  setTimeout(()=>{
+     p.style.opacity=0;
+     p.style.transform='translateY(-40px) scale(0.2)';
+  },20);
+  setTimeout(()=>p.remove(),duration+200);
+}
+function burst(x,y,color,count=12){
+  for(let i=0;i<count;i++){
+    let angle=Math.random()*Math.PI*2;
+    let dist=40+Math.random()*60;
+    let px=x+Math.cos(angle)*dist;
+    let py=y+Math.sin(angle)*dist;
+    spawnParticle(px,py,color,6,600);
+  }
+}
+function floatText(x,y,text,color='#fff'){ let t=document.createElement('div');
+  t.innerHTML=text;
+  t.style=`position:fixed;left:${x}px;top:${y}px;color:${color};font-size:20px;font-weight:bold;pointer-events:none;opacity:1;transition:all 900ms ease-out;`;
+  document.getElementById('vfxLayer').appendChild(t);
+  setTimeout(()=>{t.style.opacity=0; t.style.transform='translateY(-40px)';},20);
+  setTimeout(()=>t.remove(),1200);
+}
+// ========== PHASE 5: SUMMONING PORTAL ANIMATIONS ==========
+function petPortal(x=450, y=300){
+  burst(x, y, '#0ff');
+  floatText(x, y-40, '⚡ SUMMONED', '#0ff');
+  spawnParticle(x, y, '#0ff', 12, 900);
+}
+function tempPortalAnimation(x=450, y=300, color='#0ff'){
+  burst(x, y, color);
+  spawnParticle(x, y, color, 10, 800);
+}
+
+// ================= CORE SYSTEM =================
+let player={
+ hp:100,
+ maxhp:100,
+ gold:0,
+ zone:'Forest',
+ mining:5,
+ miningCost:50,
+ atk:0, heal:0,
+ level:{combat:1,mining:1,pets:1,chests:1,explore:1},
+ xp:{combat:0,mining:0,pets:0,chests:0,explore:0},
+ talents:0,
+ prestigePoints:0,
+ reincarnationArtifacts:0,
+ towerFloor:0,
+ VIP:0,
+ chests:{common:1,rare:0,mythic:0,legendary:0,eternal:0},
+ pets:[],
+ inventory:[],
+ weapons:[]
+};
+
+let enemy=null;
+let enemyAttackTimer=null;
+
+const zones={
+ Forest:{name:'Forest Goblin',hp:120},
+ Desert:{name:'Sand Raider',hp:200},
+ Volcano:{name:'Lava Imp',hp:350},
+ Snow:{name:'Frost Troll',hp:450},
+ Swamp:{name:'Bog Serpent',hp:520},
+ Ocean:{name:'Deep Sea Horror',hp:650},
+ Sky:{name:'Storm Harpy',hp:800},
+ Abyss:{name:'Abyss Watcher',hp:1200},
+ Void:{name:'Void Wraith',hp:1600},
+ Celestial:{name:'Starbound Guardian',hp:2200}
+};
+const bosses={
+ Forest:{name:'Elder Ent',hp:700},
+ Desert:{name:'Ancient Djinn',hp:1200},
+ Volcano:{name:'Molten Titan',hp:2000},
+ Snow:{name:'Glacier Colossus',hp:2800},
+ Swamp:{name:'Toxic Leviathan',hp:3500},
+ Ocean:{name:'Abyssal Kraken',hp:5000},
+ Sky:{name:'Thunder Phoenix',hp:6500},
+ Abyss:{name:'Abyss Emperor',hp:9000},
+ Void:{name:'Void Monarch',hp:12000},
+ Celestial:{name:'Eternal Star God',hp:18000}
+};
+const petTypes=[
+ {name:'Slime',bonus:1,xp:0},
+ {name:'Wolf',bonus:3,xp:0},
+ {name:'Dragon Pup',bonus:7,xp:0},
+ {name:'Stone Golem',bonus:10,xp:0},
+ {name:'Thunder Hawk',bonus:14,xp:0},
+ {name:'Shadow Panther',bonus:18,xp:0},
+ {name:'Celestial Fox',bonus:22,xp:0},
+ {name:'Inferno Hound',bonus:30,xp:0},
+ {name:'Frost Serpent',bonus:35,xp:0}
+];
+
+// ================= UI =================
+function log(t){
+ const l=document.getElementById('log');
+ l.innerHTML+=t+'<br>';
+ l.scrollTop=l.scrollHeight;
+}
+
+function updateStats(){
+ document.getElementById('stats').innerHTML=
+  `Gold: ${player.gold}<br>`+
+  `Zone: ${player.zone}<br>`+
+  `Mining: ${player.mining}<br>`+
+  `HP: ${player.hp} / ${player.maxhp}<br>`+
+  `Combat Lv:${player.level.combat} Mining Lv:${player.level.mining} Pets Lv:${player.level.pets}<br>`+
+  `Chests → C:${player.chests.common} R:${player.chests.rare} M:${player.chests.mythic} L:${player.chests.legendary} E:${player.chests.eternal}<br>`+
+  `Talents:${player.talents} | Prestige:${player.prestigePoints} | Artifacts:${player.reincarnationArtifacts}`;
+ updateInventory();
+ updatePets();
+ updateEnemy();
+ updateWeapons();
+ updateZone();
+ updatePickaxes();
+}
+
+function updateInventory(){
+ document.getElementById('inventory').innerHTML=
+  player.inventory.map(i=>`<div class='invSlot'>${i}</div>`).join('');
+}
+
+function updatePets(){
+ document.getElementById('petList').innerHTML=
+  player.pets.map(p=>`${p.name} Lv${p.xp}`).join('<br>');
+}
+
+function updateEnemy(){
+ document.getElementById('enemyBox').innerHTML=
+  enemy?`${enemy.name}<br>HP:${enemy.hp}`:'No enemy.';
+}
+
+function updateZone(){
+ document.getElementById('zoneBox').innerHTML=`Zone: ${player.zone}`;
+}
+
+// ================= MINING =================
+// Pickaxe System
+const pickaxePool={
+  common:{name:'Common Pickaxe',bonus:5,ability:'None',rarity:'Common'},
+  rare:{name:'Reinforced Pickaxe',bonus:15,ability:'Double gold (10%)',rarity:'Rare'},
+  epic:{name:'Crystal Pickaxe',bonus:40,ability:'Triple gold (5%)',rarity:'Epic'},
+  legendary:{name:'Dragon Pickaxe',bonus:100,ability:'Guaranteed double gold',rarity:'Legendary'},
+  mythic:{name:'Aether Pickaxe',bonus:250,ability:'5% chance x10 gold',rarity:'Mythic'}
+};
+
+player.pickaxes=[pickaxePool.common];
+player.activePickaxe=player.pickaxes[0];
+
+function updatePickaxes(){
+  let box = player.pickaxes.map((p,i)=>
+    `<button onclick="player.activePickaxe=player.pickaxes[${i}]; log('Equipped: ${p.name}'); updateStats();">${p.name} (Bonus:${p.bonus}) [${p.ability}]</button>`
+  ).join('<br>');
+
+  document.getElementById('pickaxeBox').innerHTML = box;
+  document.getElementById('activePickaxeBox').innerHTML = "Active: " + player.activePickaxe.name;
+}
+
+function buyPickaxe(r){
+  const cost={common:500,rare:1500,epic:5000,legendary:15000,mythic:50000};
+  if(player.gold < cost[r]){ log('Not enough gold'); return; }
+  player.gold -= cost[r];
+  player.gold = Math.max(0, player.gold);
+  let p = JSON.parse(JSON.stringify(pickaxePool[r]));
+  player.pickaxes.push(p);
+  log(`Bought ${p.rarity} Pickaxe: ${p.name}`);
+  updateStats();
+}
+
+function equipPickaxe(){
+  let choices = player.pickaxes.map((p,i)=>`${i}: ${p.name} (Bonus:${p.bonus})`).join('\n');
+  let pick = prompt('Choose pickaxe:\n'+choices);
+  if(pick===null) return;
+  pick = parseInt(pick);
+  if(isNaN(pick)||pick<0||pick>=player.pickaxes.length){ log('Invalid'); return; }
+  player.activePickaxe = player.pickaxes[pick];
+  log('Equipped: '+player.activePickaxe.name);
+  updateStats();
+}
+
+function mineGold(){
+ let petBonus=player.pets.reduce((s,p)=>s+p.bonus,0);
+ let gain = 5 + player.activePickaxe.bonus;
+ let roll = Math.random();
+ if(player.activePickaxe.ability==='Double gold (10%)' && roll<0.10) gain*=2;
+ if(player.activePickaxe.ability==='Triple gold (5%)' && roll<0.05) gain*=3;
+ if(player.activePickaxe.ability==='Guaranteed double gold') gain*=2;
+ if(player.activePickaxe.ability==='5% chance x10 gold' && roll<0.05) gain*=10;
+ player.gold+=gain;
+ gainXP('mining',2);
+ log('+ '+gain+' gold');
+ // animation
+ floatText(400,500,'+'+gain+'g','#0f0');
+ burst(400,520,'#ffd700');
+ updateStats();
+}
+
+// XP gain
+function gainXP(type,amount){
+ player.xp[type]+=amount;
+ let cap=100+player.level[type]*20;
+ if(player.xp[type]>=cap){
+  player.xp[type]-=cap;
+  player.level[type]++;
+  player.talents++;
+  log(`LEVEL UP: ${type.toUpperCase()} now Lv ${player.level[type]}`);
+ }
+}
+
+// ================= CHESTS =================
+function buyChest(t){
+ const cost={common:50,rare:150,mythic:400,legendary:1000,eternal:100000};
+ if(player.gold<cost[t]){log('Not enough gold');return;}
+ player.gold-=cost[t];
+ // Phase 2: buy animation
+ burst(380,240,'#6cf');
+ floatText(380,210,'Bought!','#6cf');
+ player.chests[t]++;
+ log('Bought '+t+' chest');
+ updateStats();
+}
+
+function openChest(){
+ burst(400,300,'#0ff'); floatText(400,260,'Chest!','#0ff');
+ let t=getNextChest();
+ if(!t){log('No chests');return;}
+ log('Opened '+t+' chest');
+ rewardChest(t);
+ gainXP('chests',5);
+ updateStats();
+}
+
+function getNextChest(){
+ const order=['eternal','legendary','mythic','rare','common'];
+ for(let c of order){
+  if(player.chests[c]>0){
+   player.chests[c]--;
+   return c;
+  }
+ }
+ return null;
+}
+
+function rewardChest(t){
+ const loot={
+  common:()=>{player.gold+=20; player.maxhp+=1; player.hp=player.maxhp;},
+  rare:()=>{player.inventory.push('Rare Gem'); player.maxhp+=3; player.hp=player.maxhp;},
+  mythic:()=>{player.inventory.push('Mythic Rune'); player.maxhp+=7; player.hp=player.maxhp;},
+  legendary:()=>{player.inventory.push('Legendary Relic'); player.maxhp+=15; player.hp=player.maxhp;},
+  eternal:()=>{
+    player.inventory.push('✨ Eternal Artifact');
+    player.gold+=5000;
+    player.maxhp+=50;
+    player.hp=player.maxhp;
+  }
+};
+ loot[t]();
+ // Phase 2: chest opening animation
+ burst(420,260,'#ffd700');
+ floatText(420,230,'Loot!','#ffd700');
+}
+
+// ================= PETS =================
+function buyPet(){
+ if(player.gold<200){log('Need 200');return;}
+ player.gold-=200;
+ let p=JSON.parse(JSON.stringify(petTypes[Math.floor(Math.random()*petTypes.length)]));
+ petPortal();
+ player.pets.push(p);
+ log('Got '+p.name);
+ updateStats();
+}
+
+function trainPets(){
+ player.pets.forEach(p=>p.xp++);
+ gainXP('pets',2);
+ log('Pets trained');
+ updateStats();
+}
+
+function fusePets(){
+ if(player.pets.length < 2){ log('Need 2 pets'); return; }
+ let p1 = player.pets.pop();
+ let p2 = player.pets.pop();
+ let fusionNames=['Omega Chimera','Apex Chimera','Prime Fusion','Eternal Chimera','Ultra Hybrid','Mythic Hybrid'];
+ let fusedName=fusionNames[Math.floor(Math.random()*fusionNames.length)];
+ let fused={name:fusedName,bonus:p1.bonus+p2.bonus+2,xp:0};
+ petPortal();
+ player.pets.push(fused);
+ log('Fused into '+fusedName);
+ updateStats();}
+
+// ================= MECHANICAL FORGE SYSTEM =================
+function openForge(){
+  let div=document.getElementById('forgeUI');
+  if(div){ div.remove(); }
+
+  div=document.createElement('div');
+  div.id='forgeUI'; div.classList.add('fadeSlideIn');
+  div.style=`position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.85);color:white;z-index:9999;text-align:center;padding-top:100px;`;
+
+  // Build lists
+  let petList = player.pets.map((p,i)=>`${i}: ${p.name} (Bonus:${p.bonus})`).join('<br>');
+  let weaponList = player.weapons.map((w,i)=>`${i}: ${w.name} (DMG:${w.dmg})`).join('<br>');
+
+  div.innerHTML = `
+    <h1>🔩 Mechanical Forge</h1>
+    <p>Select ONE pet and ONE weapon to fuse.</p>
+    <h3>Pets:</h3>
+    ${petList || 'No pets'}
+    <h3>Weapons:</h3>
+    ${weaponList || 'No weapons'}
+    <br><br>
+    <button onclick="mechanicalForgeRun()">Forge</button>
+    <button onclick="document.getElementById('forgeUI').remove()">Close</button>
+  `;
+  document.body.appendChild(div);
+}
+
+function mechanicalForgeRun(){
+  if(player.pets.length===0 || player.weapons.length===0){ log('Need at least 1 pet and 1 weapon'); return; }
+
+  let pPick = prompt('Choose PET index to fuse:');
+  let wPick = prompt('Choose WEAPON index to fuse:');
+  if(pPick===null || wPick===null) return;
+
+  pPick=parseInt(pPick); wPick=parseInt(wPick);
+  if(isNaN(pPick)||pPick<0||pPick>=player.pets.length){ log('Invalid pet'); return; }
+  if(isNaN(wPick)||wPick<0||wPick>=player.weapons.length){ log('Invalid weapon'); return; }
+
+  let p = player.pets[pPick];
+  let w = player.weapons[wPick];
+
+  // Combined product
+  let forgeNames=[
+    'Bio-Steel Chimera',
+    'Arcane Warbeast',
+    'Plasma Fang Construct',
+    'Apex War-Hybrid',
+    'Mythic Gearbeast'
+  ];
+  let name = forgeNames[Math.floor(Math.random()*forgeNames.length)];
+
+  let hybrid = {
+    name:name,
+    bonus: p.bonus + Math.floor(w.dmg*0.05),
+    dmg: w.dmg + Math.floor(p.bonus*10),
+    type:'Hybrid'
+  };
+
+  // Remove originals
+  player.pets.splice(pPick,1);
+  player.weapons.splice(wPick,1);
+
+  // Add hybrid as BOTH pet and weapon
+  petPortal();
+player.pets.push({name:hybrid.name, bonus:hybrid.bonus, xp:0});
+  player.weapons.push({name:hybrid.name, dmg:hybrid.dmg, rarity:'Hybrid'});
+
+  log(`🛠️ FORGED: ${hybrid.name} | Pet Bonus:${hybrid.bonus} | Weapon DMG:${hybrid.dmg}`);
+  updateStats();
+
+  document.getElementById('forgeUI').remove();
+}
+
+// ================= WEAPONS SYSTEM =================
+function fuseWeapons(){
+ if(player.weapons.length < 2){ log('Need 2 weapons to fuse'); return; }
+ // take two last weapons
+ let w1 = player.weapons.pop();
+ let w2 = player.weapons.pop();
+ let fusionNames = ['Forged Titanblade','Eternal Warbrand','Apex Soulcutter','Mythic Starbreaker','Omega Warglaive'];
+ let name = fusionNames[Math.floor(Math.random()*fusionNames.length)];
+ let fused = {
+   name:name,
+   dmg: Math.floor(w1.dmg + w2.dmg + (w1.dmg+w2.dmg)*0.25),
+   rarity:'Fused'
+ };
+ player.weapons.push(fused);
+ log(`🔱 Fused ${w1.name} + ${w2.name} → ${name} (DMG: ${fused.dmg})`);
+ updateStats();
+}
+
+// ================= WEAPONS SYSTEM =================
+// Weapon rarities
+const weaponPool = {
+  common:[
+    {name:'Rusty Sword', dmg:40, rarity:'Common'},
+    {name:'Cracked Dagger', dmg:30, rarity:'Common'}
+  ],
+  rare:[
+    {name:'Iron Blade', dmg:120, rarity:'Rare'},
+    {name:'Reinforced Axe', dmg:160, rarity:'Rare'}
+  ],
+  epic:[
+    {name:'Steel Greatsword', dmg:260, rarity:'Epic'},
+    {name:'Arcane Staff', dmg:320, rarity:'Epic'}
+  ],
+  legendary:[
+    {name:'Dragon Slayer', dmg:800, rarity:'Legendary'},
+    {name:'Blazing Halberd', dmg:950, rarity:'Legendary'}
+  ],
+  mythical:[
+    {name:'Oblivion Edge', dmg:1500, rarity:'Mythic'},
+    {name:'Void Reaver', dmg:1800, rarity:'Mythic'}
+  ]
+};
+
+function updateWeapons(){
+ document.getElementById('weaponBox').innerHTML = player.weapons.length ?
+   player.weapons.map(w=>`${w.name} (DMG: ${w.dmg})`).join('<br>') : 'No weapons.';
+}
+
+function buyWeapon(){ log('Use rarity buttons instead!'); }
+
+function buyRareWeapon(rarity){
+ const cost={common:250, rare:750, epic:2000, legendary:5000, mythical:15000};
+ if(player.gold < cost[rarity]){ log('Not enough gold'); return; }
+ // FIXED broken subtraction
+  player.gold -= cost[rarity];
+  player.gold = Math.max(0, player.gold);
+  player.gold = Math.max(0, player.gold);
+ let pool = weaponPool[rarity];
+ let w = JSON.parse(JSON.stringify(pool[Math.floor(Math.random()*pool.length)]));
+ player.weapons.push(w);
+ log(`Acquired ${w.rarity} weapon: ${w.name} (DMG:${w.dmg})`);
+ updateStats();
+}
+
+function useWeapon(){
+ if(!enemy){ log('No enemy'); return; }
+ if(player.weapons.length === 0){ log('No weapons'); return; }
+
+ // Use strongest weapon
+ let w = player.weapons[player.weapons.length-1];
+ // Phase 3 Combat Animations
+let crit = Math.random() < 0.20;
+let finalDmg = crit ? w.dmg * 2 : w.dmg;
+enemy.hp -= finalDmg;
+floatText(500,300,'-'+finalDmg,(crit?'#ff0':'#f44'));
+burst(500,320,(crit?'#ff0':'#f00'));
+if(crit){ log('💥 CRITICAL HIT!'); }
+ // combat VFX
+ floatText(500,300,'-'+w.dmg,'#f44');
+ burst(500,320,'#f00');
+ log(`⚔️ ${w.name} dealt ${w.dmg} damage! (Single-use)`);
+ player.weapons.splice(player.weapons.length-1,1); // remove last weapon
+ log(`⚔️ Used ${w.name} for ${w.dmg} damage!`);
+
+ if(enemy.hp <= 0){
+   log('Enemy defeated');
+   // universal loot drop
+   let lootItems=['Gold Nugget','Iron Chunk','Rare Shard','Mystic Essence','Beast Claw'];
+   let drop=lootItems[Math.floor(Math.random()*lootItems.length)];
+   player.inventory.push(drop);
+   log('Loot dropped: '+drop);
+   enemy = null;
+   // Auto-advance tower floor
+   if(player.towerFloor > 0){ setTimeout(()=>enterTower(), 800); }
+   if(enemyAttackTimer){ clearInterval(enemyAttackTimer); enemyAttackTimer=null; }
+   updateStats();
+   return;
+ }
+ updateStats();
+}
+
+// ================= SUPER FUSION SYSTEM =================
+function superFusion(){
+ if(player.gold < 100000){ log('Need 100,000 gold'); return; }
+
+ let hasFusedPet = player.pets.some(p=>p.name.includes('Chimera') || p.name.includes('Hybrid') || p.name.includes('Fusion'));
+ let hasFusedWeapon = player.weapons.some(w=>w.rarity==='Fused');
+
+ if(!hasFusedPet && !hasFusedWeapon){ log('Need a fused pet OR fused weapon'); return; }
+
+ // FIXED broken subtraction
+  player.gold -= 100000;
+  player.gold = Math.max(0, player.gold);
+  player.gold = Math.max(0, player.gold);
+
+ let namePool=['💎 Omni-Titan','🔥 Eternal Overlord','🌌 Cosmic Paragon','⚡ Ascended Prime','🐉 Apex Eternion'];
+ let superName = namePool[Math.floor(Math.random()*namePool.length)];
+
+ // Determine super fusion output
+ if(hasFusedPet && !hasFusedWeapon){
+   player.pets.push({name:superName, bonus:200, xp:0});
+   log(`🌟 SUPER-FUSION CREATED PET → ${superName} (+200 bonus!)`);
+ }
+ else if(hasFusedWeapon && !hasFusedPet){
+   player.weapons.push({name:superName, dmg:5000, rarity:'Super-Fused'});
+   log(`🌟 SUPER-FUSION CREATED WEAPON → ${superName} (DMG:5000)`);
+ }
+ else {
+   // Both available — random
+   if(Math.random()<0.5){
+     player.pets.push({name:superName, bonus:200, xp:0});
+     log(`🌟 SUPER-FUSION CREATED PET → ${superName} (+200 bonus!)`);
+   } else {
+     player.weapons.push({name:superName, dmg:5000, rarity:'Super-Fused'});
+     log(`🌟 SUPER-FUSION CREATED WEAPON → ${superName} (DMG:5000)`);
+   }
+ }
+ updateStats();
+}
+
+// ================= PET ATTACK =================
+function petAttack(){
+ if(!enemy){ log('No enemy'); return; }
+ if(player.pets.length === 0){ log('No pets'); return; }
+
+ let choices = player.pets.map((p,i)=>`${i}: ${p.name} (Bonus:${p.bonus})`).join('\n');
+ let pick = prompt('Choose pet to attack:\n'+choices);
+ if(pick === null) return;
+ pick = parseInt(pick);
+ if(isNaN(pick) || pick < 0 || pick >= player.pets.length){ log('Invalid pet'); return; }
+
+ let p = player.pets[pick];
+ let dmg = p.bonus * 20;
+ // Phase 3 Pet Combat Animations
+let critPet = Math.random() < 0.15;
+let finalPet = critPet ? dmg * 2 : dmg;
+enemy.hp -= finalPet;
+floatText(500,300,'-'+finalPet,(critPet?'#ff0':'#ff0'));
+burst(500,320,(critPet?'#ff0':'#ffa500'));
+if(critPet){ log('🐾💥 PET CRIT!'); }
+ // pet attack VFX
+ floatText(500,300,'-'+dmg,'#ff0');
+ burst(500,320,'#ffa500');
+ log(`🐾 ${p.name} attacked for ${dmg} damage!`);
+
+ if(enemy.hp <= 0){
+   log('Enemy defeated'); enemy=null;
+   if(enemyAttackTimer){ clearInterval(enemyAttackTimer); enemyAttackTimer=null; }
+ }
+ updateStats();
+}
+
+// ================= ALTAR OF SACRIFICE =================
+player.souls = 0;
+
+function openAltar(){
+  let div = document.getElementById('altarUI');
+  if(div){ div.remove(); }
+  div = document.createElement('div');
+  div.id='altarUI';
+  div.style=`position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.85);color:white;z-index:9999;text-align:center;padding-top:120px;`;
+
+  div.innerHTML = `
+    <h1>⛧ Altar of Sacrifice ⛧</h1>
+    <p>You currently have <b>${player.souls}</b> souls.</p>
+    <p>Choose how many lives to sacrifice:</p>
+    <input id='soulAmount' type='number' min='1' style='padding:5px;font-size:18px;width:120px;'><br><br>
+    <button onclick='sacrificeForGold()'>Sacrifice for Gold</button>
+    <button onclick='sacrificeForArtifact()'>Sacrifice for Artifact</button><br><br>
+    <button onclick="document.getElementById('altarUI').remove()">Close</button>
+  `;
+
+  document.body.appendChild(div);
+}
+
+function sacrificeForGold(){
+  let amt = parseInt(document.getElementById('soulAmount').value);
+  if(isNaN(amt) || amt <= 0){ log('Invalid sacrifice amount'); return; }
+  if(player.hp <= amt){ log('Not enough HP to sacrifice lives'); return; }
+
+  player.hp -= amt; // lose HP = lose lives
+floatText(420,300,'-'+amt+' HP','#f00'); burst(420,330,'#800');
+  player.souls += amt;
+  let gain = amt * 150;
+  player.gold += gain;
+  log(`⛧ Sacrificed ${amt} HP → Gained ${gain} gold.`);
+  updateStats();
+}
+
+function sacrificeForArtifact(){
+  let amt = parseInt(document.getElementById('soulAmount').value);
+  if(isNaN(amt) || amt <= 0){ log('Invalid sacrifice amount'); return; }
+  if(player.hp <= amt){ log('Not enough HP to sacrifice lives'); return; }
+
+  player.hp -= amt; // lose HP
+  player.souls += amt;
+  let artifacts = Math.floor(amt / 10);
+  if(artifacts < 1){ log('Need at least 10 HP sacrificed for 1 artifact!'); return; }
+
+  player.permanentSkills = (player.permanentSkills || 0) + artifacts;
+  log(`⛧ Sacrificed ${amt} HP → Received ${artifacts} Permanent Skills!`);
+  updateStats();
+}
+
+// ================= MAGIC SYSTEM =================
+player.mana = 100;
+function updateMagic(){ document.getElementById('magicBox').innerHTML = `Spell Cost: 50 gold`; }
+function castSpell(){
+  if(!enemy){ log('No enemy'); return; }
+  if(player.gold < 50){ log('Need 50 gold to cast spell'); return; }
+  player.gold -= 50;
+
+  // Spell FX
+  burst(480,260,'#5ff');
+  burst(420,260,'#0ff');
+  floatText(450,220,'✨ SPELL CAST!','#5ff');
+
+  // Spell damage
+  let dmg = 150 + player.level.combat * 10;
+  enemy.hp -= dmg;
+  log(`✨ Cast Spell for ${dmg} damage!`);
+
+  if(enemy.hp <= 0){
+    log('Enemy defeated');
+    enemy=null;
+    if(enemyAttackTimer){ clearInterval(enemyAttackTimer); enemyAttackTimer=null; }
+  }
+
+  updateStats();
+}
+updateMagic();
+
+// ================= GRAVEYARD SYSTEM =================
+player.soldiers=[];
+function recruitUnit(cost,name,dmg){
+  if(player.gold < cost){ log('Need '+cost+' gold'); return; }
+  player.gold -= cost;
+  petPortal();
+player.soldiers.push({name:name,dmg:dmg});
+  log(`☠️ Recruited ${name} (DMG:${dmg})`);
+  updateStats(); updateGraveyard();
+}
+function reviveMage(){ recruitUnit(250,'Undead Mage',120); }
+function reviveGiant(){ recruitUnit(500,'Undead Giant',200); }
+function reviveGunman(){ recruitUnit(350,'Undead Gunman',90); }
+function reviveMiniBossAlly(){ recruitUnit(5000,'💀 Grave-Titan Ally',450); }
+
+function updateGraveyard(){ document.getElementById('graveyardBox').innerHTML = player.soldiers.map(s=>s.name).join('<br>') || 'No revived soldiers'; }
+function reviveSoldier(){
+  if(player.gold < 100){ log('Need 100 gold'); return; }
+  player.gold -= 100;
+
+  let names=[
+    'Bone Knight','Undead Archer','Cursed Warrior','Ghoul Fighter',
+    'Spectral Lancer','Death Knight','Phantom Blademaster','Wraith Stalker',
+    'Shadow Reaver','Graveborn Defender','Soul Hunter','Ghastly Swordsman'
+  ];
+
+  let name=names[Math.floor(Math.random()*names.length)];
+  let dmg = 50 + Math.floor(Math.random()*50);
+
+  player.soldiers.push({name:name,dmg:dmg});
+  log(`☠️ Revived ${name} (DMG:${dmg}) to fight for you!`);
+  updateStats(); updateGraveyard();
+}
+
+
+// ================= UNDEAD ARMY AUTO-ATTACK =================
+let soldierAttackTimer=null;
+
+function startSoldierAttackLoop(){
+  if(soldierAttackTimer) clearInterval(soldierAttackTimer);
+  soldierAttackTimer = setInterval(()=>{
+    if(!enemy) return;
+    if(player.soldiers.length===0) return;
+
+    let total = player.soldiers.reduce((s,u)=>s+u.dmg,0);
+    enemy.hp -= total;
+    log(`☠️ Your undead army dealt ${total} auto‑damage!`);
+
+    if(enemy.hp <= 0){
+      log('Enemy defeated');
+      let lootItems=['Gold Nugget','Iron Chunk','Rare Shard','Mystic Essence','Beast Claw'];
+      let drop=lootItems[Math.floor(Math.random()*lootItems.length)];
+      player.inventory.push(drop);
+      log('Loot dropped: '+drop);
+      enemy=null;
+      if(enemyAttackTimer){ clearInterval(enemyAttackTimer); enemyAttackTimer=null; }
+      updateStats();
+      return;
+    }
+    updateStats();
+  }, 6000);
+}
+
+// ================= ENEMIES =================
+function spawnEnemy(){ startSoldierAttackLoop();
+ enemy = JSON.parse(JSON.stringify(zones[player.zone]));
+ log('Enemy spawned'); burst(450,280,'#fff');
+ startEnemyAttackLoop();
+ updateStats();
+}
+
+
+// ================= MINI-BOSS SYSTEM =================
+function spawnMiniBoss(){ startSoldierAttackLoop();
+  let miniHP = 2000 + Math.floor(Math.random()*2000);
+  enemy = {name:'💀 Grave-Titan Mini-Boss', hp:miniHP};
+  log(`💀 MINI-BOSS RISES FROM THE GRAVE! HP: ${miniHP}`);
+  startEnemyAttackLoop();
+  updateStats();
+}
+
+function spawnBoss(){ startSoldierAttackLoop();
+ enemy = JSON.parse(JSON.stringify(bosses[player.zone]));
+ // Phase 4: Boss Entrance FX
+ document.body.classList.add('shake');
+ setTimeout(()=>document.body.classList.remove('shake'),600);
+ burst(450,280,'#ff0',20);
+ burst(450,330,'#f80',14);
+ floatText(450,240,'👑 BOSS ARRIVES!','#ff0');
+ let flash=document.createElement('div');
+ flash.style=`position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,0,0.15);backdrop-filter:blur(3px);z-index:9999;animation:fadeSlideIn .5s;`;
+ document.body.appendChild(flash);
+ setTimeout(()=>flash.remove(),500);
+ log('🔥 BOSS APPEARED!');
+ startEnemyAttackLoop();
+ updateStats();
+}
+
+function useItemsOnEnemy(){
+ if(!enemy){ log('No enemy'); return; }
+ if(player.inventory.length===0){ log('No items'); return; }
+ let item = player.inventory.shift();
+ enemy.hp -= 100;
+ log('Used '+item+' for 100 dmg');
+ if(enemy.hp <= 0){
+   log('Enemy defeated');
+   if(Math.random() < 0.5){
+     player.inventory.push('Enemy Shard');
+     log('Dropped: Enemy Shard');
+   } else {
+     player.gold += 50;
+     log('Dropped: +50 gold');
+   }
+   enemy = null;
+ if(enemyAttackTimer){ clearInterval(enemyAttackTimer); enemyAttackTimer=null; }
+ }
+ updateStats();
+}
+
+function setZone(z){
+ player.zone = z;
+ log('Zone set to '+z);
+ updateStats();
+}
+
+// ================= ENEMY ATTACK LOOP =================
+function startEnemyAttackLoop(){
+ if(enemyAttackTimer) clearInterval(enemyAttackTimer);
+ enemyAttackTimer = setInterval(()=>{
+   if(!enemy) return;
+   let dmg = Math.max(1, Math.floor(enemy.hp / 10));
+   player.hp -= dmg;
+   log(`💢 ${enemy.name} hit you for ${dmg} damage!`);
+   if(player.hp <= 0){
+     player.hp = 0;
+     // Tower defeat handling
+     if(player.towerFloor > 0){
+         let reward = player.towerFloor * 100;
+         log(`🏰 You were defeated on Floor ${player.towerFloor}! Earned ${reward} gold.`);
+         player.gold += reward;
+         player.hp = player.preTowerHP;
+         player.towerFloor = 0;
+         enemy = null;
+         return updateStats();
+     }
+     document.getElementById('gameOver').style.display='block';
+     log('💀 You died!');
+     clearInterval(enemyAttackTimer);
+     enemyAttackTimer=null;
+     enemy=null;
+   }
+   updateStats();
+ },15000);
+}
+
+// ================= PLACEHOLDER SYSTEMS =================
+function openSkills(){
+  let ui=document.getElementById('skillsUI');
+  if(ui){ ui.remove(); }
+  ui=document.createElement('div');
+  ui.id='skillsUI';
+  ui.classList.add('fadeSlideIn'); ui.style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.85);color:white;z-index:9999;text-align:center;padding-top:120px;";
+  ui.innerHTML = `
+    <h1>⭐ Skills</h1>
+    <p>Permanent Skills: ${player.permanentSkills||0}</p>
+    <p>Effects:</p>
+    <p>+ ${(player.permanentSkills||0)*2} Max HP</p>
+    <p>+ ${(player.permanentSkills||0)} Combat Damage</p>
+    <p>+ ${(player.permanentSkills||0)*0.5}% Gold Gain</p>
+    <button onclick="document.getElementById('skillsUI').remove()">Close</button>`;
+  document.body.appendChild(ui);
+}
+
+function openTalents(){
+  // Simple Talents UI modal
+  let modal = document.getElementById('talentUI');
+  if(!modal){
+    let div=document.createElement('div');
+    div.id='talentUI';
+    div.style=`position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.85);color:white;z-index:9999;text-align:center;padding-top:120px;`;
+    div.innerHTML=`<h1>Talents</h1>
+      <p>You have ${player.talents} talent points.</p>
+      <div style='margin-top:20px;'>
+        <button onclick="buyTalent('mining')">+2 Mining</button>
+        <button onclick="buyTalent('combat')">+5 Combat</button>
+        <button onclick="buyTalent('hp')">+10 Max HP</button>
+        <button onclick="buyTalent('gold')">+5% Gold Gain</button>
+      </div>
+      <button onclick=\"document.getElementById('talentUI').remove()\">Close</button>`;
+    document.body.appendChild(div);
+  }
+}
+
+function buyTalent(type){
+  if(player.talents<=0){ log('No talent points'); return; }
+  player.talents--;
+  if(type==='mining') player.mining+=2;
+  if(type==='combat') player.atk+=5;
+  if(type==='hp') player.maxhp+=10;
+  if(type==='gold') player.goldGainBonus = (player.goldGainBonus||0) + 0.05;
+  log(`Upgraded ${type}!`);
+  updateStats();
+}
+
+function prestige(){
+ // Explain prestige cost and effects
+ if(player.gold < 10000){
+   log('✨ Prestige requires 10,000 gold.');
+   log('Prestige resets: Gold, Mining, Pets, Chests, Inventory.');
+   log('You KEEP: Talents and Prestige Points.');
+   return;
+ }
+
+ // Prestige: reset soft progress, gain prestige points
+ // Confirmation popup
+ if(!confirm('Prestige now? You will reset gold, mining, pets, inventory, and chests.')){
+   log('Prestige cancelled.');
+   return;
+ }
+
+ player.gold = 0;
+ player.mining = 5;
+ player.miningCost = 50;
+ player.atk = 0;
+ player.heal = 0;
+ player.chests = {common:0,rare:0,mythic:0,legendary:0,eternal:0};
+ player.pets = [];
+ player.inventory = [];
+ player.prestigePoints++;
+ log('✨ PRESTIGE COMPLETE! You gained +1 Prestige Point');
+ checkAchievements();
+ updateStats();
+}
+
+// ================= ACHIEVEMENTS =================
+let achievements = [
+ {id:'gold1', text:'Earn 1,000 gold', done:false, condition:()=>player.gold>=1000},
+ {id:'kill1', text:'Defeat your first enemy', done:false, condition:()=>player.level.combat>=2},
+ {id:'prestige1', text:'Perform a Prestige', done:false, condition:()=>player.prestigePoints>=1},
+ {id:'boss1', text:'Defeat a Boss', done:false, condition:()=>player.level.combat>=5}
+];
+
+function checkAchievements(){
+ achievements.forEach(a=>{
+   if(!a.done && a.condition()){
+     a.done = true;
+     log('🏆 ACHIEVEMENT UNLOCKED: '+a.text);
+   }
+ });
+}
+
+function showAchievements(){
+  let ui=document.getElementById('achUI');
+  if(ui){ ui.remove(); }
+  ui=document.createElement('div');
+  ui.id='achUI';
+  ui.style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.85);color:white;z-index:9999;text-align:center;padding-top:120px;animation:fadeIn .4s;";
+  let list = achievements.map(a=>`<p>${a.done?'✔️':'❌'} ${a.text}</p>`).join('');
+  ui.innerHTML = `<h1>🏆 Achievements</h1>${list}<br><button onclick=\"document.getElementById('achUI').remove()\">Close</button>`;
+  document.body.appendChild(ui);
+}
+
+function reincarnate(){
+ // Confirmation popup
+ if(!confirm('Reincarnate now? This resets EVERYTHING but grants +1 Artifact.')){
+   log('Reincarnation cancelled.');
+   return;
+ }
+
+ // Explain reincarnation before execution
+ if(player.prestigePoints < 10){
+   log('💠 Reincarnation requires 10 Prestige Points.');
+   log('Reincarnation resets EVERYTHING but grants a permanent Artifact.');
+   return;
+ }
+
+ // Full reincarnation reset
+ player.gold = 0;
+ player.zone = 'Forest';
+ player.mining = 5;
+ player.miningCost = 50;
+ player.atk = 0;
+ player.heal = 0;
+ player.level = {combat:1,mining:1,pets:1,chests:1,explore:1};
+ player.xp = {combat:0,mining:0,pets:0,chests:0,explore:0};
+ player.talents = 0;
+ player.chests = {common:0,rare:0,mythic:0,legendary:0,eternal:0};
+ player.pets = [];
+ player.inventory = [];
+ player.prestigePoints = 0;
+ player.reincarnationArtifacts++;
+ log('💠 REINCARNATION COMPLETE! You gained +1 Artifact.');
+ updateStats();
+}
+function enterTower(){
+ // Save HP before entering tower
+ player.preTowerHP = player.hp;
+ if(enemy){ log('Finish current fight first!'); return; }
+
+ player.towerFloor++;
+ let floor = player.towerFloor;
+
+ // Boss every 5 or 10 floors
+ let isBoss = (floor % 5 === 0) || (floor % 10 === 0);
+
+ if(isBoss){
+   let bossHP = 500 + floor * 80;
+   enemy = {name:`👑 Tower Boss F${floor}`, hp:bossHP};
+   log(`👑 BOSS FLOOR ${floor}! HP: ${bossHP}`);
+ } else {
+   let hp = 120 + floor * 50;
+   enemy = {name:`Tower Beast F${floor}`, hp:hp};
+   log(`🏰 Entered Tower Floor ${floor}! Enemy HP: ${hp}`);
+ }
+
+ startEnemyAttackLoop();
+ updateStats();
+}
+
+function restartGame(){ location.reload(); }
+
+// ================ PATH SELECTION TAB ================
+// Path system removed
+
+// Path selection removed
+</script>
+</body>
+</html>
