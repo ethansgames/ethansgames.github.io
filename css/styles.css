@@ -201,13 +201,17 @@ p {
 .card {
   background: #003b63;
   border: 3px solid #00eaff;
+  place-items: center;
+  text-align: center;
   border-radius: 14px;
-  padding: 22px;
+  padding: 10px;
 }
 
-.card h3 {
+.card h2 {
   color: yellow;
-  margin-bottom: 10px;
+  place-items: center;
+  text-align: center;
+  margin-bottom: 5px;
 }
 
 footer {

@@ -1,0 +1,54 @@
+This website is an independent project.
+
+It is NOT affiliated with, associated with, authorized by, sponsored by, approved by, endorsed by, or connected with any company, corporation, publisher, developer, organization, trademark owner, or other entity unless expressly stated in writing by the copyright holder.
+
+If this software contains gameplay mechanics, visual styles, themes, ideas, or concepts that are similar to those found in other games or media, such similarities are purely for inspiration and do not imply any affiliation, endorsement, partnership, sponsorship, licensing, or approval.
+
+All trademarks, logos, product names, and company names remain the property of their respective owners.
+
+THIS SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE."
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE COPYRIGHT HOLDER DISCLAIMS ALL WARRANTIES OF ANY KIND, WHETHER EXPRESS, IMPLIED, STATUTORY, OR OTHERWISE, INCLUDING BUT NOT LIMITED TO:
+
+* MERCHANTABILITY
+* FITNESS FOR A PARTICULAR PURPOSE
+* NON-INFRINGEMENT
+* ACCURACY
+* RELIABILITY
+* SECURITY
+* AVAILABILITY
+* COMPATIBILITY
+* PERFORMANCE
+* ERROR-FREE OPERATION
+
+NO GUARANTEE IS MADE THAT THE SOFTWARE WILL FUNCTION WITHOUT BUGS, INTERRUPTIONS, DATA LOSS, OR SECURITY ISSUES.
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE COPYRIGHT HOLDER SHALL NOT BE LIABLE FOR ANY DAMAGES OR LOSSES ARISING OUT OF OR RELATING TO THIS SOFTWARE.
+
+THIS INCLUDES, BUT IS NOT LIMITED TO:
+
+* Direct damages
+* Indirect damages
+* Incidental damages
+* Consequential damages
+* Special damages
+* Exemplary damages
+* Punitive damages
+* Loss of profits
+* Loss of revenue
+* Loss of business opportunities
+* Loss of goodwill
+* Loss of savings
+* Loss of use
+* Loss of data
+* Corrupted files
+* Hardware damage
+* Software damage
+* System instability
+* Security breaches
+* Malware introduced by third parties
+* Any other monetary or non-monetary loss
+
+THIS LIMITATION APPLIES EVEN IF THE COPYRIGHT HOLDER HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+YOUR USE OF THIS SOFTWARE IS ENTIRELY AT YOUR OWN RISK.
