@@ -11,21 +11,6 @@ const ftlicense = document.getElementById("ftgamelicense");
 const ftdisclaimer = document.getElementById("ftdisclaimer");
 const nextThemeButton = document.getElementById("nextThemeButton");
 
-let themeIndex = 0;
-
-nextThemeButton.addEventListener('click', _ => {
-    if (themeIndex != themes.length - 1) {
-        themeIndex++;
-    } else {themeIndex = 0;}
-    
-    updatetheme(themeIndex);
-
-    nextThemeButton.textContent = themes[themeIndex].name;
-    nextThemeButton.style.background = themes[themeIndex].lbGradient;
-    nextThemeButton.style.color = themes[themeIndex].logocolor;
-    nextThemeButton.style.border = "4px solid " + themes[themeIndex].border;
-})
-
 const themes = [
     {
         border: "#9dff00",
@@ -99,7 +84,31 @@ const themes = [
         ftlinkcolor:"#26a8ff",
         name:"Lite Mode"
     }
-]
+];
+
+let themeIndex = Number(localStorage.getItem('pwathemenum') ?? 0);
+
+themeIndex--;
+
+nextTheme(themeIndex);
+
+nextThemeButton.addEventListener('click', _ => nextTheme());
+
+function nextTheme() {
+    if (themeIndex != themes.length - 1) {
+        themeIndex++;
+    } else {themeIndex = 0;}
+
+    localStorage.setItem('pwathemenum',themeIndex);
+
+    updatetheme(themeIndex);
+
+    nextThemeButton.textContent = themes[themeIndex].name;
+    nextThemeButton.style.background = themes[themeIndex].lbGradient;
+    nextThemeButton.style.color = themes[themeIndex].logocolor;
+    nextThemeButton.style.border = "4px solid " + themes[themeIndex].border;
+}
+
 function updatetheme(themeNum) {
     header.style.borderBottom = "4px solid " + themes[themeNum].border;
     footer.style.borderTop = "4px solid " + themes[themeNum].border;
