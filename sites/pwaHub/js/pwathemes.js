@@ -11,6 +11,7 @@ const ftlicense = document.getElementById("ftgamelicense");
 const ftdisclaimer = document.getElementById("ftdisclaimer");
 const nextThemeButton = document.getElementById("nextThemeButton");
 
+
 const themes = [
     {
         border: "#9dff00",
