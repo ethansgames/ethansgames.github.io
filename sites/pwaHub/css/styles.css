@@ -269,6 +269,9 @@ footer {
   object-fit: contain;
   cursor: pointer;
 }
+[hidden] {
+    display: none !important;
+}
 /* Optional: Mobile Scaling */
 @media (max-width: 600px) {
   .iframebox {

@@ -10,7 +10,7 @@ const body = document.querySelectorAll("body");
 const ftlicense = document.getElementById("ftgamelicense");
 const ftdisclaimer = document.getElementById("ftdisclaimer");
 const nextThemeButton = document.getElementById("nextThemeButton");
-
+const pwatheme = document.querySelector('meta[name="theme-color"]');
 
 const themes = [
     {
@@ -140,4 +140,6 @@ function updatetheme(themeNum) {
     logo.style.color = themes[themeNum].logocolor;
 
     footer.style.color = themes[themeNum].footercolor;
+
+    pwatheme.setAttribute("content",themes[themeNum].fill);
 }
