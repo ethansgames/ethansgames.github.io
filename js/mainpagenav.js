@@ -1,3 +1,28 @@
+let deferredPrompt;
+
+const installBtn = document.getElementById("pwainstall");
+installBtn.disabled = true;
+
+window.addEventListener("beforeinstallprompt", e => {
+    e.preventDefault();
+    deferredPrompt = e;
+    installBtn.disabled = false;
+});
+
+installBtn.addEventListener("click", async () => {
+    if (!deferredPrompt) return;
+
+    await deferredPrompt.prompt();
+    const choice = await deferredPrompt.userChoice;
+
+    if (choice.outcome === "accepted") {
+        location.href = "/sites/pwaHub/pwahub.html";
+    }
+
+    deferredPrompt = null;
+    installBtn.disabled = true;
+});
+
 const cubeButton = document.getElementById("robbieIcon");
 const sideMenu = document.getElementById("sideMenu");
 const titleGameSpan = document.getElementById("titleGameSpan");

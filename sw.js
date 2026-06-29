@@ -1,54 +1,59 @@
 const CacheStoreName = "dev_v2";
 
-const addResource = async (request, response) => {
-    const cache = await caches.open(CacheStoreName);
-    await cache.put(request, response);
-};
-
-const cachefirst = async (request, event) => {
-    const cacheResponse = await caches.match(request);
-    if (cacheResponse) return cacheResponse;
-    const netresponse = await fetch(request);
-    event.waitUntil(addResource(request, netresponse.clone()));
-    return netresponse;
-};
-
-const deleteCache = async (key) => {
-  await caches.delete(key);
-};
-
-const deleteOldCaches = async () => {
-  const cacheKeepList = ["v2"];
-  const keyList = await caches.keys();
-  const cachesToDelete = keyList.filter((key) => !cacheKeepList.includes(key));
-  await Promise.all(cachesToDelete.map(deleteCache));
-};
-
-self.addEventListener("activate", (event) => {
-  event.waitUntil(deleteOldCaches());
-});
+const STATIC_ASSETS = [
+  "/sites/pwaHub/pwahub.html",
+  "/sites/pwaHub/js/pwaswinteractor.js",
+  "/sites/pwaHub/js/pwathemes.js",
+  "/sites/pwaHub/css/styles.css",
+  "/manifest.webmanifest",
+];
 
 self.addEventListener("install", event => {
-    event.waitUntil(
-        caches.open(CacheStoreName).then(cache => {
-            return cache.addAll([
-                "/sites/pwaHub/js/pwaswinteractor.js",
-                "/sites/pwaHub/js/pwathemes.js",
-                "/sites/pwaHub/css/styles.css",
-                "/manifest.webmanifest",
-            ]);
-        })
+  event.waitUntil(
+    caches.open(CacheStoreName).then(cache => cache.addAll(STATIC_ASSETS))
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", event => {
+  event.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.map(key => {
+        if (key !== CacheStoreName) return caches.delete(key);
+      }))
+    )
+  );
+  self.clients.claim();
+});
+
+self.addEventListener("fetch", event => {
+  const req = event.request;
+
+  if (req.mode === "navigate") {
+    event.respondWith(
+      fetch(req).catch(() => caches.match("/sites/pwaHub/pwahub.html"))
     );
-});
+    return;
+  }
+  
+  if (req.method !== "GET" || new URL(req.url).origin !== location.origin) {
+    return;
+  }
 
-self.addEventListener("fetch", (event)=>{
-    event.respondWith(cachefirst(event.request,event));
-});
+  event.respondWith(
+    caches.match(req).then(cached => {
+      if (cached) return cached;
 
-self.addEventListener("message",(event) => {
-    if (event.data == "UPDATE_NOW") {
-        self.skipWaiting();
-        event.waitUntil(self.clients.claim());
-        event.source.postMessage("UPDATE_INSTALLED");
-    }
+      return fetch(req).then(response => {
+        if (!response || response.status !== 200) return response;
+
+        const clone = response.clone();
+        event.waitUntil(
+          caches.open(CacheStoreName).then(cache => cache.put(req, clone))
+        );
+
+        return response;
+      });
+    })
+  );
 });

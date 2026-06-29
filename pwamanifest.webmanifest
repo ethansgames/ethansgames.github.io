@@ -1,14 +1,13 @@
 {
-    "id":"/?utm_source=pwa",
-    "name":"Ethan's HTML Web Game Repository and PWA",
-    "short_name":"Ethan's Games",
-    "description":"A repository dedicated to Ethan's awesome web games that everyone can enjoy!",
-    "start_url":"/sites/pwaHub/pwahub.html",
-    "scope":"/",
-    "display":"standalone",
-    "orientation":"landscape",
-    "background_color":"#ffffff",
-    "theme_color":"#007bff",
+    "id": "/ethans-games-pwa-app",
+    "name": "Ethan's HTML Web Game Repository and PWA",
+    "short_name": "Ethan's Games",
+    "start_url": "/sites/pwaHub/pwahub.html",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "landscape",
+    "background_color": "#ffffff",
+    "theme_color": "#007bff",
     "icons": [
         {
             "src": "/images/icons/pwa/mainicon192.png",
@@ -27,6 +26,11 @@
         {
             "src":"/images/icons/pwa/themepreview.png",
             "sizes":"1489x1894",
+            "form_factor":"wide"
+        },
+        {
+            "src":"/images/icons/pwa/tankcitypreview.png",
+            "sizes":"1915x969",
             "form_factor":"wide"
         }
     ]
