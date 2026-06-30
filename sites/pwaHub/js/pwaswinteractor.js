@@ -27,7 +27,7 @@ if ("serviceWorker" in navigator) {
 
         setInterval(() => {
             reg.update();
-        }, 1000/*3*60*60*1000)*/);
+        }, 3*60*60*1000);
 
         if (reg.waiting) {
             showUpdateBanner(reg.waiting);

@@ -3,7 +3,6 @@ importScripts("/sites/pwaHub/versioncontrol.js");
 const CACHE_NAME = `ethans-games-${PWA_VERSION}`;
 
 const APP_SHELL = [
-  "/",
   "/index.html",
   "/sites/pwaHub/pwahub.html",
   "/sites/pwaHub/js/pwaswinteractor.js",
@@ -13,7 +12,15 @@ const APP_SHELL = [
 
 self.addEventListener("install", event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL))
+    caches.open(CACHE_NAME).then(async cache => {
+      for (const asset of APP_SHELL) {
+        const response = await fetch(asset, { redirect: "follow" });
+
+        if (response.ok && response.type === "basic") {
+          await cache.put(asset, response);
+        }
+      }
+    })
   );
 });
 
@@ -51,7 +58,12 @@ self.addEventListener("fetch", event => {
   // Pages: network first, fallback to PWA hub.
   if (req.mode === "navigate") {
     event.respondWith(
-      fetch(req).catch(() => caches.match("/sites/pwaHub/pwahub.html"))
+      fetch(req, { redirect: "follow" }).catch(async () => {
+        const cache = await caches.open(CACHE_NAME);
+        return cache.match("/sites/pwaHub/pwahub.html", {
+          ignoreSearch: true
+        });
+      })
     );
     return;
   }

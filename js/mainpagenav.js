@@ -2,11 +2,13 @@ let deferredPrompt;
 
 const installBtn = document.getElementById("pwainstall");
 installBtn.disabled = true;
+installBtn.hidden = true;
 
 window.addEventListener("beforeinstallprompt", e => {
     e.preventDefault();
     deferredPrompt = e;
     installBtn.disabled = false;
+    installBtn.hidden = false;
 });
 
 installBtn.addEventListener("click", async () => {
@@ -21,6 +23,7 @@ installBtn.addEventListener("click", async () => {
 
     deferredPrompt = null;
     installBtn.disabled = true;
+    installBtn.hidden = true;
 });
 
 const cubeButton = document.getElementById("robbieIcon");

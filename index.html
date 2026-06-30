@@ -8,6 +8,15 @@
   <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
+  <script>
+    const isBrowser =
+      window.matchMedia("(display-mode: browser)").matches;
+
+    if (!isBrowser && location.pathname.endsWith("/index.html")) {
+        location.href="/sites/pwaHub/pwahub.html";
+        location.replace("/sites/pwaHub/pwahub.html");
+    }
+  </script>
   <header>
     <div class="logo">Ethan's Games Hub</div>
 
@@ -175,12 +184,12 @@
           <span class="menu-boldbanner">Hot!</span>
           Tank Shooter
         </a>
-        <a href="./games/ethansgames/SiegeProtectors/Siege Protecters Update V2.0.html" target="_blank" 
+        <a href="./games/ethansgames/SiegeProtectors/Siege_ProtectorsV2.0.html" target="_blank" 
         rel="noopener noreferrer" class="link-button">
           <span class="menu-boldbanner">Hot!</span>
           Siege Protectors 2
         </a>
-        <a href="./games/ethansgames/SiegeProtectors/Siege Protecters Update V2.0.html" target="_blank" class="link-button"
+        <a href="./games/ethansgames/SiegeProtectors/Siege_ProtectorsV7.0.html" target="_blank" class="link-button"
          rel="noopener noreferrer">
           Siege Protectors 7
         </a>
