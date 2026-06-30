@@ -18,7 +18,7 @@ installBtn.addEventListener("click", async () => {
     const choice = await deferredPrompt.userChoice;
 
     if (choice.outcome === "accepted") {
-        location.href = "/sites/pwaHub/pwahub.html";
+        location.href = "/global/sites/pwaHub/pwahub.html";
     }
 
     deferredPrompt = null;

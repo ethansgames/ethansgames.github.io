@@ -2,21 +2,21 @@
     "id": "/ethans-games-pwa-app",
     "name": "Ethan's HTML Web Game Repository and PWA",
     "short_name": "Ethan's Games",
-    "start_url": "/sites/pwaHub/pwahub.html",
-    "scope": "/",
+    "start_url": "/global/sites/pwaHub/pwahub.html",
+    "scope": "/global/",
     "display": "standalone",
     "orientation": "landscape",
     "background_color": "#ffffff",
-    "theme_color": "#007bff",
+    "theme_color": "#a1c5ff",
     "icons": [
         {
-            "src": "/images/icons/pwa/mainicon192.png",
+            "src": "/global/images/icons/pwa/mainicon192.png",
             "sizes":"192x192",
             "type":"image/png",
             "purpose":"any"
         },
         {
-            "src": "/images/icons/pwa/mainicon512.png",
+            "src": "/global/images/icons/pwa/mainicon512.png",
             "sizes":"512x512",
             "type":"image/png",
             "purpose":"maskable"
@@ -24,12 +24,12 @@
     ],
     "screenshots": [
         {
-            "src":"/images/icons/pwa/themepreview.png",
+            "src":"/global/images/icons/pwa/themepreview.png",
             "sizes":"1489x1894",
             "form_factor":"wide"
         },
         {
-            "src":"/images/icons/pwa/tankcitypreview.png",
+            "src":"/global/images/icons/pwa/tankcitypreview.png",
             "sizes":"1915x969",
             "form_factor":"wide"
         }

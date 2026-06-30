@@ -1,13 +1,13 @@
-importScripts("/sites/pwaHub/versioncontrol.js");
+importScripts("/global/sites/pwaHub/versioncontrol.js");
 
 const CACHE_NAME = `ethans-games-${PWA_VERSION}`;
 
 const APP_SHELL = [
   "/index.html",
-  "/sites/pwaHub/pwahub.html",
-  "/sites/pwaHub/js/pwaswinteractor.js",
-  "/sites/pwaHub/js/pwathemes.js",
-  "/sites/pwaHub/css/styles.css"
+  "/global/sites/pwaHub/pwahub.html",
+  "/global/sites/pwaHub/js/pwaswinteractor.js",
+  "/global/sites/pwaHub/js/pwathemes.js",
+  "/global/sites/pwaHub/css/styles.css"
 ];
 
 self.addEventListener("install", event => {
@@ -50,59 +50,54 @@ self.addEventListener("fetch", event => {
   if (req.method !== "GET") return;
   if (url.origin !== self.location.origin) return;
 
-  // Never cache manifest, service worker, or version file.
+  event.respondWith(handleFetch(req, url));
+});
+
+async function handleFetch(req, url) {
+  const cache = await caches.open(CACHE_NAME);
+
   if (
     url.pathname.endsWith(".webmanifest") ||
     url.pathname.endsWith("/sw.js") ||
     url.pathname.endsWith("/versioncontrol.js")
   ) {
-    event.respondWith(fetch(req));
-    return;
+    return fetch(req);
   }
 
-  // Pages: network first, fallback to PWA hub.
   if (req.mode === "navigate" || url.pathname.endsWith(".html")) {
-  event.respondWith(
-    fetch(req, { redirect: "follow" })
-      .then(response => {
-        if (response.ok && response.type === "basic") {
-          event.waitUntil(
-            caches.open(CACHE_NAME).then(cache => cache.put(req, response.clone()))
-          );
-        }
-        return response;
-      })
-      .catch(async () => {
-        const cache = await caches.open(CACHE_NAME);
-        return cache.match(req, { ignoreSearch: true }) ||
-               cache.match("/sites/pwaHub/pwahub.html");
-      })
-  );
-  return;
+    try {
+      const response = await fetch(req, { redirect: "follow" });
+
+      if (response.ok && response.type === "basic") {
+        await cache.put(req, response.clone());
+      }
+
+      return response;
+    } catch {
+      return await cache.match(req, { ignoreSearch: true }) ||
+             await cache.match("/sites/pwaHub/pwahub.html") ||
+             Response.error();
+    }
   }
 
-  // Static files: cache first, then update cache from network.
-  event.respondWith(
-    caches.open(CACHE_NAME).then(async cache => {
-      const cached = await cache.match(req);
+  const cached = await cache.match(req);
 
-      const networkFetch = fetch(req).then(response => {
-        if (response && response.status === 200 && response.type === "basic") {
-          const copy = response.clone();
-          event.waitUntil(cache.put(req, copy));
-        }
+  try {
+    const response = await fetch(req);
 
-        return response;
-      });
+    if (response.ok && response.type === "basic") {
+      await cache.put(req, response.clone());
+    }
 
-      return cached || networkFetch;
-    })
-  );
-});
+    return cached || response;
+  } catch {
+    return cached || Response.error();
+  }
+}
 
 self.addEventListener("message", event => {
   if (event.data === "UPDATE_NOW") {
     event.source?.postMessage("UPDATE_INSTALLED");
-    event.waitUntil(self.skipWaiting());
+    self.skipWaiting();
   }
 });

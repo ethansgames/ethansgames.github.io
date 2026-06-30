@@ -9,6 +9,13 @@
   <link rel="manifest" href="../../pwamanifest.webmanifest">
 </head>
 <body>
+  <script>
+    if (
+      window.matchMedia("(display-mode: browser)").matches
+    ) {
+      location.replace("/index.html");
+    }
+  </script>
   <header id="hdr" class="logo-container">
     <div class="logo" id="lg">THE Web Game Hub</div>
   </header>

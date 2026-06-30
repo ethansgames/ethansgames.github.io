@@ -3,29 +3,24 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="manifest" href="/pwamanifest.webmanifest">
+  <link rel="manifest" href="/global/pwamanifest.webmanifest">
   <title>Ethan's Games</title>
   <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
   <script>
-  console.log("pathname:", location.pathname);
-  console.log("browser:", matchMedia("(display-mode: browser)").matches);
-  console.log("standalone:", matchMedia("(display-mode: standalone)").matches);
-  console.log("minimal-ui:", matchMedia("(display-mode: minimal-ui)").matches);
-
   const isBrowser = matchMedia("(display-mode: browser)").matches;
 
   if (!isBrowser && location.pathname.endsWith("/index.html")) {
       console.log("Redirecting...");
-      location.replace("/sites/pwaHub/pwahub.html");
+      location.replace("/global/sites/pwaHub/pwahub.html");
   }
   </script>
   <header>
     <div class="logo">Ethan's Games Hub</div>
 
     <img
-      src="images/witherstorm.png"
+      src="/global/images/witherstorm.png"
       alt="Witherstorm Cube"
       id="robbieIcon"
       onclick="triggerLerp()"
@@ -35,50 +30,50 @@
 
   <nav id="sideMenu" class="menu">
     <h2>All the GAMES!</h2>
-    <a href="./games/ethansgames/FinishedWorking/horrorgameThatLooksHappy.html" target="_blank" rel="noopener noreferrer">
+    <a href="/global/games/ethansgames/FinishedWorking/horrorgameThatLooksHappy.html" target="_blank" rel="noopener noreferrer">
       <span class="menu-boldbanner">NEW!</span>
       Sunshine & Rainbows
     </a>
-    <a href="./games/ethansgames/FinishedWorking/firstpersondefense.html" target="_blank" rel="noopener noreferrer">
+    <a href="/global/games/ethansgames/FinishedWorking/firstpersondefense.html" target="_blank" rel="noopener noreferrer">
       <span class="menu-boldbanner">NEW!</span>
       First Person Tower Defense
     </a>
-    <a href="./games/ethansgames/FinishedWorking/rogueops.html" target="_blank" rel="noopener noreferrer">
+    <a href="/global/games/ethansgames/FinishedWorking/rogueops.html" target="_blank" rel="noopener noreferrer">
       <span class="menu-boldbanner">Hot!</span>
       Rogue Ops
     </a>
-    <a href="./games/ethansgames/SiegeProtectors/Siege Protecters Update V2.0.html" target="_blank" rel="noopener noreferrer">
+    <a href="/global/games/ethansgames/SiegeProtectors/Siege Protecters Update V2.0.html" target="_blank" rel="noopener noreferrer">
       <span class="menu-boldbanner">Hot!</span>
       Tank Shooter
     </a>
-    <a href="./games/ethansgames/SiegeProtectors/Siege Protecters Update V2.0.html" target="_blank" 
+    <a href="/global/games/ethansgames/SiegeProtectors/Siege Protecters Update V2.0.html" target="_blank" 
     rel="noopener noreferrer">
       <span class="menu-boldbanner">Hot!</span>
       Siege Protectors 2
     </a>
-    <a href="./games/ethansgames/FinishedWorking/snake.html" target="_blank"
+    <a href="/global/games/ethansgames/FinishedWorking/snake.html" target="_blank"
       rel="noopener noreferrer">
       Siege Protectors 7
     </a>
-    <a href="./games/ethansgames/FinishedWorking/snake.html" target="_blank" rel="noopener noreferrer">
+    <a href="/global/games/ethansgames/FinishedWorking/snake.html" target="_blank" rel="noopener noreferrer">
       Snake Game
     </a>
-    <a href="./games/ethansgames/FinishedWorking/citytycoon.html" target="_blank" rel="noopener noreferrer">
+    <a href="/global/games/ethansgames/FinishedWorking/citytycoon.html" target="_blank" rel="noopener noreferrer">
       City Tycoon
     </a>
-    <a href="./games/ethansgames/FinishedWorking/ouroborostower.html" target="_blank" rel="noopener noreferrer">
+    <a href="/global/games/ethansgames/FinishedWorking/ouroborostower.html" target="_blank" rel="noopener noreferrer">
       Ouroboros Tower
     </a>
-    <a href="./games/ethansgames/FinishedWorking/popcornbossrush.html" target="_blank" rel="noopener noreferrer">
+    <a href="/global/games/ethansgames/FinishedWorking/popcornbossrush.html" target="_blank" rel="noopener noreferrer">
       Popcorn Boss Rush
     </a>
-    <a href="./games/ethansgames/FinishedWorking/survivalgameWbosses.html" target="_blank" rel="noopener noreferrer">
+    <a href="/global/games/ethansgames/FinishedWorking/survivalgameWbosses.html" target="_blank" rel="noopener noreferrer">
       Survive!
     </a>
-    <a href="./games/ethansgames/FinishedWorking/urbanwarfare.html" target="_blank" rel="noopener noreferrer">
+    <a href="/global/games/ethansgames/FinishedWorking/urbanwarfare.html" target="_blank" rel="noopener noreferrer">
       Urban Warfare
     </a>
-    <a href="./games/ethansgames/FinishedWorking/collection.html" target="_blank" rel="noopener noreferrer">
+    <a href="/global/games/ethansgames/FinishedWorking/collection.html" target="_blank" rel="noopener noreferrer">
       Collect Chests!
     </a>
     <a href="#gamelinks">Link Area</a>
@@ -97,7 +92,7 @@
           <a class="link-button" href="#about">About</a>
           <a class="link-button" href="#faq">FAQ</a>
           <a class="link-button" href="#achievements">Ethan's Achievements</a>
-          <a class="link-button" href="#gamelinks">Game Links</a>
+          <a class="link-button" href="#links">Game Links</a>
           <button class="link-button" id="pwainstall" style="cursor:pointer">
             Install the offline repo!</button>
         </div>
@@ -115,7 +110,7 @@
         <small style="color:rgb(255, 255, 255)">All games are licensed
         to me by him with permission, and you can find the general game license (license for all games unless
         specified otherwise for a particular game) by 
-        <a style="color:rgb(166, 194, 255)"href="./games/LICENSE.txt" target="_blank">clicking here
+        <a style="color:rgb(166, 194, 255)"href="/global/games/LICENSE.txt" target="_blank">clicking here
         </a> or opening games/LICENSE.txt.</small>
         </p>
     </section>
@@ -168,64 +163,64 @@
     <section id="links">
       <h2>Game Links</h2>
       <div class="button-row">
-        <a href="./games/ethansgames/FinishedWorking/horrorgameThatLooksHappy.html" target="_blank" class="link-button" 
+        <a href="/global/games/ethansgames/FinishedWorking/horrorgameThatLooksHappy.html" target="_blank" class="link-button" 
         rel="noopener noreferrer">
           <span class="menu-boldbanner">NEW!</span>
           Sunshine & Rainbows
         </a>
-        <a href="./games/ethansgames/FinishedWorking/firstpersondefense.html" target="_blank"
+        <a href="/global/games/ethansgames/FinishedWorking/firstpersondefense.html" target="_blank"
          rel="noopener noreferrer" class="link-button">
           <span class="menu-boldbanner">NEW!</span>
           First Person Tower Defense
         </a>
-        <a href="./games/ethansgames/FinishedWorking/rogueops.html" target="_blank" rel="noopener noreferrer" 
+        <a href="/global/games/ethansgames/FinishedWorking/rogueops.html" target="_blank" rel="noopener noreferrer" 
         class="link-button">
           <span class="menu-boldbanner">Hot!</span>
           Rogue Ops
         </a>
-        <a href="./games/ethansgames/FinishedWorking/tankshooter.html" target="_blank" 
+        <a href="/global/games/ethansgames/FinishedWorking/tankshooter.html" target="_blank" 
         rel="noopener noreferrer" class="link-button">
           <span class="menu-boldbanner">Hot!</span>
           Tank Shooter
         </a>
-        <a href="./games/ethansgames/SiegeProtectors/Siege_ProtectorsV2.0.html" target="_blank" 
+        <a href="/global/games/ethansgames/SiegeProtectors/Siege_ProtectorsV2.0.html" target="_blank" 
         rel="noopener noreferrer" class="link-button">
           <span class="menu-boldbanner">Hot!</span>
           Siege Protectors 2
         </a>
-        <a href="./games/ethansgames/SiegeProtectors/Siege_ProtectorsV7.0.html" target="_blank" class="link-button"
+        <a href="/global/games/ethansgames/SiegeProtectors/Siege_ProtectorsV7.0.html" target="_blank" class="link-button"
          rel="noopener noreferrer">
           Siege Protectors 7
         </a>
-        <a href="./games/ethansgames/FinishedWorking/snake.html" target="_blank" class="link-button"
+        <a href="/global/games/ethansgames/FinishedWorking/snake.html" target="_blank" class="link-button"
          rel="noopener noreferrer">
           Snake Game
         </a>
-        <a href="./games/ethansgames/FinishedWorking/citytycoon.html" target="_blank" 
+        <a href="/global/games/ethansgames/FinishedWorking/citytycoon.html" target="_blank" 
         class="link-button" rel="noopener noreferrer">
           City Tycoon
         </a>
-        <a href="./games/ethansgames/FinishedWorking/ouroborostower.html" class="link-button" 
+        <a href="/global/games/ethansgames/FinishedWorking/ouroborostower.html" class="link-button" 
         target="_blank" rel="noopener noreferrer">
           Ouroboros Tower
         </a>
-        <a href="./games/ethansgames/FinishedWorking/popcornbossrush.html" target="_blank" class="link-button" 
+        <a href="/global/games/ethansgames/FinishedWorking/popcornbossrush.html" target="_blank" class="link-button" 
         rel="noopener noreferrer">
           Popcorn Boss Rush
         </a>
-        <a href="./games/ethansgames/FinishedWorking/survivalgameWbosses.html" class="link-button" 
+        <a href="/global/games/ethansgames/FinishedWorking/survivalgameWbosses.html" class="link-button" 
         target="_blank" rel="noopener noreferrer">
           Survive!
         </a>
-        <a href="./games/ethansgames/FinishedWorking/urbanwarfare.html" class="link-button" 
+        <a href="/global/games/ethansgames/FinishedWorking/urbanwarfare.html" class="link-button" 
         target="_blank" rel="noopener noreferrer">
           Urban Warfare
         </a>
-        <a href="./games/ethansgames/FinishedWorking/collection.html" class="link-button" 
+        <a href="/global/games/ethansgames/FinishedWorking/collection.html" class="link-button" 
         target="_blank" rel="noopener noreferrer">
           Collect Chests!
         </a>
-        <a href="../../games/cubejumper/v5/cubejumper.html" class="link-button" 
+        <a href="/global/games/cubejumper/v5/cubejumper.html" class="link-button" 
         target="_blank" rel="noopener noreferrer">
           <span class="menu-boldbanner">By GrepBDS!</span> 
           GD Runner
@@ -234,18 +229,18 @@
         target="_blank" rel="noopener noreferrer">
           More Siege Protectors stuff
         </a>
-        <a href="./sites/experimentalsNav/experimentals.html" class="link-button" 
+        <a href="/global/sites/experimentalsNav/experimentals.html" class="link-button" 
         target="_parent" rel="noopener noreferrer">
-          <img src="./images/icons/warning2.png" style="height:20px;width:20px; 
+          <img src="/global/images/icons/warning2.png" style="height:20px;width:20px; 
   object-fit: contain; position:relative; top:2px;">Experimental Games
         </a>
       </div>
     </section>
     <div class="iframebox" id="cubejumpercontainer" onclick="this.remove();">
-      <a target="_blank" href="games/cubejumper/v5/cubejumper.html">
-        <img class="popup-image" src="images/gdjumper-v5.png" alt="Cube Jumper">
+      <a target="_blank" href="/global/games/cubejumper/v5/cubejumper.html">
+        <img class="popup-image" src="/global/images/gdjumper-v5.png" alt="Cube Jumper">
       </a>
-      <img src="images/icons/x.png" alt="Close" class="exitiframebox">
+      <img src="/global/images/icons/x.png" alt="Close" class="exitiframebox">
     </div>
     </div>
   </main>
