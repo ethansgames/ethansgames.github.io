@@ -56,16 +56,24 @@ self.addEventListener("fetch", event => {
   }
 
   // Pages: network first, fallback to PWA hub.
-  if (req.mode === "navigate") {
-    event.respondWith(
-      fetch(req, { redirect: "follow" }).catch(async () => {
-        const cache = await caches.open(CACHE_NAME);
-        return cache.match("/sites/pwaHub/pwahub.html", {
-          ignoreSearch: true
-        });
+  if (req.mode === "navigate" || url.pathname.endsWith(".html")) {
+  event.respondWith(
+    fetch(req, { redirect: "follow" })
+      .then(response => {
+        if (response.ok && response.type === "basic") {
+          event.waitUntil(
+            caches.open(CACHE_NAME).then(cache => cache.put(req, response.clone()))
+          );
+        }
+        return response;
       })
-    );
-    return;
+      .catch(async () => {
+        const cache = await caches.open(CACHE_NAME);
+        return cache.match(req, { ignoreSearch: true }) ||
+               cache.match("/sites/pwaHub/pwahub.html");
+      })
+  );
+  return;
   }
 
   // Static files: cache first, then update cache from network.
