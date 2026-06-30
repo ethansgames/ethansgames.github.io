@@ -9,13 +9,17 @@
 </head>
 <body>
   <script>
-    const isBrowser =
-      window.matchMedia("(display-mode: browser)").matches;
+  console.log("pathname:", location.pathname);
+  console.log("browser:", matchMedia("(display-mode: browser)").matches);
+  console.log("standalone:", matchMedia("(display-mode: standalone)").matches);
+  console.log("minimal-ui:", matchMedia("(display-mode: minimal-ui)").matches);
 
-    if (!isBrowser && location.pathname.endsWith("/index.html")) {
-        location.href="/sites/pwaHub/pwahub.html";
-        location.replace("/sites/pwaHub/pwahub.html");
-    }
+  const isBrowser = matchMedia("(display-mode: browser)").matches;
+
+  if (!isBrowser && location.pathname.endsWith("/index.html")) {
+      console.log("Redirecting...");
+      location.replace("/sites/pwaHub/pwahub.html");
+  }
   </script>
   <header>
     <div class="logo">Ethan's Games Hub</div>

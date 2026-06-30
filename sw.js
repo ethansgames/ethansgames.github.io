@@ -11,17 +11,22 @@ const APP_SHELL = [
 ];
 
 self.addEventListener("install", event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(async cache => {
-      for (const asset of APP_SHELL) {
-        const response = await fetch(asset, { redirect: "follow" });
+  event.respondWith((async () => {
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(req);
 
-        if (response.ok && response.type === "basic") {
-          await cache.put(asset, response);
-        }
-      }
-    })
-  );
+  try {
+    const response = await fetch(req);
+
+    if (response.ok && response.type === "basic") {
+      await cache.put(req, response.clone());
+    }
+
+    return cached || response;
+  } catch {
+    return cached || Response.error();
+  }
+})());
 });
 
 self.addEventListener("activate", event => {
@@ -83,7 +88,8 @@ self.addEventListener("fetch", event => {
 
       const networkFetch = fetch(req).then(response => {
         if (response && response.status === 200 && response.type === "basic") {
-          cache.put(req, response.clone());
+          const copy = response.clone();
+          event.waitUntil(cache.put(req, copy));
         }
 
         return response;
