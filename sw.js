@@ -8,7 +8,8 @@ const APP_SHELL = [
   "/global/sites/pwaHub/pwahub.html",
   "/global/sites/pwaHub/js/pwaswinteractor.js",
   "/global/sites/pwaHub/js/pwathemes.js",
-  "/global/sites/pwaHub/css/styles.css"
+  "/global/sites/pwaHub/css/styles.css",
+  "/global/games/cubejumper/v5/bluebackground.mp4"
 ];
 
 self.addEventListener("install", event => {
@@ -110,22 +111,17 @@ async function cacheFirstUpdate(req) {
 
 async function handleVideoRequest(req) {
   const cache = await caches.open(CACHE_NAME);
-
-  let cached = await cache.match(req.url);
+  const cached = await cache.match(req.url);
 
   if (!cached) {
-    const response = await fetch(req);
-
-    if (response.ok && response.type === "basic") {
-      await cache.put(req.url, response.clone());
-    }
-
-    cached = response;
+    return fetch(req);
   }
 
   const range = req.headers.get("range");
 
-  if (!range) return cached;
+  if (!range) {
+    return cached;
+  }
 
   const blob = await cached.blob();
   const size = blob.size;
