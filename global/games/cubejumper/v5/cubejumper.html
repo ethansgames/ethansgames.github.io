@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>GD Runner</title>
 <style>
-@font-face{font-family:Pusab;src:url("../../fonts/pusab.otf") format("opentype");font-display:block}
+@font-face{font-family:Pusab;src:url("/global/fonts/pusab.otf") format("opentype");font-display:block}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:#172e6b;font-family:Pusab,Arial,Helvetica,sans-serif}
 #wrap{width:100vw;height:100vh;display:flex;align-items:center;justify-content:center}
@@ -70,7 +70,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:auto;z-i
   <div id="stage">
     <button id="playerButton" type="button" class="resetrainbow">Player 1</button>
     <button id="clearButton" type="button">CLEAR</button>
-    <video id="bluebackground" src="bluebackground.mp4" muted loop playsinline preload="auto"></video>
+    <video id="bluebackground" src="/global/games/cubejumper/v5/bluebackground.mp4" muted loop playsinline preload="auto"></video>
     <canvas id="game"></canvas>
     <div id="hudLeft" class="hudText"></div>
     <div id="hudRight" class="hudText"></div>
