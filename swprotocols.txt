@@ -1,5 +1,7 @@
 sw.js sending:
 UPDATE_AVALIBLE - self explanatory, shows banner in the pwahub.html file
 UPDATE_INSTALLED - also self explanatory, hides banner in pwahub.html file
+LOAD_ALL_DONE - tells pwahub that loading all games is done.
 pwahub.html sending:
 UPDATE_NOW - tells service worker that it should skip waiting for user to close all windows or reload and immediately do so automatically
+LOAD_ALL - tells sw.js to load all working games.

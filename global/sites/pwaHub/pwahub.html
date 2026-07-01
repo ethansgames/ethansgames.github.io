@@ -9,13 +9,16 @@
   <link rel="manifest" href="../../pwamanifest.webmanifest">
 </head>
 <body>
-  <script>
+  <!--<script>
     if (
       window.matchMedia("(display-mode: browser)").matches
     ) {
       location.replace("/index.html");
     }
-  </script>
+  </script>-->
+
+<!-- Modal dialog here -->
+
   <header id="hdr" class="logo-container">
     <div class="logo" id="lg">THE Web Game Hub</div>
   </header>
@@ -115,6 +118,8 @@
         Click to read general game license</a> or open 'games/LICENSE.txt'.
     </p>
     <p class="ctbtn" id="nextThemeButton">Geometry Theme</p>
+    <p class="ctbtn" id="loadallgames" 
+    style="right:0;left: 20px; font-size:smaller;">Load All Working Games</p>
     </footer>
   <script src="js/pwathemes.js" defer></script>
   <script src="js/pwaswinteractor.js"></script>

@@ -11,6 +11,7 @@ const ftlicense = document.getElementById("ftgamelicense");
 const ftdisclaimer = document.getElementById("ftdisclaimer");
 const nextThemeButton = document.getElementById("nextThemeButton");
 const pwatheme = document.querySelector('meta[name="theme-color"]');
+const loadallgamesbtn = document.getElementById("loadallgames");
 
 const themes = [
     {
@@ -87,59 +88,61 @@ const themes = [
     }
 ];
 
-let themeIndex = Number(localStorage.getItem('pwathemenum') ?? 0);
+let themeIndex = Number(localStorage.getItem("pwathemenum") ?? 0);
 
-themeIndex--;
+updatetheme(themeIndex);
 
-nextTheme(themeIndex);
-
-nextThemeButton.addEventListener('click', _ => nextTheme());
+nextThemeButton.addEventListener("click", nextTheme);
 
 function nextTheme() {
-    if (themeIndex != themes.length - 1) {
-        themeIndex++;
-    } else {themeIndex = 0;}
+    themeIndex = (themeIndex + 1) % themes.length;
 
-    localStorage.setItem('pwathemenum',themeIndex);
+    localStorage.setItem("pwathemenum", themeIndex);
 
     updatetheme(themeIndex);
+}
 
+function updatetheme(themeIndex) {
+    header.style.borderBottom = "4px solid " + themes[themeIndex].border;
+    footer.style.borderTop = "4px solid " + themes[themeIndex].border;
+    links.style.border = "4px solid " + themes[themeIndex].border;
+
+    header.style.background = themes[themeIndex].headerlnkbg;
+    links.style.background = themes[themeIndex].headerlnkbg;
+    footer.style.background = themes[themeIndex].fill;
+    body[0].style.background = themes[themeIndex].bgGradient;
+
+    linkbuttons.forEach(element => {
+        element.style.background = themes[themeIndex].lbGradient;
+        element.style.border = themes[themeIndex].lbBorder;
+        element.style.color = themes[themeIndex].lbTextColor;
+    });
+
+    ftdisclaimer.style.color = themes[themeIndex].ftlinkcolor;
+    ftlicense.style.color = themes[themeIndex].ftlinkcolor;
+
+    experimentalbutton.style.border = themes[themeIndex].exbBorder;
+
+    herotitle.style.color = themes[themeIndex].htcolor;
+    herotitle.style.textShadow = themes[themeIndex].httextShadow;
+
+    gtspan.style.color = themes[themeIndex].gtspancolor;
+
+    logo.style.textShadow = themes[themeIndex].logotextShadow;
+    logo.style.color = themes[themeIndex].logocolor;
+
+    footer.style.color = themes[themeIndex].footercolor;
+
+    pwatheme.setAttribute("content",themes[themeIndex].fill);
+
+    //footer buttons
+    
     nextThemeButton.textContent = themes[themeIndex].name;
     nextThemeButton.style.background = themes[themeIndex].lbGradient;
     nextThemeButton.style.color = themes[themeIndex].logocolor;
     nextThemeButton.style.border = "4px solid " + themes[themeIndex].border;
-}
 
-function updatetheme(themeNum) {
-    header.style.borderBottom = "4px solid " + themes[themeNum].border;
-    footer.style.borderTop = "4px solid " + themes[themeNum].border;
-    links.style.border = "4px solid " + themes[themeNum].border;
-
-    header.style.background = themes[themeNum].headerlnkbg;
-    links.style.background = themes[themeNum].headerlnkbg;
-    footer.style.background = themes[themeNum].fill;
-    body[0].style.background = themes[themeNum].bgGradient;
-
-    linkbuttons.forEach(element => {
-        element.style.background = themes[themeNum].lbGradient;
-        element.style.border = themes[themeNum].lbBorder;
-        element.style.color = themes[themeNum].lbTextColor;
-    });
-
-    ftdisclaimer.style.color = themes[themeNum].ftlinkcolor;
-    ftlicense.style.color = themes[themeNum].ftlinkcolor;
-
-    experimentalbutton.style.border = themes[themeNum].exbBorder;
-
-    herotitle.style.color = themes[themeNum].htcolor;
-    herotitle.style.textShadow = themes[themeNum].httextShadow;
-
-    gtspan.style.color = themes[themeNum].gtspancolor;
-
-    logo.style.textShadow = themes[themeNum].logotextShadow;
-    logo.style.color = themes[themeNum].logocolor;
-
-    footer.style.color = themes[themeNum].footercolor;
-
-    pwatheme.setAttribute("content",themes[themeNum].fill);
+    loadallgamesbtn.style.background = themes[themeIndex].lbGradient;
+    loadallgamesbtn.style.color = themes[themeIndex].logocolor;
+    loadallgamesbtn.style.border = "4px solid " + themes[themeIndex].border;
 }
