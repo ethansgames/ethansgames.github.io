@@ -1,0 +1,2 @@
+so this is random stuff and junk for other stuff like my Minecraft server that i store here. because yk i have a public server. NOT RELATED TO THE REST OF THE SITE.
+If you got here by accident, please go back to the main page.
