@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Space Invaders: Power-Up Invasion</title>
+<style>
+  html, body { margin:0; height:100%; background:radial-gradient(circle at top,#17213f 0%,#050711 55%,#000 100%); color:white; font-family:system-ui,Arial,sans-serif; overflow:hidden; }
+  #wrap { height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; }
+  canvas { background:linear-gradient(#040612,#000 70%); border:3px solid #73f7ff; box-shadow:0 0 28px #21d7ff88; max-width:96vw; max-height:80vh; image-rendering:pixelated; }
+  .hud { width:min(900px,96vw); display:grid; grid-template-columns:repeat(7,1fr); gap:8px; align-items:center; font-weight:850; letter-spacing:.4px; text-shadow:0 0 8px #00e5ff; font-size:15px; }
+  .hud div { white-space:nowrap; }
+  .help { opacity:.9; font-size:14px; text-align:center; line-height:1.35; max-width:96vw; }
+  kbd { background:#11192d; border:1px solid #5be9ff; border-radius:5px; padding:2px 6px; }
+  #menu { position:fixed; inset:0; z-index:5; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at top,#183060 0%,#040711 68%,#000 100%); }
+  .menuBox { width:min(920px,94vw); border:3px solid #73f7ff; box-shadow:0 0 35px #21d7ff99; background:rgba(3,8,22,.88); padding:28px; border-radius:18px; text-align:center; }
+  .menuTitle { font-size:48px; font-weight:1000; letter-spacing:1px; text-shadow:0 0 20px #00e5ff; margin-bottom:8px; }
+  .tabs { display:flex; justify-content:center; gap:12px; margin:18px 0; }
+  .tab { cursor:pointer; border:1px solid #4eeaff; padding:9px 18px; border-radius:999px; font-weight:900; background:#0d1833; color:white; box-shadow:0 0 12px #00e5ff55; }
+  .tab.active { border-color:#ffe66d; box-shadow:0 0 18px #ffe66d88; }
+  .cards { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  .panel { display:none; } .panel.active { display:block; }
+  .runeGrid { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-top:12px; }
+  .runeSlot,.runeBtn { border:2px solid #2bb9ca; border-radius:12px; padding:10px; background:#071226; font-weight:850; }
+  .runeBtn { cursor:pointer; } .runeBtn:hover,.runeSlot.active { border-color:#ffe66d; box-shadow:0 0 14px #ffe66d66; }
+  .runeSmall { opacity:.82; font-size:13px; line-height:1.25; }
+  .card { cursor:pointer; border:2px solid #2bb9ca; border-radius:14px; padding:16px; min-height:150px; background:#071226; text-align:left; transition:.12s transform,.12s border-color,.12s box-shadow; }
+  .card:hover { transform:translateY(-3px); }
+  .card.selected { border-color:#ffe66d; box-shadow:0 0 22px #ffe66d88; background:#18200d; }
+  .card h2 { margin:0 0 8px; font-size:23px; }
+  .card p { margin:6px 0; opacity:.92; line-height:1.25; }
+  #startBtn { margin-top:22px; font-size:22px; font-weight:1000; padding:12px 38px; border:0; border-radius:999px; background:#61ff7b; color:#021408; cursor:pointer; box-shadow:0 0 22px #61ff7baa; }
+  @media(max-width:760px){.cards{grid-template-columns:1fr}.menuTitle{font-size:34px}}
+</style>
+</head>
+<body>
+<div id="menu">
+  <div class="menuBox">
+    <div class="menuTitle">SPACE INVADERS</div>
+    <div style="opacity:.9;font-weight:750">Choose your defender before the invasion starts.</div>
+    <div class="tabs"><div class="tab active" data-tab="defender">Defender</div><div class="tab" data-tab="runes">Runes</div><div class="tab" style="opacity:.45">Upgrades unlock in-game</div></div>
+    <div class="panel active" id="defenderPanel"><div class="cards">
+      <div class="card selected" data-defender="normal">
+        <h2>Normal Defender</h2>
+        <p>Balanced damage and attack speed.</p>
+        <p><b>Best for:</b> steady waves and learning.</p>
+      </div>
+      <div class="card" data-defender="heavy">
+        <h2>Heavy Cannon</h2>
+        <p>High damage, but slower attack speed.</p>
+        <p><b>Best for:</b> armored enemies and bosses.</p>
+      </div>
+      <div class="card" data-defender="chain">
+        <h2>Chain Targeter</h2>
+        <p>Lower damage, but shots jump to nearby enemies.</p>
+        <p><b>Best for:</b> big crowded waves.</p>
+      </div>
+    </div></div>
+    <div class="panel" id="runePanel">
+      <div style="font-weight:850;margin-bottom:6px">Apply 5 runes. Beat waves to upgrade random runes up to XIV. Each level gives +8% of original.</div>
+      <div class="runeGrid" id="runeSlots"></div>
+      <div class="runeGrid" id="runeButtons"></div>
+    </div>
+    <button id="startBtn">START GAME</button>
+  </div>
+</div>
+<div id="wrap">
+  <div class="hud">
+    <div>Score: <span id="score">0</span></div>
+    <div>Wave: <span id="wave">1</span></div>
+    <div>Lives: <span id="lives">5</span></div>
+    <div>Coins: <span id="coins">0</span></div>
+    <div>Defender: <span id="defenderName">Normal</span></div>
+    <div>Runes: <span id="runePower">0%</span></div>
+    <div>Base: <span id="baseLvl">1</span> · Gun: <span id="gunLvl">1</span> · Power: <span id="power">None</span></div>
+  </div>
+  <canvas id="game" width="900" height="650"></canvas>
+  <div class="help"><kbd>A</kbd>/<kbd>D</kbd> or arrows move · <kbd>Space</kbd> shoot · <kbd>1</kbd> upgrade bases · <kbd>2</kbd> upgrade gun · <kbd>3</kbd> speed · grab glowing squares for power-ups · <kbd>R</kbd> restart</div>
+</div>
+<script>
+const canvas = document.getElementById('game'), ctx = canvas.getContext('2d');
+const scoreEl=document.getElementById('score'), waveEl=document.getElementById('wave'), livesEl=document.getElementById('lives'), coinsEl=document.getElementById('coins'), baseLvlEl=document.getElementById('baseLvl'), gunLvlEl=document.getElementById('gunLvl'), powerEl=document.getElementById('power'), defenderEl=document.getElementById('defenderName'), runePowerEl=document.getElementById('runePower');
+const menu=document.getElementById('menu'), startBtn=document.getElementById('startBtn');
+const defenderTypes={
+  normal:{name:'Normal',damage:1,cooldown:1,color:'#61ff7b',desc:'Balanced'},
+  heavy:{name:'Heavy Cannon',damage:2.45,cooldown:1.75,color:'#ffcf4a',desc:'High damage, slow fire'},
+  chain:{name:'Chain Targeter',damage:.68,cooldown:1.05,color:'#7df9ff',desc:'Weak shots chain to groups',chain:true}
+};
+let selectedDefender='normal', gameStarted=false, selectedRuneSlot=0;
+const runeNames={damage:'Damage',hp:'HP',speed:'Speed',luck:'Luck',atk:'Atk Speed'};
+const roman=['','I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV'];
+let runeLevels={damage:1,hp:1,speed:1,luck:1,atk:1};
+let runeSlots=['damage','hp','speed','luck','atk'];
+function runeBonus(type){return runeSlots.filter(r=>r===type).reduce((sum,r)=>sum+(runeLevels[r]||0)*.08,0);}
+function runeSummary(){return Math.round((runeBonus('damage')+runeBonus('hp')+runeBonus('speed')+runeBonus('luck')+runeBonus('atk'))*100)+'%';}
+function renderRunes(){
+ const slots=document.getElementById('runeSlots'), buttons=document.getElementById('runeButtons'); if(!slots||!buttons)return;
+ slots.innerHTML=runeSlots.map((r,i)=>`<div class="runeSlot ${i===selectedRuneSlot?'active':''}" data-slot="${i}">Slot ${i+1}<br><b>${runeNames[r]}</b><br><span class="runeSmall">Lvl ${roman[runeLevels[r]]} · +${Math.round(runeLevels[r]*8)}%</span></div>`).join('');
+ buttons.innerHTML=Object.keys(runeNames).map(r=>`<div class="runeBtn" data-rune="${r}"><b>${runeNames[r]}</b><br><span class="runeSmall">Level ${roman[runeLevels[r]]} · +${Math.round(runeLevels[r]*8)}%</span></div>`).join('');
+ slots.querySelectorAll('.runeSlot').forEach(el=>el.onclick=()=>{selectedRuneSlot=+el.dataset.slot;renderRunes();});
+ buttons.querySelectorAll('.runeBtn').forEach(el=>el.onclick=()=>{runeSlots[selectedRuneSlot]=el.dataset.rune;selectedRuneSlot=(selectedRuneSlot+1)%5;renderRunes();updateHud();});
+}
+const W=canvas.width,H=canvas.height,keys=new Set();
+let score=0,wave=1,lives=5,coins=0,gameOver=false,won=false,last=performance.now(),shake=0,message='',messageTimer=0;
+const player={x:W/2-28,y:H-70,w:56,h:24,speed:440,cooldown:0,gunLvl:1,speedLvl:1,baseLvl:1,power:null,powerTimer:0,defender:'normal',invuln:0};
+let playerBullets=[],enemyBullets=[],invaders=[],particles=[],stars=[],barriers=[],destroyedTiles=[],powerUps=[],fleetDir=1,fleetSpeed=28,enemyShootTimer=1.1,boss=null,laserBeam=null,laserTick=0,debuffs=[];
+for(let i=0;i<140;i++)stars.push({x:Math.random()*W,y:Math.random()*H,s:Math.random()*2+0.5,v:Math.random()*35+10});
+const enemySets=[
+  {name:'Scouts', color:'#ff5bf4', hp:1, speed:.8, coin:4, bullet:.8},
+  {name:'Armored', color:'#ffcf4a', hp:2, speed:0.70, coin:6, bullet:.9},
+  {name:'Needlers', color:'#5cfffb', hp:1, speed:.95, coin:5, bullet:1.1},
+  {name:'Bruisers', color:'#ff7d4a', hp:3, speed:.65, coin:10, bullet:.95},
+  {name:'Phantoms', color:'#b56cff', hp:2, speed:1.05, coin:9, bullet:1.15},
+  {name:'Bombers', color:'#ff4040', hp:3, speed:.85, coin:12, bullet:1.25},
+  {name:'Infested', color:'#6dff6d', hp:2, speed:1.0, coin:12, bullet:1.15}
+];
+function enemySetForWave(w){return enemySets[Math.floor((w-1)/3)%enemySets.length];}
+function waveHpScale(w){return Math.pow(1.16, Math.max(0,w-1));}
+function scaledHp(base,extra=0){return Math.max(1,Math.ceil((base+extra)*waveHpScale(wave)));}
+function debuffPower(type){return debuffs.filter(d=>d.type===type).reduce((a,d)=>a+d.value,0);}
+function say(s){message=s;messageTimer=2.2;}
+function updateHud(){const d=defenderTypes[player.defender]||defenderTypes.normal;scoreEl.textContent=score;waveEl.textContent=wave;livesEl.textContent=lives;coinsEl.textContent=coins;baseLvlEl.textContent=player.baseLvl;gunLvlEl.textContent=player.gunLvl;defenderEl.textContent=d.name;runePowerEl.textContent=runeSummary();powerEl.textContent=(player.power?`${player.power.toUpperCase()} ${player.powerTimer.toFixed(1)}s`:'None')+(debuffs.length?' · CURSED '+debuffs.map(d=>d.label).join(', '):'');}
+function rects(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;}
+function playerHitbox(){return {x:player.x+8,y:player.y+5,w:player.w-16,h:player.h-8};}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function reset(){score=0;wave=1;lives=5;coins=20;gameOver=false;won=false;gameStarted=true;player.defender=selectedDefender;player.x=W/2-player.w/2;player.cooldown=0;player.gunLvl=1;player.speedLvl=1;player.baseLvl=1;player.speed=440;player.power=null;player.powerTimer=0;player.invuln=0;laserBeam=null;laserTick=0;playerBullets=[];enemyBullets=[];powerUps=[];particles=[];destroyedTiles=[];debuffs=[];boss=null;makeBarriers();makeInvaders();say(defenderTypes[player.defender].name+' selected! Easier mode + power-ups enabled!');updateHud();}
+function makeBarriers(){barriers=[];destroyedTiles=[];const startX=145,gap=175,hp=2+player.baseLvl*2;for(let b=0;b<4;b++){const ox=startX+b*gap,oy=H-175;for(let row=0;row<4;row++){for(let col=0;col<8;col++){if((row===3&&(col===3||col===4))||(row===0&&(col===0||col===7)))continue;barriers.push({x:ox+col*12,y:oy+row*12,w:11,h:11,hp,maxHp:hp});}}}}
+function makeInvaders(){invaders=[];boss=null;fleetDir=1;if(wave===20){makeInfector();return;}if(wave===40){makeCursus();return;}const set=enemySetForWave(wave);fleetSpeed=(16+wave*3.5)*set.speed;const rows=Math.min(3+Math.floor(wave/3),6),cols=8+(wave%3);for(let r=0;r<rows;r++){for(let c=0;c<cols;c++){let elite=r===0?1:0;const hp=scaledHp(set.hp,elite);invaders.push({x:95+c*58,y:70+r*43,w:34,h:24,hp,maxHp:hp,type:set.name,color:set.color,coin:set.coin+elite*2+Math.floor(wave/3),bullet:set.bullet,phase:Math.random()*10});}}enemyShootTimer=Math.max(.42,1.45-wave*.018);say(`Wave ${wave}: ${set.name} · HP x${waveHpScale(wave).toFixed(1)}`);}
+function makeInfector(){fleetSpeed=54;const hp=Math.ceil(1850*waveHpScale(20)*0.55);boss={kind:'infector',name:'INFECTOR',x:W/2-105,y:54,w:210,h:96,hp,maxHp:hp,shield:Math.ceil(180*waveHpScale(20)*0.35),nextShieldAt:hp-260,convertTimer:2.2,shootTimer:.42,phase:0,dropTimer:1.6};say('BOSS WAVE 20: THE INFECTOR got buffed!');}
+function makeCursus(){fleetSpeed=68;const hp=Math.ceil(3400*waveHpScale(40)*0.04);boss={kind:'cursus',name:'CURSUS',x:W/2-120,y:48,w:240,h:106,hp,maxHp:hp,shield:0,phase:0,shootTimer:.34,spawnTimer:1.15,sacTimer:4.8,destroyTimer:3.0,stealTimer:5.2,debuffTimer:6.2};say('BOSS WAVE 40: CURSUS steals, curses, and sacrifices minions!');}
+function explode(x,y,color,count=16){for(let i=0;i<count;i++)particles.push({x,y,vx:(Math.random()-.5)*250,vy:(Math.random()-.5)*250,life:Math.random()*.5+.25,color});shake=6;}
+function coinGain(n,x,y){n=Math.ceil(n*(1+Math.max(0,runeBonus('luck')-debuffPower('unlucky'))*.35));coins+=n;score+=n*5;particles.push({x,y,vx:0,vy:-55,life:.8,color:'#ffd84a',text:'+'+n});}
+
+const powerKinds=[
+  {type:'missile',color:'#ff8a3d',label:'MISSILE'},
+  {type:'mega',color:'#ffe66d',label:'MEGA'},
+  {type:'laser',color:'#7df9ff',label:'LASER'},
+  {type:'shotgun',color:'#ff7df2',label:'SHOTGUN'},
+  {type:'homing',color:'#8dff7d',label:'HOMING'}
+];
+function maybeDropPower(x,y){
+  if(Math.random()<(0.16+Math.max(0,runeBonus('luck')-debuffPower('unlucky'))*.18)){const p=powerKinds[Math.floor(Math.random()*powerKinds.length)];powerUps.push({x:x-12,y:y-12,w:24,h:24,vy:115,type:p.type,color:p.color,label:p.label,spin:0});}
+}
+function activatePower(type){
+  if(type==='missile'){missileStrike();return;}
+  player.power=type;player.powerTimer= type==='mega'?8:9;
+  say(type==='mega'?'MEGA-SHOOTER! You are huge and hit harder!':type==='laser'?'LASER MODE! Hold Space to melt enemies!':type==='shotgun'?'SHOTGUN MODE! 5-shot cone spray!':'HOMING MODE! Fast seeking shots!');
+}
+function missileStrike(){
+  say('MISSILE STRIKE! Bomb dropped over the invasion!');
+  explode(W/2,145,'#ff8a3d',120);
+  for(const e of invaders){e.hp-=8;if(e.hp<=0){e.dead=true;coinGain(e.coin,e.x+e.w/2,e.y);maybeDropPower(e.x+e.w/2,e.y);}}
+  if(boss){boss.hp-=120;boss.shield=Math.max(0,boss.shield-80);if(boss.hp<=0){coinGain(150,boss.x+boss.w/2,boss.y);boss=null;}}
+  shake=18;
+}
+function nearestEnemy(x,y){
+  let best=null,bd=Infinity;const all=invaders.slice();if(boss)all.push(boss);
+  for(const e of all){const ex=e.x+e.w/2,ey=e.y+e.h/2,d=(ex-x)*(ex-x)+(ey-y)*(ey-y);if(d<bd){bd=d;best=e;}}
+  return best;
+}
+
+function chainHit(source,firstTarget,baseDmg){
+  if(!source.chain)return;
+  let jumps=3, last=firstTarget, used=new Set([firstTarget]);
+  while(jumps-->0){
+    let best=null,bd=130*130;
+    const lx=last.x+last.w/2, ly=last.y+last.h/2;
+    for(const e of invaders){
+      if(e.dead||used.has(e))continue;
+      const ex=e.x+e.w/2, ey=e.y+e.h/2, d=(ex-lx)*(ex-lx)+(ey-ly)*(ey-ly);
+      if(d<bd){bd=d;best=e;}
+    }
+    if(!best)break;
+    used.add(best);
+    best.hp-=baseDmg*.55;
+    particles.push({x:lx,y:ly,vx:0,vy:0,life:.18,color:'#7df9ff',text:'zap'});
+    explode(best.x+best.w/2,best.y+best.h/2,'#7df9ff',8);
+    if(best.hp<=0){best.dead=true;coinGain(best.coin,best.x+best.w/2,best.y);maybeDropPower(best.x+best.w/2,best.y);}
+    last=best;
+  }
+}
+function damageLaser(){
+  if(!laserBeam)return;
+  const beam={x:player.x+player.w/2-7,y:0,w:14,h:player.y};
+  const laserDmg=(0.30+player.gunLvl*.16)*(1+runeBonus('damage'));
+  for(const e of invaders){if(rects(beam,e)){e.hp-=laserDmg;if(e.hp<=0&&!e.dead){e.dead=true;coinGain(e.coin,e.x+e.w/2,e.y);maybeDropPower(e.x+e.w/2,e.y);explode(e.x+e.w/2,e.y,e.color,18);}}}
+  if(boss&&rects(beam,boss)){let dmg=(2.5+player.gunLvl*.55)*(1+runeBonus('damage'));if(boss.shield>0){const u=Math.min(boss.shield,dmg);boss.shield-=u;dmg-=u;}boss.hp-=dmg;if(boss.hp<=0){coinGain(150,boss.x+boss.w/2,boss.y);boss=null;}}
+}
+
+function buy(kind){if(gameOver)return;let cost=0;if(kind===1){cost=18+player.baseLvl*14;if(coins>=cost){coins-=cost;player.baseLvl++;for(const b of barriers){b.maxHp++;b.hp=b.maxHp;}say('Base tiles upgraded: tougher shields!');}else say(`Need ${cost} coins for base upgrade`);}if(kind===2){cost=25+player.gunLvl*22;if(coins>=cost){coins-=cost;player.gunLvl++;say('Gun upgraded: more damage and faster fire!');}else say(`Need ${cost} coins for gun upgrade`);}if(kind===3){cost=20+player.speedLvl*18;if(coins>=cost){coins-=cost;player.speedLvl++;player.speed+=55*(1+runeBonus('speed'));say('Ship speed upgraded!');}else say(`Need ${cost} coins for speed upgrade`);}updateHud();}
+function grantRune(){const keys=Object.keys(runeNames).filter(r=>runeLevels[r]<14);if(keys.length){const r=keys[Math.floor(Math.random()*keys.length)];runeLevels[r]++;say(`${runeNames[r]} rune upgraded to ${roman[runeLevels[r]]}!`);if(r==='hp')lives++;if(r==='speed')player.speed=440*(1+runeBonus('speed'))+(player.speedLvl-1)*55*(1+runeBonus('speed'));renderRunes();}}
+function damageBarrier(block,dmg=1){block.hp-=dmg;if(block.hp<=0){destroyedTiles.push({x:block.x,y:block.y,w:block.w,h:block.h});explode(block.x+6,block.y+6,'#8dffbd',5);}}
+function spawnFromTile(tile){const hp=scaledHp(2);invaders.push({x:tile.x-10,y:tile.y-18,w:30,h:22,hp,maxHp:hp,type:'Spawn',color:'#7dff7d',coin:4+Math.floor(wave/5),bullet:1.2,phase:Math.random()*10,vx:(Math.random()-.5)*40});explode(tile.x+5,tile.y+5,'#7dff7d',18);}
+
+function cursusSpawnMinions(count=3){
+  for(let i=0;i<count;i++){const hp=scaledHp(3);invaders.push({x:boss.x+30+Math.random()*(boss.w-60),y:boss.y+boss.h+8,w:32,h:23,hp,maxHp:hp,type:'Cursus Spawn',color:'#ff4fd8',coin:8+Math.floor(wave/4),bullet:1.35,phase:Math.random()*10,vx:(Math.random()-.5)*95});}
+  say('Cursus spawned cursed minions!');
+}
+function cursusSacrifice(){
+  if(!invaders.length)return;
+  const victims=invaders.sort((a,b)=>b.y-a.y).splice(0,Math.min(3,invaders.length));
+  let heal=0;for(const v of victims){v.dead=true;heal+=v.maxHp*0.8;explode(v.x+v.w/2,v.y+v.h/2,'#ff4fd8',22);} 
+  boss.hp=Math.min(boss.maxHp,boss.hp+heal);say('Cursus sacrificed minions for HP!');
+}
+function cursusDestroyPowerups(){
+  if(powerUps.length){for(const p of powerUps)explode(p.x+p.w/2,p.y+p.h/2,'#ff4fd8',12);powerUps=[];say('Cursus destroyed your power-ups!');}
+}
+function cursusStealGold(){const stolen=Math.min(coins,Math.max(8,Math.ceil(coins*.18)));coins-=stolen;particles.push({x:boss.x+boss.w/2,y:boss.y+20,vx:0,vy:-55,life:1,color:'#ffd84a',text:'-'+stolen+' gold'});say('Cursus stole gold!');}
+function cursusRandomDebuff(){const list=[['damageDown','Damage -25%',.25],['slow','Speed -25%',.25],['atkSlow','Attack speed -25%',.25],['unlucky','Luck -40%',.40],['fragile','Fragile: next hit hurts more',1]];const d=list[Math.floor(Math.random()*list.length)];debuffs.push({type:d[0],label:d[1],value:d[2],timer:7.5});say('Debuff: '+d[1]+' for 7.5s');}
+
+function playerShoot(){
+  const def=defenderTypes[player.defender]||defenderTypes.normal;
+  const mult=player.power==='mega'?3:1;
+  const dmg=player.gunLvl*mult*def.damage*(1+runeBonus('damage'))*(1-debuffPower('damageDown'));
+  if(player.power==='laser'){
+    laserBeam={life:.08};
+    laserTick=0;
+    player.cooldown=.075;
+    return;
+  }
+  if(player.power==='shotgun'){
+    for(let i=0;i<5;i++){const ang=(i-2)*0.22;playerBullets.push({x:player.x+player.w/2-4,y:player.y-13,w:7,h:17,vx:Math.sin(ang)*360,vy:-650*Math.cos(ang),dmg});}
+    player.cooldown=Math.max(.12,.30-player.gunLvl*.025)*def.cooldown/((1+runeBonus('atk'))*(1-debuffPower('atkSlow')));
+    return;
+  }
+  const shots=player.gunLvl>=4?3:player.gunLvl>=2?2:1;
+  for(let i=0;i<shots;i++){const off=(i-(shots-1)/2)*13;playerBullets.push({x:player.x+player.w/2-3+off,y:player.y-13,w:player.power==='mega'?10:6,h:player.power==='mega'?24:16,vx:0,vy:player.power==='homing'?-820:-650,dmg,homing:player.power==='homing',chain:def.chain});}
+  player.cooldown=Math.max(.07,.24-player.gunLvl*.026)*def.cooldown/((1+runeBonus('atk'))*(1-debuffPower('atkSlow')));
+}
+function update(dt){for(const s of stars){s.y+=s.v*dt;if(s.y>H){s.y=0;s.x=Math.random()*W;}} if(messageTimer>0)messageTimer-=dt;if(!gameStarted||gameOver)return;if(player.invuln>0)player.invuln-=dt;
+ if(player.powerTimer>0){player.powerTimer-=dt;if(player.powerTimer<=0){player.power=null;player.powerTimer=0;laserBeam=null;say('Power-up ended');}}
+ debuffs.forEach(d=>d.timer-=dt);debuffs=debuffs.filter(d=>d.timer>0);
+ for(const p of powerUps){p.y+=p.vy*dt;p.spin+=dt*6;if(rects(p,player)){activatePower(p.type);p.dead=true;explode(p.x+p.w/2,p.y+p.h/2,p.color,20);}}powerUps=powerUps.filter(p=>!p.dead&&p.y<H+40);
+ if(player.power==='laser'&&(keys.has(' ')||keys.has('Spacebar'))){laserBeam={life:.08};laserTick-=dt;if(laserTick<=0){damageLaser();laserTick=.08;}}else if(laserBeam){laserBeam.life-=dt;if(laserBeam.life<=0)laserBeam=null;}
+ const moveSpeed=player.speed*(1-debuffPower('slow'));if(keys.has('ArrowLeft')||keys.has('a'))player.x-=moveSpeed*dt;if(keys.has('ArrowRight')||keys.has('d'))player.x+=moveSpeed*dt;player.x=clamp(player.x,8,W-player.w-8);player.cooldown-=dt;if((keys.has(' ')||keys.has('Spacebar'))&&player.cooldown<=0)playerShoot();
+ for(const b of playerBullets){
+  if(b.homing){
+    const target=nearestEnemy(b.x+b.w/2,b.y);
+    if(target){
+      const tx=target.x+target.w/2;
+      const dx=tx-(b.x+b.w/2);
+      // Homing now steers sideways only. It never flips downward, so bullets keep flying up.
+      b.vx=(b.vx||0)*0.82+Math.max(-1,Math.min(1,dx/170))*720*0.18;
+      b.vx=Math.max(-520,Math.min(520,b.vx));
+      b.vy=-900;
+    }else{
+      b.vy=-900;
+    }
+  }
+  b.x+=(b.vx||0)*dt;
+  b.y+=b.vy*dt;
+}
+for(const b of enemyBullets)b.y+=b.vy*dt;playerBullets=playerBullets.filter(b=>b.y>-40&&b.x>-60&&b.x<W+60);enemyBullets=enemyBullets.filter(b=>b.y<H+40);
+ if(boss){boss.phase+=dt;boss.x+=Math.sin(boss.phase*(boss.kind==='cursus'?2.2:1.7))*(boss.kind==='cursus'?125:95)*dt;boss.y+=(boss.kind==='cursus'?4.5:6)*dt;boss.x=clamp(boss.x,25,W-boss.w-25);boss.shootTimer-=dt;if(boss.kind==='infector'){boss.convertTimer-=dt;boss.dropTimer-=dt;if(boss.convertTimer<=0){if(destroyedTiles.length){for(let k=0;k<Math.min(2,destroyedTiles.length);k++){const tile=destroyedTiles.splice(Math.floor(Math.random()*destroyedTiles.length),1)[0];spawnFromTile(tile);}say('Infector converted broken base tiles!');}boss.convertTimer=2.6;}if(boss.dropTimer<=0){const hp=scaledHp(3);invaders.push({x:boss.x+Math.random()*boss.w-15,y:boss.y+boss.h+10,w:30,h:22,hp,maxHp:hp,type:'Spawn',color:'#7dff7d',coin:5+Math.floor(wave/5),bullet:1.25,phase:Math.random()*10,vx:(Math.random()-.5)*75});boss.dropTimer=1.9;}if(boss.shootTimer<=0){for(let i=-2;i<=2;i++)enemyBullets.push({x:boss.x+boss.w/2+i*25,y:boss.y+boss.h,w:7,h:18,vy:280+Math.abs(i)*18,infect:true});boss.shootTimer=.52;}}else if(boss.kind==='cursus'){boss.spawnTimer-=dt;boss.sacTimer-=dt;boss.destroyTimer-=dt;boss.stealTimer-=dt;boss.debuffTimer-=dt;if(boss.spawnTimer<=0){cursusSpawnMinions(2+Math.floor(Math.random()*2));boss.spawnTimer=2.2;}if(boss.sacTimer<=0){cursusSacrifice();boss.sacTimer=6.0;}if(boss.destroyTimer<=0){cursusDestroyPowerups();boss.destroyTimer=3.8;}if(boss.stealTimer<=0){cursusStealGold();boss.stealTimer=6.4;}if(boss.debuffTimer<=0){cursusRandomDebuff();boss.debuffTimer=7.2;}if(boss.shootTimer<=0){for(let i=-3;i<=3;i++)enemyBullets.push({x:boss.x+boss.w/2+i*23,y:boss.y+boss.h,w:7,h:18,vy:310+Math.abs(i)*22,infect:i%2===0});boss.shootTimer=.44;}}if(boss.y+boss.h>player.y-22){gameOver=true;won=false;}}
+ if(invaders.length){let minX=Infinity,maxX=-Infinity;for(const e of invaders){minX=Math.min(minX,e.x);maxX=Math.max(maxX,e.x+e.w);}const stepDown=(minX<25&&fleetDir<0)||(maxX>W-25&&fleetDir>0);if(stepDown)fleetDir*=-1;for(const e of invaders){e.x+=(e.vx||fleetDir*fleetSpeed)*dt; e.y+=(10+wave*.9)*dt; if(!e.vx&&stepDown)e.y+=22;if(e.vx&&(e.x<15||e.x>W-45))e.vx*=-1;if(e.y+e.h>player.y-12){gameOver=true;won=false;}}}
+ enemyShootTimer-=dt;if(enemyShootTimer<=0&&invaders.length){const shooter=invaders[Math.floor(Math.random()*invaders.length)];enemyBullets.push({x:shooter.x+shooter.w/2-3,y:shooter.y+shooter.h,w:6,h:17,vy:(165+wave*9)*shooter.bullet});enemyShootTimer=Math.max(.55,1.35-wave*.018)*(Math.random()*.9+.65);} 
+ for(const bullet of playerBullets){if(bullet.dead)continue;if(boss&&rects(bullet,boss)){bullet.dead=true;let dmg=bullet.dmg;if(boss.shield>0){const used=Math.min(boss.shield,dmg);boss.shield-=used;dmg-=used;}boss.hp-=dmg*(boss.kind==='cursus'?2.2:3.1);explode(bullet.x,bullet.y,boss.kind==='cursus'?'#ff4fd8':'#baffff',4);if(boss.kind==='infector'&&boss.hp<=boss.nextShieldAt&&boss.hp>0){boss.shield+=135;boss.nextShieldAt-=220;say('Infector grew a shield! Break it!');}if(boss.hp<=0){coinGain(boss.kind==='cursus'?520:150,boss.x+boss.w/2,boss.y);explode(boss.x+boss.w/2,boss.y+boss.h/2,boss.kind==='cursus'?'#ff4fd8':'#6dff6d',100);boss=null;}continue;}for(const e of invaders){if(rects(bullet,e)){bullet.dead=true;e.hp-=bullet.dmg;explode(bullet.x,bullet.y,e.color,5);chainHit(bullet,e,bullet.dmg);if(e.hp<=0){e.dead=true;coinGain(e.coin,e.x+e.w/2,e.y);maybeDropPower(e.x+e.w/2,e.y);explode(e.x+e.w/2,e.y+e.h/2,e.color,18);}break;}}}
+ invaders=invaders.filter(e=>!e.dead);playerBullets=playerBullets.filter(b=>!b.dead);
+ for(const b of enemyBullets){if(!b.dead&&player.invuln<=0&&rects(b,playerHitbox())){b.dead=true;const fragile=debuffs.some(d=>d.type==='fragile');lives-=fragile?2:1;debuffs=debuffs.filter(d=>d.type!=='fragile');player.invuln=1.15;updateHud();explode(player.x+player.w/2,player.y+12,'#61ff7b',28);say(fragile?'Direct hit! Fragile made it hurt more!':'Direct hit!');player.x=W/2-player.w/2;if(lives<=0){gameOver=true;won=false;}}}
+ for(const bullet of [...playerBullets,...enemyBullets]){for(const block of barriers){if(!bullet.dead&&block.hp>0&&rects(bullet,block)){bullet.dead=true;damageBarrier(block,bullet.infect?2:1);}}}
+ barriers=barriers.filter(b=>b.hp>0);playerBullets=playerBullets.filter(b=>!b.dead);enemyBullets=enemyBullets.filter(b=>!b.dead);
+ if(!boss&&invaders.length===0){grantRune();wave++;if(wave>40){gameOver=true;won=true;}else{makeBarriers();makeInvaders();}}
+ for(const p of particles){if(!p.text){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=220*dt;}else{p.y+=p.vy*dt;}p.life-=dt;}particles=particles.filter(p=>p.life>0);shake=Math.max(0,shake-35*dt);updateHud();}
+function drawShip(){ctx.save();ctx.translate(player.x,player.y);if(player.power==='mega')ctx.scale(1.45,1.45);const def=defenderTypes[player.defender]||defenderTypes.normal;ctx.fillStyle=player.power==='mega'?'#ffe66d':def.color;ctx.shadowColor=def.color;ctx.shadowBlur=14;ctx.fillRect(7,12,42,12);ctx.fillRect(24,2,8,14);ctx.fillRect(0,18,12,6);ctx.fillRect(44,18,12,6);ctx.fillStyle='#e7fff0';ctx.fillRect(26,6,4,4);if(player.defender==='heavy'){ctx.fillStyle='#fff3a6';ctx.fillRect(20,-3,16,7);}if(player.defender==='chain'){ctx.strokeStyle='#baffff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(28,12,20,0,Math.PI*2);ctx.stroke();}ctx.restore();}
+function drawInvader(e,t){const bob=Math.sin(t*6+e.phase)*2;ctx.save();ctx.translate(e.x,e.y+bob);ctx.fillStyle=e.color;ctx.shadowColor=e.color;ctx.shadowBlur=11;ctx.fillRect(6,3,22,6);ctx.fillRect(2,9,30,8);ctx.fillRect(7,17,6,7);ctx.fillRect(21,17,6,7);ctx.fillStyle='#00111b';ctx.fillRect(9,10,4,4);ctx.fillRect(21,10,4,4);if(e.hp<e.maxHp){ctx.shadowBlur=0;ctx.fillStyle='#222';ctx.fillRect(0,-6,34,3);ctx.fillStyle='#fff';ctx.fillRect(0,-6,34*(e.hp/e.maxHp),3);}ctx.restore();}
+function drawBoss(){if(!boss)return;ctx.save();ctx.translate(boss.x,boss.y);const isC=boss.kind==='cursus';ctx.fillStyle=isC?'#ff4fd8':'#43ff6a';ctx.shadowColor=isC?'#ff4fd8':'#43ff6a';ctx.shadowBlur=24;if(isC){ctx.fillRect(22,18,196,46);ctx.fillRect(58,0,124,28);ctx.fillRect(0,56,52,28);ctx.fillRect(188,56,52,28);ctx.fillRect(104,62,32,34);}else{ctx.fillRect(12,20,156,40);ctx.fillRect(38,0,104,26);ctx.fillRect(0,52,42,25);ctx.fillRect(138,52,42,25);}ctx.fillStyle='#06140a';ctx.fillRect(isC?70:52,27,18,16);ctx.fillRect(isC?152:110,27,18,16);ctx.fillStyle=isC?'#ffe6fb':'#caffcf';ctx.font='900 16px system-ui';ctx.textAlign='center';ctx.fillText(isC?'CURSUS':'INFECTOR',boss.w/2,isC?52:50);ctx.shadowBlur=0;ctx.fillStyle='#222';ctx.fillRect(0,-16,boss.w,8);ctx.fillStyle=isC?'#ff7df2':'#63ff73';ctx.fillRect(0,-16,boss.w*Math.max(0,boss.hp/boss.maxHp),8);if(boss.shield>0){ctx.strokeStyle='#7de8ff';ctx.lineWidth=5;ctx.shadowColor='#7de8ff';ctx.shadowBlur=18;ctx.strokeRect(-8,-8,boss.w+16,boss.h+4);ctx.fillStyle='#7de8ff';ctx.fillText('SHIELD '+Math.ceil(boss.shield),boss.w/2,-24);}ctx.restore();}
+function drawTextScreen(title,subtitle){ctx.fillStyle='rgba(0,0,0,.68)';ctx.fillRect(0,0,W,H);ctx.textAlign='center';ctx.shadowColor='#00e5ff';ctx.shadowBlur=22;ctx.fillStyle='#fff';ctx.font='900 54px system-ui';ctx.fillText(title,W/2,H/2-42);ctx.shadowBlur=8;ctx.font='750 23px system-ui';ctx.fillText(subtitle,W/2,H/2+14);ctx.font='650 18px system-ui';ctx.fillText('Press R to restart',W/2,H/2+58);ctx.shadowBlur=0;}
+function draw(t){ctx.save();if(shake>0)ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);ctx.clearRect(0,0,W,H);ctx.fillStyle='white';for(const s of stars){ctx.globalAlpha=.35+Math.random()*.45;ctx.fillRect(s.x,s.y,s.s,s.s);}ctx.globalAlpha=1;ctx.strokeStyle='#0bb9ff44';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,H-38);ctx.lineTo(W,H-38);ctx.stroke();
+ for(const block of barriers){const pct=block.hp/block.maxHp;ctx.fillStyle=pct>.66?'#74ffaa':pct>.33?'#45d980':'#2c9f61';ctx.shadowColor='#74ffaa';ctx.shadowBlur=7;ctx.fillRect(block.x,block.y,block.w,block.h);}ctx.shadowBlur=0;for(const e of invaders)drawInvader(e,t/1000);drawBoss();for(const p of powerUps){ctx.save();ctx.translate(p.x+p.w/2,p.y+p.h/2);ctx.rotate(p.spin);ctx.fillStyle=p.color;ctx.shadowColor=p.color;ctx.shadowBlur=16;ctx.fillRect(-12,-12,24,24);ctx.fillStyle='#00111b';ctx.font='900 10px system-ui';ctx.textAlign='center';ctx.fillText(p.label[0],0,4);ctx.restore();}if(laserBeam){ctx.fillStyle='rgba(125,249,255,.45)';ctx.shadowColor='#7df9ff';ctx.shadowBlur=28;ctx.fillRect(player.x+player.w/2-7,0,14,player.y);ctx.fillStyle='#eaffff';ctx.fillRect(player.x+player.w/2-2,0,4,player.y);}drawShip();ctx.fillStyle='#baffff';ctx.shadowColor='#4affff';ctx.shadowBlur=12;for(const b of playerBullets)ctx.fillRect(b.x,b.y,b.w,b.h);ctx.fillStyle='#ff5757';ctx.shadowColor='#ff5757';for(const b of enemyBullets)ctx.fillRect(b.x,b.y,b.w,b.h);ctx.shadowBlur=0;
+ for(const p of particles){ctx.globalAlpha=Math.max(0,p.life*1.8);ctx.fillStyle=p.color;if(p.text){ctx.font='800 18px system-ui';ctx.textAlign='center';ctx.fillText(p.text,p.x,p.y);}else ctx.fillRect(p.x,p.y,4,4);}ctx.globalAlpha=1;ctx.restore();
+ ctx.textAlign='left';ctx.font='800 16px system-ui';ctx.fillStyle='#e9ffff';ctx.shadowColor='#00e5ff';ctx.shadowBlur=8;ctx.fillText(`Upgrade costs: [1] Base ${18+player.baseLvl*14}  [2] Gun ${25+player.gunLvl*22}  [3] Speed ${20+player.speedLvl*18}   Power drops: Missile / Mega / Laser / Shotgun / Homing   Enemy HP +16% each wave · Wave 40 Cursus · Runes · fixed direct-hit life loss`,18,28);if(messageTimer>0){ctx.textAlign='center';ctx.font='900 26px system-ui';ctx.fillStyle='#fff';ctx.fillText(message,W/2,60);}ctx.shadowBlur=0;if(gameOver)drawTextScreen(won?'YOU CLEARED THE INVASION!':'GAME OVER',won?`Final Score: ${score}`:`Score: ${score} · Wave ${wave}`);}
+function loop(now){const dt=Math.min(.033,(now-last)/1000);last=now;update(dt);draw(now);requestAnimationFrame(loop);} 
+function chooseDefender(type){selectedDefender=type;document.querySelectorAll('.card').forEach(c=>c.classList.toggle('selected',c.dataset.defender===type));}
+document.querySelectorAll('.card').forEach(c=>c.addEventListener('click',()=>chooseDefender(c.dataset.defender)));
+document.querySelectorAll('[data-tab]').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('active',x===t));document.getElementById('defenderPanel').classList.toggle('active',t.dataset.tab==='defender');document.getElementById('runePanel').classList.toggle('active',t.dataset.tab==='runes');renderRunes();}));
+function startGame(){menu.style.display='none';reset();}
+startBtn.addEventListener('click',startGame);
+addEventListener('keydown',e=>{keys.add(e.key);if(e.key===' ')e.preventDefault();if(!gameStarted){if(e.key==='1')chooseDefender('normal');if(e.key==='2')chooseDefender('heavy');if(e.key==='3')chooseDefender('chain');if(e.key==='Enter')startGame();return;}if(e.key.toLowerCase()==='r')reset();if(e.key==='1')buy(1);if(e.key==='2')buy(2);if(e.key==='3')buy(3);});addEventListener('keyup',e=>keys.delete(e.key));
+renderRunes();updateHud();requestAnimationFrame(loop);
+</script>
+</body>
+</html>
